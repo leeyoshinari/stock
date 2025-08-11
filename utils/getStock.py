@@ -12,7 +12,7 @@ import requests
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.exc import NoResultFound
-from settings import BATCH_SIZE, MAX_PRICE, THREAD_POOL_SIZE
+from settings import BATCH_SIZE, MAX_PRICE, THREAD_POOL_SIZE, BATCH_INTERVAL
 from utils.model import StockModelDo
 from utils.scheduler import scheduler
 from utils.database import Stock, Detail, Volumn
@@ -85,54 +85,59 @@ def getStockFromTencent():
             if res.status_code == 200:
                 res_list = res.text.split(';')
                 for s in res_list:
-                    stockDo = StockModelDo()
-                    if len(s) < 30:
-                        continue
-                    stockInfo = s.split('~')
-                    stockDo.name = stockInfo[1]
-                    stockDo.code = stockInfo[2]
-                    stockDo.current_price = float(stockInfo[3])
-                    stockDo.open_price = float(stockInfo[5])
-                    stockDo.volumn = int(stockInfo[6])
-                    stockDo.max_price = float(stockInfo[33])
-                    stockDo.min_price = float(stockInfo[34])
-                    stockDo.day = stockInfo[30][:8]
-                    logger.info(f"Tencent: {stockDo}")
                     try:
-                        stockInfo = Detail.get_one((stockDo.code, stockDo.day))
-                        Detail.update(stockInfo, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
-                    except NoResultFound:
-                        Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
+                        stockDo = StockModelDo()
+                        if len(s) < 30:
+                            continue
+                        stockInfo = s.split('~')
+                        stockDo.name = stockInfo[1]
+                        stockDo.code = stockInfo[2]
+                        stockDo.current_price = float(stockInfo[3])
+                        stockDo.open_price = float(stockInfo[5])
+                        stockDo.volumn = int(stockInfo[6])
+                        stockDo.max_price = float(stockInfo[33])
+                        stockDo.min_price = float(stockInfo[34])
+                        stockDo.day = stockInfo[30][:8]
+                        logger.info(f"Tencent: {stockDo}")
+                        try:
+                            stockInfo = Detail.get_one((stockDo.code, stockDo.day))
+                            Detail.update(stockInfo, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                                          max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
+                        except NoResultFound:
+                            Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                                          max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
                         now = datetime.now().time()
                         stop_time = datetime.strptime("15:00:00", "%H:%M:%S").time()
                         if now < stop_time:
                             date = normalizeHourAndMinute()
                             Volumn.create(code=stockDo.code, date=date, volumn=stockDo.volumn)
+                        set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
+                        if now > set_time:
+                            Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
+                            if stockDo.current_price > MAX_PRICE:
+                                try:
+                                    stockBase = Stock.get_one(stockDo.code)
+                                    Stock.update(stockBase, running=0)
+                                    logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格 {stockDo.current_price} 大于 {MAX_PRICE}, 忽略掉...")
+                                except:
+                                    logger.error(traceback.format_exc())
                     except:
+                        logger.error(f"Tencent - 数据解析保存失败, {stockDo.code} - {stockDo.name}")
+                        logger.error(traceback.format_exc())
                         error_list.append({stockDo.code: stockDo.name})
-                    now = datetime.now().time()
-                    set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
-                    if now > set_time:
-                        Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
-                        if stockDo.current_price > MAX_PRICE:
-                            try:
-                                stockBase = Stock.get_one(stockDo.code)
-                                Stock.update(stockBase, running=0)
-                                logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格 {stockDo.current_price} 大于 {MAX_PRICE}, 忽略掉...")
-                            except:
-                                logger.error(traceback.format_exc())
                 if len(error_list) > 0:
                     queryTask.put(error_list)
             else:
+                logger.error("Tencent - 请求未正常返回...")
                 queryTask.put(datas)
+            error_list = []
         except:
+            logger.error("Tencent - 出现异常......")
             logger.error(traceback.format_exc())
             queryTask.put(datas)
         finally:
             queryTask.task_done()
-        time.sleep(15)
+        time.sleep(BATCH_INTERVAL)
 
 
 def getStockFromXueQiu():
@@ -148,52 +153,57 @@ def getStockFromXueQiu():
             if res.status_code == 200:
                 res_json = json.loads(res.text)
                 for s in res_json['data']:
-                    stockDo = StockModelDo()
-                    code = s['symbol'][2:]
-                    stockDo.name = dataDict[code]
-                    stockDo.code = code
-                    stockDo.current_price = s['current']
-                    stockDo.open_price = s['open']
-                    stockDo.max_price = s['high']
-                    stockDo.min_price = s['low']
-                    stockDo.volumn = int(s['volume'] / 100)
-                    stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
-                    logger.info(f"XueQiu: {stockDo}")
                     try:
-                        stockInfo = Detail.get_one((stockDo.code, stockDo.day))
-                        Detail.update(stockInfo, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
-                    except NoResultFound:
-                        Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
+                        stockDo = StockModelDo()
+                        code = s['symbol'][2:]
+                        stockDo.name = dataDict[code]
+                        stockDo.code = code
+                        stockDo.current_price = s['current']
+                        stockDo.open_price = s['open']
+                        stockDo.max_price = s['high']
+                        stockDo.min_price = s['low']
+                        stockDo.volumn = int(s['volume'] / 100)
+                        stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
+                        logger.info(f"XueQiu: {stockDo}")
+                        try:
+                            stockInfo = Detail.get_one((stockDo.code, stockDo.day))
+                            Detail.update(stockInfo, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                                          max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
+                        except NoResultFound:
+                            Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                                          max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
                         now = datetime.now().time()
                         stop_time = datetime.strptime("15:00:00", "%H:%M:%S").time()
                         if now < stop_time:
                             date = normalizeHourAndMinute()
                             Volumn.create(code=stockDo.code, date=date, volumn=stockDo.volumn)
+                        set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
+                        if now > set_time:
+                            Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
+                            if stockDo.current_price > MAX_PRICE:
+                                try:
+                                    stockBase = Stock.get_one(stockDo.code)
+                                    Stock.update(stockBase, running=0)
+                                    logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格 {stockDo.current_price} 大于 {MAX_PRICE}, 忽略掉...")
+                                except:
+                                    logger.error(traceback.format_exc())
                     except:
+                        logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name}")
+                        logger.error(traceback.format_exc())
                         error_list.append({stockDo.code: stockDo.name})
-                    now = datetime.now().time()
-                    set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
-                    if now > set_time:
-                        Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
-                        if stockDo.current_price > MAX_PRICE:
-                            try:
-                                stockBase = Stock.get_one(stockDo.code)
-                                Stock.update(stockBase, running=0)
-                                logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格 {stockDo.current_price} 大于 {MAX_PRICE}, 忽略掉...")
-                            except:
-                                logger.error(traceback.format_exc())
                 if len(error_list) > 0:
                     queryTask.put(error_list)
             else:
+                logger.error("XueQiu - 请求未正常返回...")
                 queryTask.put(datas)
+            error_list = []
         except:
+            logger.error("XueQiu - 出现异常......")
             logger.error(traceback.format_exc())
             queryTask.put(datas)
         finally:
             queryTask.task_done()
-        time.sleep(15)
+        time.sleep(BATCH_INTERVAL)
 
 
 def getStockFromSina():
@@ -213,54 +223,59 @@ def getStockFromSina():
             if res.status_code == 200:
                 res_list = res.text.split(';')
                 for s in res_list:
-                    stockDo = StockModelDo()
-                    if len(s) < 30:
-                        continue
-                    stockInfo = s.split(',')
-                    stockDo.name = stockInfo[0].split('"')[-1]
-                    stockDo.code = stockInfo[0].split('=')[0].split('_')[-1][2:]
-                    stockDo.current_price = float(stockInfo[3])
-                    stockDo.open_price = float(stockInfo[1])
-                    stockDo.volumn = int(int(stockInfo[8]) / 100)
-                    stockDo.max_price = float(stockInfo[4])
-                    stockDo.min_price = float(stockInfo[5])
-                    stockDo.day = stockInfo[30].replace('-', '')
-                    logger.info(f"Sina: {stockDo}")
                     try:
-                        stockInfo = Detail.get_one((stockDo.code, stockDo.day))
-                        Detail.update(stockInfo, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
-                    except NoResultFound:
-                        Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
+                        stockDo = StockModelDo()
+                        if len(s) < 30:
+                            continue
+                        stockInfo = s.split(',')
+                        stockDo.name = stockInfo[0].split('"')[-1]
+                        stockDo.code = stockInfo[0].split('=')[0].split('_')[-1][2:]
+                        stockDo.current_price = float(stockInfo[3])
+                        stockDo.open_price = float(stockInfo[1])
+                        stockDo.volumn = int(int(stockInfo[8]) / 100)
+                        stockDo.max_price = float(stockInfo[4])
+                        stockDo.min_price = float(stockInfo[5])
+                        stockDo.day = stockInfo[30].replace('-', '')
+                        logger.info(f"Sina: {stockDo}")
+                        try:
+                            stockInfo = Detail.get_one((stockDo.code, stockDo.day))
+                            Detail.update(stockInfo, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                                          max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
+                        except NoResultFound:
+                            Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                                          max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
                         now = datetime.now().time()
                         stop_time = datetime.strptime("15:00:00", "%H:%M:%S").time()
                         if now < stop_time:
                             date = normalizeHourAndMinute()
                             Volumn.create(code=stockDo.code, date=date, volumn=stockDo.volumn)
+                        set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
+                        if now > set_time:
+                            Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
+                            if stockDo.current_price > MAX_PRICE:
+                                try:
+                                    stockBase = Stock.get_one(stockDo.code)
+                                    Stock.update(stockBase, running=0)
+                                    logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格 {stockDo.current_price} 大于 {MAX_PRICE}, 忽略掉...")
+                                except:
+                                    logger.error(traceback.format_exc())
                     except:
+                        logger.error(f"Sina - 数据解析保存失败, {stockDo.code} - {stockDo.name}")
+                        logger.error(traceback.format_exc())
                         error_list.append({stockDo.code: stockDo.name})
-                    now = datetime.now().time()
-                    set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
-                    if now > set_time:
-                        Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
-                        if stockDo.current_price > MAX_PRICE:
-                            try:
-                                stockBase = Stock.get_one(stockDo.code)
-                                Stock.update(stockBase, running=0)
-                                logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格 {stockDo.current_price} 大于 {MAX_PRICE}, 忽略掉...")
-                            except:
-                                logger.error(traceback.format_exc())
                 if len(error_list) > 0:
                     queryTask.put(error_list)
             else:
+                logger.error("Sina - 请求未正常返回...")
                 queryTask.put(datas)
+            error_list = []
         except:
+            logger.error("Sina - 出现异常......")
             logger.error(traceback.format_exc())
             queryTask.put(datas)
         finally:
             queryTask.task_done()
-        time.sleep(15)
+        time.sleep(BATCH_INTERVAL)
 
 
 async def setAllStock():
@@ -311,7 +326,6 @@ async def setAvailableStock():
             stockList = []
             stockInfo = Stock.query(running=1).all()
             for s in stockInfo:
-                logger.info(s)
                 stockList.append({s.code: s.name})
             random.shuffle(stockList)
             for i in range(0, len(stockList), BATCH_SIZE):
@@ -342,7 +356,7 @@ def checkTradeDay():
                 real_time = res_json['data'][0]['timestamp']
                 if time.strftime("%Y%m%d", time.localtime(real_time / 1000)) == current_day:
                     is_trade_day = True
-                    job = scheduler.add_job(setAvailableStock, "interval", minutes=10)
+                    job = scheduler.add_job(setAvailableStock, "interval", minutes=20, next_run_time=datetime.now())
                     running_job_id = job.id
                     logger.info(f"查询任务已启动, 任务id: {running_job_id}")
                     break
@@ -366,11 +380,10 @@ def stopTask():
         logger.info("查询任务不存在或已结束...")
 
 
-is_trade_day=True
 executor.submit(getStockFromTencent)
 executor.submit(getStockFromXueQiu)
 executor.submit(getStockFromSina)
 scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
 scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
-scheduler.add_job(setAvailableStock, 'cron', hour=22, minute=3, second=20)  # 必须在 16点后启动
-scheduler.add_job(setAllStock, 'cron', hour=21, minute=35, second=20)    # 更新股票信息
+scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)  # 必须在 16点后启动
+scheduler.add_job(setAllStock, 'cron', hour=22, minute=10, second=20)    # 更新股票信息
