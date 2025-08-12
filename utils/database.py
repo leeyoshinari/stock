@@ -218,3 +218,21 @@ class Volumn(Base, CRUDBaseVolumn):
     date = Column(String(4), nullable=False, comment="时间")
     volumn = Column(Integer, nullable=False, comment="成交量（股）")
     create_time = Column(DateTime, default=datetime.now)
+
+
+class Recommend(Base, CRUDBase):
+    __tablename__ = 'recommend'
+    __table_args__ = (
+        Index('idx_recommend_code', 'code'),
+        {'sqlite_autoincrement': True}
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(8), nullable=False, comment="股票代码")
+    name = Column(String(8), nullable=False, comment="股票名称")
+    recommend_price = Column(Float, nullable=False, comment="推荐时的价格")
+    last_one_price = Column(Float, nullable=False, comment="1天后的收盘价")
+    last_two_price = Column(Float, nullable=False, comment="2天后的收盘价")
+    rate = Column(Integer, nullable=False, comment="胜率, 0, 33, 67, 100")
+    create_time = Column(DateTime, default=datetime.now)
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)

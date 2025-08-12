@@ -1,21 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
-import sys
+
 import json
 import time
+import math
 import queue
-import signal
 import random
 import traceback
 import requests
-from datetime import datetime
+from typing import List
+from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy import desc, asc
 from settings import BATCH_SIZE, MAX_PRICE, THREAD_POOL_SIZE, BATCH_INTERVAL
 from utils.model import StockModelDo
 from utils.scheduler import scheduler
-from utils.database import Stock, Detail, Volumn
+from utils.database import Stock, Detail, Volumn, Recommend
 from utils.logging import logger
 
 
@@ -52,7 +54,7 @@ def getStockType(code: str) -> str:
         return ""
 
 
-def normalizeHourAndMinute():
+def normalizeHourAndMinute() -> str:
     local_time = time.localtime(time.time())
     hour = local_time.tm_hour
     minute = local_time.tm_min
@@ -70,6 +72,19 @@ def generateStockCode(data: dict) -> str:
     for r in list(data.keys()):
         s.append(f"{getStockRegion(r)}{r}")
     return ",".join(s)
+
+
+def linear_least_squares(x: List, y: List) -> float:
+    n = len(x)
+    sum_x = sum(x)
+    sum_y = sum(y)
+    sum_xy = sum(xi * yi for xi, yi in zip(x, y))
+    sum_x2 = sum(xi ** 2 for xi in x)
+    numerator = n * sum_xy - sum_x * sum_y
+    denominator = n * sum_x2 - sum_x ** 2
+    k = numerator / denominator
+    angle_deg = math.degrees(math.atan(k))
+    return angle_deg
 
 
 def getStockFromTencent():
@@ -333,7 +348,7 @@ async def setAvailableStock():
                 queryTask.put(d)
             logger.info("开始实时数据查询......")
             now = datetime.now().time()
-            stop_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
+            stop_time = datetime.strptime("16:30:00", "%H:%M:%S").time()
             if now > stop_time:
                 is_trade_day = False
         except:
@@ -350,13 +365,11 @@ def checkTradeDay():
             break
         try:
             current_day = time.strftime("%Y%m%d")
-            res = requests.get("https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol=SH600519", headers=headers)
+            res = requests.get("https://qt.gtimg.cn/q=sh600519", headers=headers)
             if res.status_code == 200:
-                res_json = json.loads(res.text)
-                real_time = res_json['data'][0]['timestamp']
-                if time.strftime("%Y%m%d", time.localtime(real_time / 1000)) == current_day:
+                if current_day in res.text:
                     is_trade_day = True
-                    job = scheduler.add_job(setAvailableStock, "interval", minutes=20, next_run_time=datetime.now())
+                    job = scheduler.add_job(setAvailableStock, "interval", minutes=20, run_date=datetime.now() + timedelta(minutes=1))
                     running_job_id = job.id
                     logger.info(f"查询任务已启动, 任务id: {running_job_id}")
                     break
@@ -364,9 +377,11 @@ def checkTradeDay():
                     is_trade_day = False
                     logger.info("未开市，跳过...")
                     break
+            else:
+                logger.error(f"获取 SH600519 数据异常，状态码: {res.status_code}")
         except:
             logger.error(traceback.format_exc())
-        time.sleep(1)
+        time.sleep(3)
 
 
 def stopTask():
@@ -378,6 +393,15 @@ def stopTask():
         logger.info("查询任务已停止...")
     else:
         logger.info("查询任务不存在或已结束...")
+
+
+async def calcRecommendStock():
+    try:
+        stocks = Stock.query(running=1).all()
+        for stock in stocks:
+            stockInfo = Detail.query(code=stock.code).order_by(asc(Detail.create_time)).all()
+    except:
+        logger.error(traceback.format_exc())
 
 
 executor.submit(getStockFromTencent)
