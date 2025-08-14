@@ -293,6 +293,14 @@ def getStockFromSina():
         time.sleep(BATCH_INTERVAL)
 
 
+def getStockFromSina():
+    while True:
+        try:
+            res = requests.get(f"https://q.stock.sohu.com/hisHq?code={}&start={}&end={}", headers=headers)
+            if res.status_code == 200:
+                res_json = json.loads(res.text)
+
+
 async def setAllStock():
     today = datetime.today()
     if today.weekday() < 5:
@@ -369,7 +377,7 @@ def checkTradeDay():
             if res.status_code == 200:
                 if current_day in res.text:
                     is_trade_day = True
-                    job = scheduler.add_job(setAvailableStock, "interval", minutes=20, run_date=datetime.now() + timedelta(minutes=1))
+                    job = scheduler.add_job(setAvailableStock, "interval", minutes=20, next_run_time=datetime.now() + timedelta(minutes=3))
                     running_job_id = job.id
                     logger.info(f"查询任务已启动, 任务id: {running_job_id}")
                     break
