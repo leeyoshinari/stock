@@ -91,7 +91,6 @@ def getStockFromTencent():
     while True:
         try:
             datas = queryTask.get()
-            logger.info(datas)
             if datas == 'end': break
             error_list = []
             dataDict = {k: v for d in datas for k, v in d.items()}
@@ -115,8 +114,8 @@ def getStockFromTencent():
                         stockDo.day = stockInfo[30][:8]
                         logger.info(f"Tencent: {stockDo}")
                         try:
-                            stockInfo = Detail.get_one((stockDo.code, stockDo.day))
-                            Detail.update(stockInfo, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                            stockObj = Detail.get_one((stockDo.code, stockDo.day))
+                            Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price,
                                           max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
                         except NoResultFound:
                             Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
@@ -159,7 +158,6 @@ def getStockFromXueQiu():
     while True:
         try:
             datas = queryTask.get()
-            logger.info(datas)
             if datas == 'end': break
             error_list = []
             dataDict = {k: v for d in datas for k, v in d.items()}
@@ -225,7 +223,6 @@ def getStockFromSina():
     while True:
         try:
             datas = queryTask.get()
-            logger.info(datas)
             if datas == 'end': break
             error_list = []
             dataDict = {k: v for d in datas for k, v in d.items()}
@@ -253,8 +250,8 @@ def getStockFromSina():
                         stockDo.day = stockInfo[30].replace('-', '')
                         logger.info(f"Sina: {stockDo}")
                         try:
-                            stockInfo = Detail.get_one((stockDo.code, stockDo.day))
-                            Detail.update(stockInfo, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                            stockObj = Detail.get_one((stockDo.code, stockDo.day))
+                            Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price,
                                           max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
                         except NoResultFound:
                             Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
@@ -293,12 +290,70 @@ def getStockFromSina():
         time.sleep(BATCH_INTERVAL)
 
 
-def getStockFromSina():
+def getStockFromSohu():
     while True:
         try:
-            res = requests.get(f"https://q.stock.sohu.com/hisHq?code={}&start={}&end={}", headers=headers)
+            datas = queryTask.get()
+            if datas == 'end': break
+            error_list = []
+            dataDict = {k: v for d in datas for k, v in d.items()}
+            s = []
+            for r in list(dataDict.keys()):
+                s.append(f"cn_{r}")
+            s_list = ",".join(s)
+            current_day = time.strftime("%Y%m%d")
+            res = requests.get(f"https://q.stock.sohu.com/hisHq?code={s_list}&start={current_day}&end={current_day}", headers=headers)
             if res.status_code == 200:
                 res_json = json.loads(res.text)
+                for d in res_json:
+                    try:
+                        stockDo = StockModelDo()
+                        if len(d["hq"]) == 0:
+                            continue
+                        code = d["code"].split("_")[-1]
+                        stockDo.name = dataDict[code]
+                        stockDo.code = code
+                        stockDo.current_price = float(d["hq"][0][2])
+                        stockDo.open_price = float(d["hq"][0][1])
+                        stockDo.volumn = int(d["hq"][0][7])
+                        stockDo.max_price = float(d["hq"][0][6])
+                        stockDo.min_price = float(d["hq"][0][5])
+                        stockDo.day = d["hq"][0][0].replace('-', '')
+                        logger.info(f"Sohu: {stockDo}")
+                        try:
+                            stockObj = Detail.get_one((stockDo.code, stockDo.day))
+                            Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                                          max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
+                        except NoResultFound:
+                            Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                                          max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn)
+                        now = datetime.now().time()
+                        stop_time = datetime.strptime("15:00:00", "%H:%M:%S").time()
+                        if now < stop_time:
+                            date = normalizeHourAndMinute()
+                            Volumn.create(code=stockDo.code, date=date, volumn=stockDo.volumn)
+                        set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
+                        if now > set_time:
+                            Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
+                            if stockDo.current_price > MAX_PRICE:
+                                try:
+                                    stockBase = Stock.get_one(stockDo.code)
+                                    Stock.update(stockBase, running=0)
+                                    logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格 {stockDo.current_price} 大于 {MAX_PRICE}, 忽略掉...")
+                                except:
+                                    logger.error(traceback.format_exc())
+                    except:
+                        logger.error(f"Sohu - 数据解析保存失败, {stockDo.code} - {stockDo.name}")
+                        logger.error(traceback.format_exc())
+                        error_list.append({stockDo.code: stockDo.name})
+                if len(error_list) > 0:
+                    queryTask.put(error_list)
+            else:
+                logger.error("Sohu - 请求未正常返回...")
+                queryTask.put(datas)
+            error_list = []
+        except:
+            logger.error(traceback.format_exc())
 
 
 async def setAllStock():
