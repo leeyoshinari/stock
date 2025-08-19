@@ -18,10 +18,16 @@ function getStockList(page, sortField) {
         .then(data => {
             let s = ""
             data.data.forEach(item => {
-                s += `<div><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${item.volumn}</div></div>`;
+                s += `<div id="${item.code}" class="item-list"><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${item.volumn}</div><div>${item.ma_three}</div>
+                      <div>${item.ma_five}</div><div>${item.ma_ten}</div><div>${item.ma_twenty}</div><div>${item.qrr}</div><div><a onclick="get_stock(${item.code});" target="">View</a></div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
         })
+}
+
+
+function get_stock(code) {
+    console.log(code);
 }
 
 getStockList(1, '');

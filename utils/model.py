@@ -23,7 +23,11 @@ class StockModelDo(BaseModel):
     max_price: float = None
     min_price: float = None
     volumn: int = None
-    # qrr: float = None
+    ma_three: float = None
+    ma_five: float = None
+    ma_ten: float = None
+    ma_twenty: float = None
+    qrr: float = None
 
     class Config:
         from_attributes = True

@@ -27,11 +27,11 @@ class StockController(Controller):
     tags = ['stock']
 
     @get("/list", summary="查询股票列表")
-    async def query_stock_list(self, code: str = "", name: str = "", sortField: str = 'volumn', page: int = 1, pageSize: int = 20) -> Result:
+    async def query_stock_list(self, code: str = "", name: str = "", sortField: str = 'qrr', page: int = 1, pageSize: int = 20) -> Result:
         query = model.SearchStockParam()
         query.code = code if code else ""
         query.name = name if name else ""
-        query.sortField = sortField if sortField else 'volumn'
+        query.sortField = sortField if sortField else 'qrr'
         query.pageSize = pageSize
         result = await views.queryStockList(query)
         return result
