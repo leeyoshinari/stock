@@ -48,7 +48,12 @@ async def queryByCode(code: str) -> Result:
 async def queryStockList(query: SearchStockParam) -> Result:
     result = Result()
     try:
-        day = time.strftime("%Y%m%d")
+        now = datetime.now().time()
+        start_time = datetime.strptime("09:39:00", "%H:%M:%S").time()
+        if now < start_time:
+            day = time.strftime("%Y%m%d", time.localtime(time.time() - 36000))
+        else:
+            day = time.strftime("%Y%m%d")
         if query.code:
             stockInfo = Detail.get_one((query.code, day))
             stockList = [StockModelDo.model_validate(stockInfo).model_dump()]
@@ -56,6 +61,7 @@ async def queryStockList(query: SearchStockParam) -> Result:
             stockInfo = Detail.filter_condition(equal_condition={"day": day}, like_condition={"name", query.name}).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
         else:
+            logger.info(query)
             offset = (query.page - 1) * query.pageSize
             total_num = Detail.query(day=day).count()
             stockInfo = Detail.query(day=day).order_by(desc(getattr(Detail, query.sortField))).offset(offset).limit(query.pageSize).all()

@@ -102,6 +102,21 @@ class CRUDBase:
             Database.close_session()
 
     @classmethod
+    def query_fields(cls, columns: list, **kwargs):
+        """
+        users = User.query(columns=['id', 'name'], name="Documents", is_delete=0).all()
+        """
+        session = Database.get_session()
+        try:
+            column_attrs = [getattr(cls, col) for col in columns]
+            query = session.query(*column_attrs)
+            return query.filter_by(**kwargs)
+        except:
+            raise
+        finally:
+            Database.close_session()
+
+    @classmethod
     def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None):
         """
         users = User.filter_condition(equal_condition={'status': 1, 'name': '222'}, not_equal_condition={'description': 'temp'})
@@ -203,6 +218,11 @@ class Detail(Base, CRUDBase):
     max_price = Column(Float, nullable=False, comment="最高价")
     min_price = Column(Float, nullable=False, comment="最低价")
     volumn = Column(Integer, nullable=False, comment="成交量（股）")
+    ma_three = Column(Float, nullable=True, comment="3日均线")
+    ma_five = Column(Float, nullable=True, comment="5日均线")
+    ma_ten = Column(Float, nullable=True, comment="10日均线")
+    ma_twenty = Column(Float, nullable=True, comment="20日均线")
+    qrr = Column(Float, nullable=True, comment="量比")
     create_time = Column(DateTime, default=datetime.now)
 
 

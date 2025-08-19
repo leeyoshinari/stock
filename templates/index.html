@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock</title>
+    <link rel="stylesheet" href="{{ prefix }}/static/index.css">
+    <script>
+        const prefix = "{{ prefix }}";
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <label>股票名：</label> <input type="text" id="stock-name" placeholder="">
+            </div>
+            <div>
+                <label>股票代码：</label> <input type="text" id="stock-code" placeholder="">
+            </div>
+            <div>
+                <button id="search">搜 索</button>
+            </div>
+        </div>
+        <div class="stock-list">
+            <div class="item-header">
+                <div>名称</div>
+                <div>代码</div>
+                <div>当前价</div>
+                <div>成交量</div>
+            </div>
+            <div class="list"></div>
+        </div>
+    </div>
+</body>
+<script src="{{ prefix }}/static/index.js"></script>
+</html>

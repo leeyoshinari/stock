@@ -36,7 +36,6 @@ def get_config(key):
 
 sync_with_dotenv()  # 更新配置
 load_dotenv()   # 加载配置
-FRONT_END_PREFIX = get_config("frontEndPrefix")
 PREFIX = get_config("backEndPrefix")
 HOST = get_config("host")
 PORT = int(get_config("port"))

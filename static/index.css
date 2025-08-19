@@ -1,0 +1,54 @@
+.container {
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 33px;
+}
+
+.header>div>input {
+    height: 28px;
+}
+
+.header>div>button {
+    height: 30px;
+    width: 88px;
+}
+
+.stock-list {
+    margin-top: 20px;
+}
+
+.item-header {
+    display: flex;
+    flex-direction: row;
+    height: 36px;
+    align-items: center;
+    font-weight: bold;
+}
+
+.item-header>div {
+    width: 120px;
+    text-align: center;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+}
+
+.list>div {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 36px;
+}
+
+.list>div>div {
+    width: 120px;
+    text-align: center;
+}

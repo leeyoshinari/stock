@@ -23,7 +23,10 @@ class StockModelDo(BaseModel):
     max_price: float = None
     min_price: float = None
     volumn: int = None
-    qrr: float = None
+    # qrr: float = None
+
+    class Config:
+        from_attributes = True
 
 
 class StockDetailData(BaseModel):   # 日期、开盘、收盘、最低、最高、成交量
