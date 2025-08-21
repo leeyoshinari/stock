@@ -17,6 +17,7 @@ from utils.database import Database
 from utils.results import Result
 from utils import model, views
 from utils.getStock import queryTask
+# from utils.initData import queryTask
 
 
 Database.init_db()  # 初始化数据库
@@ -32,6 +33,7 @@ class StockController(Controller):
         query.code = code if code else ""
         query.name = name if name else ""
         query.sortField = sortField if sortField else 'qrr'
+        query.page = page
         query.pageSize = pageSize
         result = await views.queryStockList(query)
         return result
@@ -39,6 +41,11 @@ class StockController(Controller):
     @get('/get', summary="查询股票信息")
     async def create_file(self, code: str) -> Result:
         result = await views.queryByCode(code)
+        return result
+
+    @get('/test')
+    async def test(self) -> Result:
+        result = await views.test()
         return result
 
 

@@ -196,7 +196,6 @@ class Stock(Base, CRUDBase):
 
     code = Column(String(8), primary_key=True, comment="股票代码")
     name = Column(String(8), nullable=False, comment="股票名称")
-    kind = Column(String(8), nullable=False, comment="类别, 沪、深、创业板、科创板、港")
     running = Column(Integer, default=1, nullable=False, comment="0-不获取数据，1-获取数据")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)

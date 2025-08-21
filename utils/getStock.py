@@ -112,7 +112,10 @@ def getStockFromTencent():
                         stockDo.code = stockInfo[2]
                         stockDo.current_price = float(stockInfo[3])
                         stockDo.open_price = float(stockInfo[5])
-                        stockDo.volumn = int(stockInfo[6])
+                        if int(stockInfo[6]) < 2:
+                            logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                            continue
+                        stockDo.volumn = int(int(stockInfo[6]) / 100)
                         stockDo.max_price = float(stockInfo[33])
                         stockDo.min_price = float(stockInfo[34])
                         stockDo.day = stockInfo[30][:8]
@@ -158,6 +161,9 @@ def getStockFromXueQiu():
                         stockDo.open_price = s['open']
                         stockDo.max_price = s['high']
                         stockDo.min_price = s['low']
+                        if not s['volume'] or s['volume'] < 2:
+                            logger.info(f"XueQiu - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                            continue
                         stockDo.volumn = int(s['volume'] / 100)
                         stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
                         saveStockInfo(stockDo)
@@ -206,6 +212,9 @@ def getStockFromSina():
                         stockDo.code = stockInfo[0].split('=')[0].split('_')[-1][2:]
                         stockDo.current_price = float(stockInfo[3])
                         stockDo.open_price = float(stockInfo[1])
+                        if int(stockInfo[8]) < 2:
+                            logger.info(f"Sina - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                            continue
                         stockDo.volumn = int(int(stockInfo[8]) / 100)
                         stockDo.max_price = float(stockInfo[4])
                         stockDo.min_price = float(stockInfo[5])
@@ -224,56 +233,6 @@ def getStockFromSina():
             error_list = []
         except:
             logger.error("Sina - 出现异常......")
-            logger.error(traceback.format_exc())
-            queryTask.put(datas)
-        finally:
-            queryTask.task_done()
-        time.sleep(BATCH_INTERVAL)
-
-
-def getStockFromSohu():
-    while True:
-        try:
-            datas = queryTask.get()
-            if datas == 'end': break
-            error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items()}
-            s = []
-            for r in list(dataDict.keys()):
-                s.append(f"cn_{r}")
-            s_list = ",".join(s)
-            current_day = time.strftime("%Y%m%d")
-            res = requests.get(f"https://q.stock.sohu.com/hisHq?code={s_list}&start={current_day}&end={current_day}", headers=headers)
-            if res.status_code == 200:
-                res_json = json.loads(res.text)
-                for d in res_json:
-                    try:
-                        stockDo = StockModelDo()
-                        if len(d["hq"]) == 0:
-                            continue
-                        code = d["code"].split("_")[-1]
-                        stockDo.name = dataDict[code]
-                        stockDo.code = code
-                        stockDo.current_price = float(d["hq"][0][2])
-                        stockDo.open_price = float(d["hq"][0][1])
-                        stockDo.volumn = int(d["hq"][0][7])
-                        stockDo.max_price = float(d["hq"][0][6])
-                        stockDo.min_price = float(d["hq"][0][5])
-                        stockDo.day = d["hq"][0][0].replace('-', '')
-                        saveStockInfo(stockDo)
-                        logger.info(f"Sohu: {stockDo}")
-                    except:
-                        logger.error(f"Sohu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {d}")
-                        logger.error(traceback.format_exc())
-                        error_list.append({stockDo.code: stockDo.name})
-                if len(error_list) > 0:
-                    queryTask.put(error_list)
-            else:
-                logger.error("Sohu - 请求未正常返回...")
-                queryTask.put(datas)
-            error_list = []
-        except:
-            logger.error("Sohu - 出现异常......")
             logger.error(traceback.format_exc())
             queryTask.put(datas)
         finally:
@@ -341,7 +300,7 @@ async def setAllStock():
                             is_running = 0
                         else:
                             is_running = 1
-                        Stock.create(code=code, name=name, kind=getStockType(code), running=is_running)
+                        Stock.create(code=code, name=name, running=is_running)
                         logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
                     except:
                         logger.error(traceback.format_exc())
@@ -421,19 +380,18 @@ def stopTask():
         logger.info("查询任务不存在或已结束...")
 
 
-async def calcRecommendStock():
-    try:
-        stocks = Stock.query(running=1).all()
-        for stock in stocks:
-            stockInfo = Detail.query(code=stock.code).order_by(asc(Detail.create_time)).all()
-    except:
-        logger.error(traceback.format_exc())
+# async def calcRecommendStock():
+#     try:
+#         stocks = Stock.query(running=1).all()
+#         for stock in stocks:
+#             stockInfo = Detail.query(code=stock.code).order_by(asc(Detail.create_time)).all()
+#     except:
+#         logger.error(traceback.format_exc())
 
 
 executor.submit(getStockFromTencent)
 executor.submit(getStockFromXueQiu)
 executor.submit(getStockFromSina)
-executor.submit(getStockFromSohu)
 scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
 scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
 scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)  # 必须在 16点后启动

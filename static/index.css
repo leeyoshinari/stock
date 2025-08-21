@@ -1,5 +1,5 @@
 .container {
-    width: 100%;
+    max-width: 1200px;
 }
 
 .header {
@@ -16,6 +16,7 @@
 .header>div>button {
     height: 30px;
     width: 88px;
+    cursor: pointer;
 }
 
 .stock-list {
@@ -31,7 +32,7 @@
 }
 
 .item-header>div {
-    width: 120px;
+    width: 10%;
     text-align: center;
 }
 
@@ -47,7 +48,22 @@
     height: 36px;
 }
 
+.list>div:hover {
+    background-color: #ffeaa7 !important;
+    transform: scale(1.01);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
 .list>div>div {
-    width: 120px;
+    width: 10%;
     text-align: center;
+}
+
+.list>div>div>button {
+    border: unset;
+    background-color: unset;
+    color: blue;
+    height: 30px;
+    cursor: pointer;
+    font-size: medium;
 }

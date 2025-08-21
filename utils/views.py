@@ -49,7 +49,7 @@ async def queryStockList(query: SearchStockParam) -> Result:
     result = Result()
     try:
         now = datetime.now().time()
-        start_time = datetime.strptime("09:39:00", "%H:%M:%S").time()
+        start_time = datetime.strptime("09:32:00", "%H:%M:%S").time()
         if now < start_time:
             day = time.strftime("%Y%m%d", time.localtime(time.time() - 36000))
         else:
@@ -58,7 +58,7 @@ async def queryStockList(query: SearchStockParam) -> Result:
             stockInfo = Detail.get_one((query.code, day))
             stockList = [StockModelDo.model_validate(stockInfo).model_dump()]
         elif query.name:
-            stockInfo = Detail.filter_condition(equal_condition={"day": day}, like_condition={"name", query.name}).all()
+            stockInfo = Detail.filter_condition(equal_condition={"day": day}, like_condition={"name": query.name}).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
         else:
             logger.info(query)
@@ -96,4 +96,12 @@ async def queryStockRetailQrr(codeList: List) -> Result:
         logger.error(traceback.format_exc())
         result.success = False
         result.msg = e
+    return result
+
+
+async def test() -> Result:
+    result = Result()
+    stock_volumn_obj = Detail.query_fields(columns=['volumn'], code='688045').order_by(desc(Detail.day)).all()
+    stock_volumn = [r[0] for r in stock_volumn_obj]
+    result.data = stock_volumn
     return result
