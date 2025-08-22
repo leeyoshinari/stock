@@ -135,7 +135,6 @@ def getStockFromTencent():
             queryTask.put(datas)
         finally:
             queryTask.task_done()
-        time.sleep(BATCH_INTERVAL)
 
 
 def getStockFromXueQiu():
@@ -182,7 +181,6 @@ def getStockFromXueQiu():
             queryTask.put(datas)
         finally:
             queryTask.task_done()
-        time.sleep(BATCH_INTERVAL)
 
 
 def getStockFromSina():
@@ -235,7 +233,6 @@ def getStockFromSina():
             queryTask.put(datas)
         finally:
             queryTask.task_done()
-        time.sleep(BATCH_INTERVAL)
 
 
 def saveStockInfo(stockDo: StockModelDo):
@@ -319,16 +316,23 @@ async def setAvailableStock():
         logger.info("不在交易时间...")
     else:
         try:
-            stockList = []
-            stockInfo = Stock.query(running=1).all()
-            for s in stockInfo:
-                stockList.append({s.code: s.name})
-            random.shuffle(stockList)
-            for i in range(0, len(stockList), BATCH_SIZE):
-                d = stockList[i: i + BATCH_SIZE]
-                queryTask.put(d)
-                time.sleep(2)
-            logger.info("开始实时数据查询......")
+            total_cnt = Stock.query(running=1).count()
+            total_batch = (total_cnt + BATCH_SIZE - 1) / BATCH_SIZE
+            one_batch_size = int(BATCH_SIZE / THREAD_POOL_SIZE)
+            page = 0
+            while page < total_batch:
+                offset = page * BATCH_SIZE
+                stockList = []
+                stockInfo = Stock.query(running=1).order_by(asc(Stock.create_time)).offset(offset).limit(BATCH_SIZE).all()
+                for s in stockInfo:
+                    stockList.append({s.code: s.name})
+                for i in range(0, len(stockList), one_batch_size):
+                    d = stockList[i: i + one_batch_size]
+                    queryTask.put(d)
+                    time.sleep(2)
+                page += 1
+                logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次...")
+                time.sleep(BATCH_INTERVAL)
             now = datetime.now().time()
             stop_time = datetime.strptime("16:30:00", "%H:%M:%S").time()
             if now > stop_time:

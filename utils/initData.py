@@ -83,7 +83,6 @@ def getStockFromSohu():
             queryTask.put(datas)
         finally:
             queryTask.task_done()
-        time.sleep(10)
 
 
 def saveStockInfo(stockDo: StockModelDo):
@@ -110,15 +109,19 @@ def saveStockInfo(stockDo: StockModelDo):
 
 async def setAvailableStock():
     try:
-        stockList = []
-        stockInfo = Stock.query(running=1).all()
-        for s in stockInfo:
-            stockList.append({s.code: s.name})
-        random.shuffle(stockList)
-        for i in range(0, len(stockList), BATCH_SIZE):
-            d = stockList[i: i + BATCH_SIZE]
-            queryTask.put(d)
-            time.sleep(2)
+        total_cnt = Stock.query(running=1).count()
+        total_batch = (total_cnt + BATCH_SIZE - 1) / BATCH_SIZE
+        page = 0
+        while page < total_batch:
+            offset = page * BATCH_SIZE
+            stockList = []
+            stockInfo = Stock.query(running=1).order_by(asc(Stock.create_time)).offset(offset).limit(BATCH_SIZE).all()
+            for s in stockInfo:
+                stockList.append({s.code: s.name})
+            queryTask.put(stockList)
+            page += 1
+            logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次...")
+            time.sleep(5)
         queryTask.put("end")
     except:
         logger.error(traceback.format_exc())
