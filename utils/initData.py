@@ -31,26 +31,6 @@ def calc_MA(data: List, window: int) -> float:
     return round(sum(data[-window:]) / window, 2)
 
 
-async def setAllStock():
-    try:
-        res = requests.get("https://api.mairui.club/hslt/list/b997d4403688d5e66a", headers=headers)
-        if res.status_code == 200:
-            res_json = json.loads(res.text)
-            for r in res_json:
-                code = r['dm'].split('.')[0]
-                name = r['mc']
-                try:
-                    Stock.create(code=code, name=name, running=1)
-                    logger.info(f"股票 {name} - {code} 添加成功 ...")
-                except:
-                    logger.error(traceback.format_exc())
-        else:
-            logger.error('数据初始化异常')
-    except:
-        logger.error(traceback.format_exc())
-        logger.error("数据初始化异常...")
-
-
 def getStockFromSohu():
     start_time = datetime.now() - timedelta(days=60)
     start_date = start_time.strftime("%Y%m%d")
@@ -103,7 +83,7 @@ def getStockFromSohu():
             queryTask.put(datas)
         finally:
             queryTask.task_done()
-        time.sleep(5)
+        time.sleep(10)
 
 
 def saveStockInfo(stockDo: StockModelDo):
@@ -145,5 +125,4 @@ async def setAvailableStock():
 
 
 executor.submit(getStockFromSohu)
-scheduler.add_job(setAllStock, 'cron', hour=22, minute=10, second=20) 
 scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)

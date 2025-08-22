@@ -13,11 +13,6 @@ from utils.results import Result
 from utils.database import Stock, Detail, Volumn
 
 
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-}
-
-
 def normalizeHourAndMinute():
     local_time = time.localtime(time.time())
     hour = local_time.tm_hour
@@ -34,8 +29,17 @@ def normalizeHourAndMinute():
 async def queryByCode(code: str) -> Result:
     result = Result()
     try:
-        stockInfo = Detail.query(code=code).order_by(Detail.create_time).all()
-        result.data = [[getattr(row, k) for k in ['day', 'open_price', 'current_price', 'min_price', 'max_price', 'volumn']] for row in stockInfo]
+        stockInfo = Detail.query(code=code).order_by(asc(Detail.create_time)).all()
+        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn']] for row in stockInfo]
+        result.data = {
+            'x': [getattr(row, 'day') for row in stockInfo],
+            'price': data,
+            'volumn': [[index, d[-1], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
+            'ma_three': [getattr(row, 'ma_three') for row in stockInfo],
+            'ma_five': [getattr(row, 'ma_five') for row in stockInfo],
+            'ma_ten': [getattr(row, 'ma_ten') for row in stockInfo],
+            'ma_twenty': [getattr(row, 'ma_twenty') for row in stockInfo]
+        }
         result.total = len(result.data)
         logger.info(f"查询信息成功, 代码: {code}")
     except Exception as e:

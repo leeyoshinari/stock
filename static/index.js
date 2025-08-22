@@ -47,9 +47,40 @@ function getStockList(sortField) {
 }
 
 
-function get_stock(code) {
-    console.log(code);
+function get_stock_figure(code) {
+    fetch(prefix + `/get?code=${code}`)
+        .then(res => res.json)
+        .then(data => {
+            if (data.success) {
+                document.getElementById("figure").removeAttr("_echarts_instance_").empty();
+                let figure = document.getElementById("figure");
+                let stockChart = echarts.init(figure);
+            }
+        })
 }
+
+
+function splitData(rawData) {
+    let categoryData = [];
+    let values = [];
+    let volumes = [];
+    let ma3 = [];
+    let ma5 = [];
+    let ma10 = [];
+    let ma20 = [];
+    for (let i = 0; i < rawData.length; i++) {
+        categoryData.push(rawData[i].splice(0, 1)[0]);
+        values.push(rawData[i]);
+        volumes.push([i, rawData[i][4], rawData[i][0] > rawData[i][1] ? 1 : -1]);
+    }
+    return {
+        categoryData: categoryData,
+        values: values,
+        volumes: volumes,
+        ma3
+    };
+}
+
 
 document.getElementById("pre-page").disabled = 'true';
 getStockList('');

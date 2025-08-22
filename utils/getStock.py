@@ -39,19 +39,17 @@ def getStockRegion(code: str) -> str:
         return ""
 
 
-def getStockType(code: str) -> str:
+def getStockType(code: str) -> int:
     if code.startswith("60"):
-        return "沪市主板"
+        return 1
     elif code.startswith("00"):
-        return "深市主板"
+        return 1
     elif code.startswith("68"):
-        return "科创板"
+        return 0
     elif code.startswith("30"):
-        return "创业板"
-    elif code.startswith("8"):
-        return "北交所"
+        return 1
     else:
-        return ""
+        return 0
 
 
 def normalizeHourAndMinute() -> str:
@@ -296,10 +294,9 @@ async def setAllStock():
                             Stock.update(s, running=1)
                             logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
                     except NoResultFound:
+                        is_running = getStockType(code)
                         if 'ST' in name.upper():
                             is_running = 0
-                        else:
-                            is_running = 1
                         Stock.create(code=code, name=name, running=is_running)
                         logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
                     except:
