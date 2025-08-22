@@ -56,7 +56,7 @@ def getStockFromSohu():
                         stockDo.name = dataDict[code]
                         stockDo.code = code
                         history_list = d["hq"]
-                        history_list_sorted = sorted(history_list, key=lambda x: datetime.strftime(x[0], "%Y-%m-%d"))
+                        history_list_sorted = sorted(history_list, key=lambda x: x[0])
                         for r in history_list_sorted:
                             stockDo.day = r[0].replace('-', '')
                             try:
