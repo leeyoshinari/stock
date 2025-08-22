@@ -272,11 +272,11 @@ def saveStockInfo(stockDo: StockModelDo):
                 logger.error(traceback.format_exc())
 
 
-async def setAllStock():
+def setAllStock():
     today = datetime.today()
-    if today.weekday() < 5:
+    if today.weekday() >= 5:
         try:
-            res = requests.get("https://api.mairui.club/hslt/list/b997d4403688d5e66a", headers=headers)
+            res = requests.get("https://api.mairui.club/hslt/list/b997d4403688d5e66a", headers=headers, timeout=30)
             if res.status_code == 200:
                 res_json = json.loads(res.text)
                 for r in res_json:
@@ -305,7 +305,7 @@ async def setAllStock():
             logger.error("数据更新异常...")
 
 
-async def setAvailableStock():
+def setAvailableStock():
     global is_trade_day
     now = datetime.now().time()
     start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
@@ -396,4 +396,4 @@ executor.submit(getStockFromSina)
 scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
 scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
 scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)  # 必须在 16点后启动
-scheduler.add_job(setAllStock, 'cron', hour=22, minute=10, second=20)    # 更新股票信息
+scheduler.add_job(setAllStock, 'cron', hour=7, minute=54, second=20)    # 更新股票信息

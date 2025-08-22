@@ -2,24 +2,26 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import os
 import json
 import time
 import queue
-import random
 import traceback
 import requests
 from typing import List
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy import desc, asc
-from settings import MAX_PRICE
+from utils.database import Database
 from utils.model import StockModelDo
 from utils.scheduler import scheduler
 from utils.database import Stock, Detail
 from utils.logging import logger
 
 
+MAX_PRICE = 500
 BATCH_SIZE = 5
+Database.init_db()
 queryTask = queue.Queue()
 executor = ThreadPoolExecutor(1)
 headers = {
@@ -43,6 +45,7 @@ def getStockFromSohu():
             s = []
             for r in list(dataDict.keys()):
                 s.append(f"cn_{r}")
+            if (len(s) == 0): continue
             s_list = ",".join(s)
             res = requests.get(f"https://q.stock.sohu.com/hisHq?code={s_list}&start={start_date}&end={current_day}", headers=headers)
             if res.status_code == 200:
@@ -107,25 +110,34 @@ def saveStockInfo(stockDo: StockModelDo):
                 logger.error(traceback.format_exc())
 
 
-async def setAvailableStock():
+def setAvailableStock():
     try:
         total_cnt = Stock.query(running=1).count()
-        total_batch = (total_cnt + BATCH_SIZE - 1) / BATCH_SIZE
+        total_batch = int((total_cnt + BATCH_SIZE - 1) / BATCH_SIZE)
         page = 0
         while page < total_batch:
             offset = page * BATCH_SIZE
             stockList = []
             stockInfo = Stock.query(running=1).order_by(asc(Stock.create_time)).offset(offset).limit(BATCH_SIZE).all()
             for s in stockInfo:
+                logger.info(s)
                 stockList.append({s.code: s.name})
-            queryTask.put(stockList)
+            if (stockList):
+                queryTask.put(stockList)
             page += 1
             logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次...")
-            time.sleep(5)
+            time.sleep(15)
         queryTask.put("end")
     except:
         logger.error(traceback.format_exc())
 
 
-executor.submit(getStockFromSohu)
-scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)
+if __name__ == '__main__':
+    s = executor.submit(getStockFromSohu)
+    scheduler.add_job(setAvailableStock, 'cron', hour=7, minute=55, second=20)
+    time.sleep(2)
+    scheduler.start()
+    PID = os.getpid()
+    with open('pid', 'w', encoding='utf-8') as f:
+        f.write(str(PID))
+    wait([s])

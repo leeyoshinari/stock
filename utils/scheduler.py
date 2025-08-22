@@ -3,10 +3,11 @@
 # Author: leeyoshinari
 
 import datetime
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+# from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 
 
-scheduler = AsyncIOScheduler()
+scheduler = BackgroundScheduler()
 
 
 def get_schedule_time(hour: int = 5, minute: int = 20, second: int = 20):

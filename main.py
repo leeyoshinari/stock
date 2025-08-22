@@ -62,9 +62,9 @@ async def lifespan(app: Litestar):
     scheduler.start()
     yield
     scheduler.shutdown()
-    for i in range(THREAD_POOL_SIZE):
-        queryTask.put("end")
-    time.sleep(2)
+    # for i in range(THREAD_POOL_SIZE):
+    #     queryTask.put("end")
+    # time.sleep(2)
 
 render_file = SwaggerRenderPlugin(js_url=f'{PREFIX}/static/swagger-ui-bundle.js', css_url=f'{PREFIX}/static/swagger-ui.css', standalone_preset_js_url=f'{PREFIX}/static/swagger-ui-standalone-preset.js')
 openapi_config = OpenAPIConfig(title="WinHub", version="1.0", description="This is API of WinHub.", path=PREFIX + "/schema", render_plugins=[render_file])
