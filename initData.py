@@ -96,7 +96,7 @@ def saveStockInfo(stockDo: StockModelDo):
                   max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_three=calc_MA(stock_price, 3),
                   ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20))
     if len(stock_price) > 4:
-        stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(desc(Detail.day)).all()
+        stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(asc(Detail.day)).all()
         stock_volumn = [r[0] for r in stock_volumn_obj]
         average_volumn = sum(stock_volumn[-4: -1]) / 3
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
@@ -120,7 +120,6 @@ def setAvailableStock():
             stockList = []
             stockInfo = Stock.query(running=1).order_by(asc(Stock.create_time)).offset(offset).limit(BATCH_SIZE).all()
             for s in stockInfo:
-                logger.info(s)
                 stockList.append({s.code: s.name})
             if (stockList):
                 queryTask.put(stockList)

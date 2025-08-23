@@ -6,7 +6,6 @@ import json
 import time
 import math
 import queue
-import random
 import traceback
 import requests
 from typing import List
@@ -17,7 +16,7 @@ from sqlalchemy import desc, asc
 from settings import BATCH_SIZE, MAX_PRICE, THREAD_POOL_SIZE, BATCH_INTERVAL
 from utils.model import StockModelDo
 from utils.scheduler import scheduler
-from utils.database import Stock, Detail, Volumn, Recommend
+from utils.database import Stock, Detail, Volumn, Recommend, Tools
 from utils.logging import logger
 
 
@@ -274,7 +273,7 @@ def saveStockInfo(stockDo: StockModelDo):
 
 def setAllStock():
     today = datetime.today()
-    if today.weekday() >= 5:
+    if today.weekday() < 5:
         try:
             res = requests.get("https://api.mairui.club/hslt/list/b997d4403688d5e66a", headers=headers, timeout=30)
             if res.status_code == 200:
@@ -351,17 +350,30 @@ def checkTradeDay():
             break
         try:
             current_day = time.strftime("%Y%m%d")
-            res = requests.get("https://qt.gtimg.cn/q=sh600519", headers=headers)
+            res = requests.get("https://qt.gtimg.cn/q=sh600519,sz000001", headers=headers)
             if res.status_code == 200:
                 if current_day in res.text:
-                    is_trade_day = True
-                    job = scheduler.add_job(setAvailableStock, "interval", minutes=20, next_run_time=datetime.now() + timedelta(minutes=3))
-                    running_job_id = job.id
-                    logger.info(f"查询任务已启动, 任务id: {running_job_id}")
-                    break
+                    res_list = res.text.split(';')
+                    v1 = res_list[0].split('~')[6]
+                    v2 = res_list[1].split('~')[6]
+                    if int(v1) > 2 or int(v2) > 2:
+                        is_trade_day = True
+                        job = scheduler.add_job(setAvailableStock, "interval", minutes=20, next_run_time=datetime.now() + timedelta(minutes=3))
+                        running_job_id = job.id
+                        try:
+                            tool = Tools.get_one("openDoor")
+                            Tools.update(tool, value=current_day)
+                        except NoResultFound:
+                            Tools.create(key="openDoor", value=current_day)
+                        logger.info(f"查询任务已启动, 任务id: {running_job_id}")
+                        break
+                    else:
+                        is_trade_day = False
+                        logger.info("未开市, 跳过1...")
+                        break
                 else:
                     is_trade_day = False
-                    logger.info("未开市，跳过...")
+                    logger.info("未开市, 跳过...")
                     break
             else:
                 logger.error(f"获取 SH600519 数据异常，状态码: {res.status_code}")

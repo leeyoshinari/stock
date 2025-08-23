@@ -1,15 +1,11 @@
 function plot_k_line(myChart, x, price, volume, ma3, ma5, ma10, ma20) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
-  var data = splitData(rawData);
+  let option;
+  myChart.clear();
   myChart.setOption(
     (option = {
       animation: false,
-      legend: {
-        bottom: 10,
-        left: 'center',
-        data: ['Dow-Jones index', 'MA3', 'MA5', 'MA10', 'MA20']
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -28,7 +24,6 @@ function plot_k_line(myChart, x, price, volume, ma3, ma5, ma10, ma20) {
           obj[['left', 'right'][+(pos[0] < size.viewSize[0] / 2)]] = 30;
           return obj;
         }
-        // extraCssText: 'width: 170px'
       },
       axisPointer: {
         link: [
@@ -38,23 +33,6 @@ function plot_k_line(myChart, x, price, volume, ma3, ma5, ma10, ma20) {
         ],
         label: {
           backgroundColor: '#777'
-        }
-      },
-      toolbox: {
-        feature: {
-          dataZoom: {
-            yAxisIndex: false
-          },
-          brush: {
-            type: ['lineX', 'clear']
-          }
-        }
-      },
-      brush: {
-        xAxisIndex: 'all',
-        brushLink: 'all',
-        outOfBrush: {
-          colorAlpha: 0.1
         }
       },
       visualMap: {
@@ -74,15 +52,16 @@ function plot_k_line(myChart, x, price, volume, ma3, ma5, ma10, ma20) {
       },
       grid: [
         {
-          left: '10%',
-          right: '8%',
-          height: '50%'
+          left: '10px',
+          right: '10px',
+          top: '20px',
+          height: '300px'
         },
         {
-          left: '10%',
-          right: '8%',
-          top: '63%',
-          height: '16%'
+          left: '10px',
+          right: '10px',
+          top: '350px',
+          height: '80px'
         }
       ],
       xAxis: [
@@ -132,21 +111,20 @@ function plot_k_line(myChart, x, price, volume, ma3, ma5, ma10, ma20) {
         {
           type: 'inside',
           xAxisIndex: [0, 1],
-          start: 98,
+          start: 0,
           end: 100
         },
         {
-          show: true,
+          show: false,
           xAxisIndex: [0, 1],
           type: 'slider',
-          top: '85%',
-          start: 98,
+          start: 0,
           end: 100
         }
       ],
       series: [
         {
-          name: 'Dow-Jones index',
+          name: 'Price index',
           type: 'candlestick',
           data: price,
           itemStyle: {
@@ -203,4 +181,5 @@ function plot_k_line(myChart, x, price, volume, ma3, ma5, ma10, ma20) {
     }),
     true
   );
+  option && myChart.setOption(option);
 };

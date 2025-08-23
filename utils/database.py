@@ -256,3 +256,11 @@ class Recommend(Base, CRUDBase):
     rate = Column(Integer, nullable=True, comment="胜率, 0, 33, 67, 100")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class Tools(Base, CRUDBase):
+    __tablename__ = 'tools'
+
+    key = Column(String(8), primary_key=True, comment="键")
+    value = Column(String(64), nullable=False, comment="值")
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)

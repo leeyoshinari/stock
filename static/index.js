@@ -37,7 +37,7 @@ function getStockList(sortField) {
             let s = ""
             data.data.forEach(item => {
                 s += `<div id="${item.code}" class="item-list"><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${item.volumn}</div><div>${item.ma_three}</div>
-                      <div>${item.ma_five}</div><div>${item.ma_ten}</div><div>${item.ma_twenty}</div><div>${item.qrr}</div><div><button onclick="get_stock('${item.code}');">View</button></div></div>`;
+                      <div>${item.ma_five}</div><div>${item.ma_ten}</div><div>${item.ma_twenty}</div><div>${item.qrr}</div><div><button onclick="get_stock_figure('${item.code}');">View</button></div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -49,38 +49,25 @@ function getStockList(sortField) {
 
 function get_stock_figure(code) {
     fetch(prefix + `/get?code=${code}`)
-        .then(res => res.json)
+        .then(res => res.json())
         .then(data => {
             if (data.success) {
-                document.getElementById("figure").removeAttr("_echarts_instance_").empty();
                 let figure = document.getElementById("figure");
+                figure.removeAttribute("_echarts_instance_")
+                figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
+                plot_k_line(stockChart, data.data.x, data.data.price, data.data.volumn, data.data.ma_three, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty);
+                document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
 }
 
-
-function splitData(rawData) {
-    let categoryData = [];
-    let values = [];
-    let volumes = [];
-    let ma3 = [];
-    let ma5 = [];
-    let ma10 = [];
-    let ma20 = [];
-    for (let i = 0; i < rawData.length; i++) {
-        categoryData.push(rawData[i].splice(0, 1)[0]);
-        values.push(rawData[i]);
-        volumes.push([i, rawData[i][4], rawData[i][0] > rawData[i][1] ? 1 : -1]);
-    }
-    return {
-        categoryData: categoryData,
-        values: values,
-        volumes: volumes,
-        ma3
-    };
-}
-
+const overlay = document.querySelector('.stock-chart');
+overlay.addEventListener('click', function(event) {
+  if (event.target === overlay) {
+    overlay.style.display = 'none';
+  }
+});
 
 document.getElementById("pre-page").disabled = 'true';
 getStockList('');

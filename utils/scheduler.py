@@ -3,7 +3,6 @@
 # Author: leeyoshinari
 
 import datetime
-# from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 
 
