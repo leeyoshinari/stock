@@ -131,8 +131,25 @@ def setAvailableStock():
         logger.error(traceback.format_exc())
 
 
+def fixStockQrr():
+    try:
+        stockInfo = Stock.query(running=1).all()
+        for s in stockInfo:
+            stocks = Detail.query(code=s.code).order_by(asc(Detail.day)).all()
+            volumn = [stocks[0].volumn, stocks[1].volumn, stocks[2].volumn]
+            for i in range(3, len(stocks)):
+                avg_v = sum(volumn) / 3
+                Detail.update(stocks[i], qrr=round(stocks[i].volumn / avg_v, 2))
+                volumn.append(stocks[i].volumn)
+                volumn.pop(0)
+
+        logger.info(f"正在处理第 {s.code} 个...")
+    except:
+        logger.error(traceback.format_exc())
+
+
 if __name__ == '__main__':
-    s = executor.submit(getStockFromSohu)
+    s = executor.submit(fixStockQrr)
     scheduler.add_job(setAvailableStock, 'cron', hour=7, minute=55, second=20)
     time.sleep(2)
     scheduler.start()
