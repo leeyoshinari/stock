@@ -72,7 +72,7 @@ def generateStockCode(data: dict) -> str:
 
 
 def calc_MA(data: List, window: int) -> float:
-    return round(sum(data[-window:]) / window, 2)
+    return round(sum(data[:window]) / window, 2)
 
 
 def linear_least_squares(x: List, y: List) -> float:
@@ -88,7 +88,7 @@ def linear_least_squares(x: List, y: List) -> float:
     return angle_deg
 
 
-def getStockFromTencent():
+def getStockFromTencent(a):
     while True:
         try:
             datas = None
@@ -137,7 +137,7 @@ def getStockFromTencent():
             if datas: queryTask.task_done()
 
 
-def getStockFromXueQiu():
+def getStockFromXueQiu(a):
     while True:
         try:
             datas = None
@@ -184,7 +184,7 @@ def getStockFromXueQiu():
             if datas: queryTask.task_done()
 
 
-def getStockFromSina():
+def getStockFromSina(a):
     while True:
         try:
             datas = None
@@ -243,8 +243,8 @@ def queryStockTencentFromHttp(host: str):
             datas = None
             datas = queryTask.get()
             if datas == 'end': break
-            res = requests.post(f"{host}/stock/query/tencent", data={"data": datas}, headers={"content-type": "application/json"})
-            if res.status_code == 200:
+            res = requests.post(f"{host}/stock/query/tencent", json={"data": datas}, headers={"content-type": "application/json"})
+            if res.status_code == 200 or res.status_code == 201:
                 res_json = json.loads(res.text)
                 if res_json['success']:
                     if res_json['data']['error']:
@@ -264,10 +264,10 @@ def queryStockTencentFromHttp(host: str):
                             saveStockInfo(stockDo)
                             logger.info(f"Tencent - Http: {stockDo}")
                 else:
-                    logger.error("Tencent - Http 请求未正常返回...")
+                    logger.error(f"Tencent - Http 请求未正常返回, {res.text}...")
                     queryTask.put(datas)
             else:
-                logger.error("Tencent - Http 请求未正常返回")
+                logger.error(f"Tencent - Http 请求未正常返回 - {res.status_code}")
                 queryTask.put(datas)
         except:
             logger.error("Tencent - Http 出现异常......")
@@ -283,8 +283,8 @@ def queryStockXueQiuFromHttp(host: str):
             datas = None
             datas = queryTask.get()
             if datas == 'end': break
-            res = requests.post(f"{host}/stock/query/xueqiu", data={"data": datas}, headers={"content-type": "application/json"})
-            if res.status_code == 200:
+            res = requests.post(f"{host}/stock/query/xueqiu", json={"data": datas}, headers={"content-type": "application/json"})
+            if res.status_code == 200 or res.status_code == 201:
                 res_json = json.loads(res.text)
                 if res_json['success']:
                     if res_json['data']['error']:
@@ -304,10 +304,10 @@ def queryStockXueQiuFromHttp(host: str):
                             saveStockInfo(stockDo)
                             logger.info(f"XueQiu - Http: {stockDo}")
                 else:
-                    logger.error("XueQiu - Http 请求未正常返回...")
+                    logger.error(f"XueQiu - Http 请求未正常返回, {res.text}...")
                     queryTask.put(datas)
             else:
-                logger.error("XueQiu - Http 请求未正常返回")
+                logger.error(f"XueQiu - Http 请求未正常返回 - {res.status_code}")
                 queryTask.put(datas)
         except:
             logger.error("XueQiu - Http 出现异常......")
@@ -323,8 +323,8 @@ def queryStockSinaFromHttp(host: str):
             datas = None
             datas = queryTask.get()
             if datas == 'end': break
-            res = requests.post(f"{host}/stock/query/sina", data={"data": datas}, headers={"content-type": "application/json"})
-            if res.status_code == 200:
+            res = requests.post(f"{host}/stock/query/sina", json={"data": datas}, headers={"content-type": "application/json"})
+            if res.status_code == 200 or res.status_code == 201:
                 res_json = json.loads(res.text)
                 if res_json['success']:
                     if res_json['data']['error']:
@@ -344,10 +344,10 @@ def queryStockSinaFromHttp(host: str):
                             saveStockInfo(stockDo)
                             logger.info(f"Sina - Http: {stockDo}")
                 else:
-                    logger.error("Sina - Http 请求未正常返回...")
+                    logger.error(f"Sina - Http 请求未正常返回, {res.text}...")
                     queryTask.put(datas)
             else:
-                logger.error("Sina - Http 请求未正常返回")
+                logger.error(f"Sina - Http 请求未正常返回 - {res.status_code}")
                 queryTask.put(datas)
         except:
             logger.error("Sina - Http 出现异常......")
@@ -358,33 +358,31 @@ def queryStockSinaFromHttp(host: str):
 
 
 def saveStockInfo(stockDo: StockModelDo):
-    stock_price_obj = Detail.query_fields(columns=['current_price'], code=stockDo.code).order_by(asc(Detail.day)).all()
+    stock_price_obj = Detail.query_fields(columns=['current_price'], code=stockDo.code).order_by(desc(Detail.day)).limit(21).all()
     stock_price = [r[0] for r in stock_price_obj]
-    try:
-        stockObj = Detail.get_one((stockDo.code, stockDo.day))
-        stock_price[-1] = stockDo.current_price
-        Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn,
-                      ma_three=calc_MA(stock_price, 3), ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10),
-                      ma_twenty=calc_MA(stock_price, 20))
-    except NoResultFound:
-        stock_price.append(stockDo.current_price)
-        Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_three=calc_MA(stock_price, 3),
-                      ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20))
     now = datetime.now().time()
     stop_time = datetime.strptime("15:00:00", "%H:%M:%S").time()
     if now < stop_time:
-        date = normalizeHourAndMinute()
-        Volumn.create(code=stockDo.code, date=date, volumn=stockDo.volumn)
-    set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
-    if now > set_time:
-        Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
-        stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(desc(Detail.day)).limit(4).all()
-        stock_volumn = [r[0] for r in stock_volumn_obj]
-        average_volumn = sum(stock_volumn[1:]) / 3
+        current_date = normalizeHourAndMinute()
+    else:
+        current_date = "2021"
+    volume_obj = Volumn.query_fields(columns=['volumn'], code=stockDo.code, date=current_date).order_by(desc(Volumn.create_time)).limit(3).all()
+    stock_volume = [r[0] for r in volume_obj]
+    average_volumn = sum(stock_volume) / 3
+    average_volumn = average_volumn if average_volumn > 0 else 1
+    try:
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
-        Detail.update(stockObj, qrr=round(stockDo.volumn / average_volumn, 2))
+        stock_price[0] = stockDo.current_price
+        Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn,
+                      ma_three=calc_MA(stock_price, 3), ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10),
+                      ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2))
+    except NoResultFound:
+        stock_price.insert(0, stockDo.current_price)
+        Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_three=calc_MA(stock_price, 3),
+                      ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2))
+    Volumn.create(code=stockDo.code, date=current_date, volumn=stockDo.volumn)
 
 
 def setAllStock():
@@ -432,7 +430,7 @@ def setAvailableStock():
     else:
         try:
             total_cnt = Stock.query(running=1).count()
-            total_batch = (total_cnt + BATCH_SIZE - 1) / BATCH_SIZE
+            total_batch = int((total_cnt + BATCH_SIZE - 1) / BATCH_SIZE)
             one_batch_size = int(BATCH_SIZE / THREAD_POOL_SIZE)
             page = 0
             while page < total_batch:
@@ -444,9 +442,8 @@ def setAvailableStock():
                 for i in range(0, len(stockList), one_batch_size):
                     d = stockList[i: i + one_batch_size]
                     queryTask.put(d)
-                    time.sleep(1)
                 page += 1
-                logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次...")
+                logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
                 time.sleep(BATCH_INTERVAL)
             now = datetime.now().time()
             stop_time = datetime.strptime("16:30:00", "%H:%M:%S").time()
@@ -517,12 +514,12 @@ def stopTask():
 #     except:
 #         logger.error(traceback.format_exc())
 
-
+is_trade_day = True
 if __name__ == '__main__':
     http1_host = "https://usc.ihuster.top"
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
-    scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)  # 必须在 16点后启动
+    scheduler.add_job(setAvailableStock, 'cron', hour=20, minute=48, second=10)  # 必须在 16点后启动
     scheduler.add_job(setAllStock, 'cron', hour=7, minute=54, second=20)    # 更新股票信息
     scheduler.start()
     time.sleep(2)
