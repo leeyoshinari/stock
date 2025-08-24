@@ -1,16 +1,33 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
+
 import time
+import json
 import traceback
 from typing import List
 from collections import defaultdict
 from datetime import datetime
+import requests
 from sqlalchemy import desc, asc
-from utils.model import SearchStockParam, StockModelDo
+from utils.model import SearchStockParam, StockModelDo, RequestData
 from utils.logging import logger
 from utils.results import Result
 from utils.database import Stock, Detail, Volumn, Tools
+
+
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+}
+
+
+def getStockRegion(code: str) -> str:
+    if code.startswith("60") or code.startswith("68"):
+        return "sh"
+    elif code.startswith("00") or code.startswith("30"):
+        return "sz"
+    else:
+        return ""
 
 
 def normalizeHourAndMinute():
@@ -26,15 +43,23 @@ def normalizeHourAndMinute():
     return f"{hour:02d}{minute:02d}"
 
 
+def generateStockCode(data: dict) -> str:
+    s = []
+    for r in list(data.keys()):
+        s.append(f"{getStockRegion(r)}{r}")
+    return ",".join(s)
+
+
 async def queryByCode(code: str) -> Result:
     result = Result()
     try:
         stockInfo = Detail.query(code=code).order_by(asc(Detail.create_time)).all()
-        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn']] for row in stockInfo[20:]]
+        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr']] for row in stockInfo[20:]]
         result.data = {
             'x': [getattr(row, 'day') for row in stockInfo[20:]],
             'price': data,
-            'volumn': [[index, d[-1], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
+            'volumn': [[index, d[-2], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
+            'qrr': [[index, d[-1], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
             'ma_three': [getattr(row, 'ma_three') for row in stockInfo[20:]],
             'ma_five': [getattr(row, 'ma_five') for row in stockInfo[20:]],
             'ma_ten': [getattr(row, 'ma_ten') for row in stockInfo[20:]],
@@ -96,6 +121,146 @@ async def queryStockRetailQrr(codeList: List) -> Result:
         logger.error(traceback.format_exc())
         result.success = False
         result.msg = e
+    return result
+
+
+async def query_tencent(query: RequestData) -> Result:
+    result = Result()
+    try:
+        r_list = []
+        error_list = []
+        datas = query.data
+        dataDict = {k: v for d in datas for k, v in d.items()}
+        stockCode = generateStockCode(dataDict)
+        res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
+        if res.status_code == 200:
+            res_list = res.text.split(';')
+            for s in res_list:
+                try:
+                    stockDo = StockModelDo()
+                    if len(s) < 30:
+                        continue
+                    stockInfo = s.split('~')
+                    stockDo.name = stockInfo[1]
+                    stockDo.code = stockInfo[2]
+                    stockDo.current_price = float(stockInfo[3])
+                    stockDo.open_price = float(stockInfo[5])
+                    if int(stockInfo[6]) < 2:
+                        logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                        continue
+                    stockDo.volumn = int(int(stockInfo[6]) / 100)
+                    stockDo.max_price = float(stockInfo[33])
+                    stockDo.min_price = float(stockInfo[34])
+                    stockDo.day = stockInfo[30][:8]
+                    r_list.append(StockModelDo.model_validate(stockDo).model_dump())
+                    logger.info(f"Tencent: {stockDo}")
+                except:
+                    logger.error(f"Tencent - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                    logger.error(traceback.format_exc())
+                    error_list.append({stockDo.code: stockDo.name})
+            result.data = {"data": r_list, "error": error_list}
+        else:
+            logger.error("Tencent - 请求未正常返回...")
+            result.success = False
+            result.msg = "请求未正常返回"
+    except:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = "请求失败, 请重试～"
+    return result
+
+
+async def query_xueqiu(query: RequestData) -> Result:
+    result = Result()
+    try:
+        r_list = []
+        error_list = []
+        datas = query.data
+        dataDict = {k: v for d in datas for k, v in d.items()}
+        stockCode = generateStockCode(dataDict)
+        res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
+        if res.status_code == 200:
+            res_json = json.loads(res.text)
+            for s in res_json['data']:
+                try:
+                    stockDo = StockModelDo()
+                    code = s['symbol'][2:]
+                    stockDo.name = dataDict[code]
+                    stockDo.code = code
+                    stockDo.current_price = s['current']
+                    stockDo.open_price = s['open']
+                    stockDo.max_price = s['high']
+                    stockDo.min_price = s['low']
+                    if not s['volume'] or s['volume'] < 2:
+                        logger.info(f"XueQiu - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                        continue
+                    stockDo.volumn = int(s['volume'] / 100)
+                    stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
+                    r_list.append(StockModelDo.model_validate(stockDo).model_dump())
+                    logger.info(f"XueQiu: {stockDo}")
+                except:
+                    logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                    logger.error(traceback.format_exc())
+                    error_list.append({stockDo.code: stockDo.name})
+            result.data = {"data": r_list, "error": error_list}
+        else:
+            logger.error("XueQiu - 请求未正常返回...")
+            result.success = False
+            result.msg = "请求未正常返回"
+    except:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = "请求失败, 请重试～"
+    return result
+
+
+async def query_sina(query: RequestData) -> Result:
+    result = Result()
+    try:
+        r_list = []
+        error_list = []
+        datas = query.data
+        dataDict = {k: v for d in datas for k, v in d.items()}
+        stockCode = generateStockCode(dataDict)
+        h = {
+            'Referer': 'https://finance.sina.com.cn',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
+        if res.status_code == 200:
+            res_list = res.text.split(';')
+            for s in res_list:
+                try:
+                    stockDo = StockModelDo()
+                    if len(s) < 30:
+                        continue
+                    stockInfo = s.split(',')
+                    stockDo.name = stockInfo[0].split('"')[-1]
+                    stockDo.code = stockInfo[0].split('=')[0].split('_')[-1][2:]
+                    stockDo.current_price = float(stockInfo[3])
+                    stockDo.open_price = float(stockInfo[1])
+                    if int(stockInfo[8]) < 2:
+                        logger.info(f"Sina - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                        continue
+                    stockDo.volumn = int(int(stockInfo[8]) / 100)
+                    stockDo.max_price = float(stockInfo[4])
+                    stockDo.min_price = float(stockInfo[5])
+                    stockDo.day = stockInfo[30].replace('-', '')
+                    r_list.append(StockModelDo.model_validate(stockDo).model_dump())
+                    logger.info(f"Sina: {stockDo}")
+                except:
+                    logger.error(f"Sina - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                    logger.error(traceback.format_exc())
+                    error_list.append({stockDo.code: stockDo.name})
+            result.data = {"data": r_list, "error": error_list}
+        else:
+            logger.error("Sina - 请求未正常返回...")
+            result.success = False
+            result.msg = "请求未正常返回"
+    except:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = "请求失败, 请重试～"
     return result
 
 

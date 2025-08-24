@@ -38,8 +38,8 @@ def getStockFromSohu():
     start_date = start_time.strftime("%Y%m%d")
     current_day = time.strftime("%Y%m%d")
     while True:
+        datas = queryTask.get()
         try:
-            datas = queryTask.get()
             if datas == 'end': break
             dataDict = {k: v for d in datas for k, v in d.items()}
             s = []
@@ -98,7 +98,7 @@ def saveStockInfo(stockDo: StockModelDo):
     if len(stock_price) > 4:
         stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(asc(Detail.day)).all()
         stock_volumn = [r[0] for r in stock_volumn_obj]
-        average_volumn = sum(stock_volumn[-4: -1]) / 3
+        average_volumn = sum(stock_volumn[-5: -2]) / 3
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         Detail.update(stockObj, qrr=round(stockDo.volumn / average_volumn, 2))
         if stockDo.current_price > MAX_PRICE or stockDo.current_price < 1:
@@ -143,14 +143,14 @@ def fixStockQrr():
                 volumn.append(stocks[i].volumn)
                 volumn.pop(0)
 
-        logger.info(f"正在处理第 {s.code} 个...")
+            logger.info(f"正在处理第 {s.code} 个...")
     except:
         logger.error(traceback.format_exc())
 
 
 if __name__ == '__main__':
-    s = executor.submit(fixStockQrr)
-    scheduler.add_job(setAvailableStock, 'cron', hour=7, minute=55, second=20)
+    s = executor.submit(getStockFromSohu)
+    scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     time.sleep(2)
     scheduler.start()
     PID = os.getpid()

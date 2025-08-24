@@ -37,7 +37,7 @@ function getStockList(sortField) {
             let s = ""
             data.data.forEach(item => {
                 s += `<div id="${item.code}" class="item-list"><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${item.volumn}</div><div>${item.ma_three}</div>
-                      <div>${item.ma_five}</div><div>${item.ma_ten}</div><div>${item.ma_twenty}</div><div>${item.qrr}</div><div><button onclick="get_stock_figure('${item.code}');">View</button></div></div>`;
+                      <div>${item.ma_five}</div><div>${item.ma_ten}</div><div>${item.ma_twenty}</div><div>${item.qrr}</div><div><button onclick="get_stock_figure('${item.code}', '${item.name}');">View</button></div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -47,7 +47,7 @@ function getStockList(sortField) {
 }
 
 
-function get_stock_figure(code) {
+function get_stock_figure(code, name) {
     fetch(prefix + `/get?code=${code}`)
         .then(res => res.json())
         .then(data => {
@@ -56,7 +56,7 @@ function get_stock_figure(code) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, data.data.x, data.data.price, data.data.volumn, data.data.ma_three, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty);
+                plot_k_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volumn, data.data.ma_three, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })

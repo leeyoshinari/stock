@@ -75,13 +75,13 @@
     height: 100%;
     display: none;
     top: 0;
-  left: 0;
-  align-items: center;
+    left: 0;
+    align-items: center;
 }
 
 #figure {
     width: 720px;
-    height: 450px;
+    height: 500px;
     margin: 0 auto;
     background-color: white;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);

@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
-import time
-from litestar import Litestar, Router, Controller, get
+from litestar import Litestar, Router, Controller, get, post
 from litestar.openapi import OpenAPIConfig
 from litestar.response import Template
 from litestar.openapi.plugins import SwaggerRenderPlugin
@@ -11,13 +10,11 @@ from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
 from contextlib import asynccontextmanager
-from settings import PREFIX, HOST, PORT, THREAD_POOL_SIZE
+from settings import PREFIX, HOST, PORT
 from utils.scheduler import scheduler
 from utils.database import Database
 from utils.results import Result
 from utils import model, views
-from utils.getStock import queryTask
-# from utils.initData import queryTask
 
 
 Database.init_db()  # 初始化数据库
@@ -43,6 +40,21 @@ class StockController(Controller):
         result = await views.queryByCode(code)
         return result
 
+    @post('/query/tencent', summary="查询股票数据信息")
+    async def query_stock(self, data: model.RequestData) -> Result:
+        result = await views.query_tencent(data)
+        return result
+
+    @post('/query/xueqiu', summary="查询股票数据信息")
+    async def query_stock_xueqiu(self, data: model.RequestData) -> Result:
+        result = await views.query_xueqiu(data)
+        return result
+
+    @post('/query/sina', summary="查询股票数据信息")
+    async def query_stock_sina(self, data: model.RequestData) -> Result:
+        result = await views.query_sina(data)
+        return result
+
     @get('/test')
     async def test(self) -> Result:
         result = await views.test()
@@ -62,9 +74,6 @@ async def lifespan(app: Litestar):
     scheduler.start()
     yield
     scheduler.shutdown()
-    # for i in range(THREAD_POOL_SIZE):
-    #     queryTask.put("end")
-    # time.sleep(2)
 
 render_file = SwaggerRenderPlugin(js_url=f'{PREFIX}/static/swagger-ui-bundle.js', css_url=f'{PREFIX}/static/swagger-ui.css', standalone_preset_js_url=f'{PREFIX}/static/swagger-ui-standalone-preset.js')
 openapi_config = OpenAPIConfig(title="WinHub", version="1.0", description="This is API of WinHub.", path=PREFIX + "/schema", render_plugins=[render_file])

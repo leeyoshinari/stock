@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import os
 import json
 import time
 import math
@@ -10,7 +11,7 @@ import traceback
 import requests
 from typing import List
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy import desc, asc
 from settings import BATCH_SIZE, MAX_PRICE, THREAD_POOL_SIZE, BATCH_INTERVAL
@@ -21,7 +22,6 @@ from utils.logging import logger
 
 
 queryTask = queue.Queue()   # FIFO queue
-executor = ThreadPoolExecutor(THREAD_POOL_SIZE)
 running_job_id = None
 is_trade_day = False
 headers = {
@@ -91,6 +91,7 @@ def linear_least_squares(x: List, y: List) -> float:
 def getStockFromTencent():
     while True:
         try:
+            datas = None
             datas = queryTask.get()
             if datas == 'end': break
             error_list = []
@@ -131,14 +132,15 @@ def getStockFromTencent():
         except:
             logger.error("Tencent - 出现异常......")
             logger.error(traceback.format_exc())
-            queryTask.put(datas)
+            if datas: queryTask.put(datas)
         finally:
-            queryTask.task_done()
+            if datas: queryTask.task_done()
 
 
 def getStockFromXueQiu():
     while True:
         try:
+            datas = None
             datas = queryTask.get()
             if datas == 'end': break
             error_list = []
@@ -177,14 +179,15 @@ def getStockFromXueQiu():
         except:
             logger.error("XueQiu - 出现异常......")
             logger.error(traceback.format_exc())
-            queryTask.put(datas)
+            if datas: queryTask.put(datas)
         finally:
-            queryTask.task_done()
+            if datas: queryTask.task_done()
 
 
 def getStockFromSina():
     while True:
         try:
+            datas = None
             datas = queryTask.get()
             if datas == 'end': break
             error_list = []
@@ -229,9 +232,129 @@ def getStockFromSina():
         except:
             logger.error("Sina - 出现异常......")
             logger.error(traceback.format_exc())
-            queryTask.put(datas)
+            if datas: queryTask.put(datas)
         finally:
-            queryTask.task_done()
+            if datas: queryTask.task_done()
+
+
+def queryStockTencentFromHttp(host: str):
+    while True:
+        try:
+            datas = None
+            datas = queryTask.get()
+            if datas == 'end': break
+            res = requests.post(f"{host}/stock/query/tencent", data={"data": datas}, headers={"content-type": "application/json"})
+            if res.status_code == 200:
+                res_json = json.loads(res.text)
+                if res_json['success']:
+                    if res_json['data']['error']:
+                        queryTask.put(res_json['data']['error'])
+                    if res_json['data']['data']:
+                        stock_list = res_json['data']['data']
+                        for stockInfo in stock_list:
+                            stockDo = StockModelDo()
+                            stockDo.name = stockInfo['name']
+                            stockDo.code = stockInfo['code']
+                            stockDo.current_price = stockInfo['current_price']
+                            stockDo.open_price = stockInfo['open_price']
+                            stockDo.volumn = stockInfo['volumn']
+                            stockDo.max_price = stockInfo['max_price']
+                            stockDo.min_price = stockInfo['min_price']
+                            stockDo.day = stockInfo['day']
+                            saveStockInfo(stockDo)
+                            logger.info(f"Tencent - Http: {stockDo}")
+                else:
+                    logger.error("Tencent - Http 请求未正常返回...")
+                    queryTask.put(datas)
+            else:
+                logger.error("Tencent - Http 请求未正常返回")
+                queryTask.put(datas)
+        except:
+            logger.error("Tencent - Http 出现异常......")
+            logger.error(traceback.format_exc())
+            if datas: queryTask.put(datas)
+        finally:
+            if datas: queryTask.task_done()
+
+
+def queryStockXueQiuFromHttp(host: str):
+    while True:
+        try:
+            datas = None
+            datas = queryTask.get()
+            if datas == 'end': break
+            res = requests.post(f"{host}/stock/query/xueqiu", data={"data": datas}, headers={"content-type": "application/json"})
+            if res.status_code == 200:
+                res_json = json.loads(res.text)
+                if res_json['success']:
+                    if res_json['data']['error']:
+                        queryTask.put(res_json['data']['error'])
+                    if res_json['data']['data']:
+                        stock_list = res_json['data']['data']
+                        for stockInfo in stock_list:
+                            stockDo = StockModelDo()
+                            stockDo.name = stockInfo['name']
+                            stockDo.code = stockInfo['code']
+                            stockDo.current_price = stockInfo['current_price']
+                            stockDo.open_price = stockInfo['open_price']
+                            stockDo.volumn = stockInfo['volumn']
+                            stockDo.max_price = stockInfo['max_price']
+                            stockDo.min_price = stockInfo['min_price']
+                            stockDo.day = stockInfo['day']
+                            saveStockInfo(stockDo)
+                            logger.info(f"XueQiu - Http: {stockDo}")
+                else:
+                    logger.error("XueQiu - Http 请求未正常返回...")
+                    queryTask.put(datas)
+            else:
+                logger.error("XueQiu - Http 请求未正常返回")
+                queryTask.put(datas)
+        except:
+            logger.error("XueQiu - Http 出现异常......")
+            logger.error(traceback.format_exc())
+            if datas: queryTask.put(datas)
+        finally:
+            if datas: queryTask.task_done()
+
+
+def queryStockSinaFromHttp(host: str):
+    while True:
+        try:
+            datas = None
+            datas = queryTask.get()
+            if datas == 'end': break
+            res = requests.post(f"{host}/stock/query/sina", data={"data": datas}, headers={"content-type": "application/json"})
+            if res.status_code == 200:
+                res_json = json.loads(res.text)
+                if res_json['success']:
+                    if res_json['data']['error']:
+                        queryTask.put(res_json['data']['error'])
+                    if res_json['data']['data']:
+                        stock_list = res_json['data']['data']
+                        for stockInfo in stock_list:
+                            stockDo = StockModelDo()
+                            stockDo.name = stockInfo['name']
+                            stockDo.code = stockInfo['code']
+                            stockDo.current_price = stockInfo['current_price']
+                            stockDo.open_price = stockInfo['open_price']
+                            stockDo.volumn = stockInfo['volumn']
+                            stockDo.max_price = stockInfo['max_price']
+                            stockDo.min_price = stockInfo['min_price']
+                            stockDo.day = stockInfo['day']
+                            saveStockInfo(stockDo)
+                            logger.info(f"Sina - Http: {stockDo}")
+                else:
+                    logger.error("Sina - Http 请求未正常返回...")
+                    queryTask.put(datas)
+            else:
+                logger.error("Sina - Http 请求未正常返回")
+                queryTask.put(datas)
+        except:
+            logger.error("Sina - Http 出现异常......")
+            logger.error(traceback.format_exc())
+            if datas: queryTask.put(datas)
+        finally:
+            if datas: queryTask.task_done()
 
 
 def saveStockInfo(stockDo: StockModelDo):
@@ -257,9 +380,9 @@ def saveStockInfo(stockDo: StockModelDo):
     set_time = datetime.strptime("16:00:00", "%H:%M:%S").time()
     if now > set_time:
         Volumn.create(code=stockDo.code, date="2021", volumn=stockDo.volumn)
-        stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(desc(Detail.day)).all()
+        stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(desc(Detail.day)).limit(4).all()
         stock_volumn = [r[0] for r in stock_volumn_obj]
-        average_volumn = sum(stock_volumn[-4: -1]) / 3
+        average_volumn = sum(stock_volumn[1:]) / 3
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         Detail.update(stockObj, qrr=round(stockDo.volumn / average_volumn, 2))
         if stockDo.current_price > MAX_PRICE:
@@ -328,7 +451,7 @@ def setAvailableStock():
                 for i in range(0, len(stockList), one_batch_size):
                     d = stockList[i: i + one_batch_size]
                     queryTask.put(d)
-                    time.sleep(2)
+                    time.sleep(1)
                 page += 1
                 logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次...")
                 time.sleep(BATCH_INTERVAL)
@@ -402,10 +525,19 @@ def stopTask():
 #         logger.error(traceback.format_exc())
 
 
-executor.submit(getStockFromTencent)
-executor.submit(getStockFromXueQiu)
-executor.submit(getStockFromSina)
-scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
-scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
-scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)  # 必须在 16点后启动
-scheduler.add_job(setAllStock, 'cron', hour=7, minute=54, second=20)    # 更新股票信息
+if __name__ == '__main__':
+    http1_host = "https://usc.ihuster.top"
+    scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
+    scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
+    scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)  # 必须在 16点后启动
+    scheduler.add_job(setAllStock, 'cron', hour=7, minute=54, second=20)    # 更新股票信息
+    scheduler.start()
+    time.sleep(2)
+    PID = os.getpid()
+    with open('pid', 'w', encoding='utf-8') as f:
+        f.write(str(PID))
+    funcList = [getStockFromTencent, getStockFromXueQiu, getStockFromSina, queryStockTencentFromHttp, queryStockXueQiuFromHttp, queryStockSinaFromHttp]
+    paramList = ['', '', '', http1_host, http1_host, http1_host]
+    with ThreadPoolExecutor(max_workers=THREAD_POOL_SIZE) as executor:
+        futures = [executor.submit(func, param) for func, param in zip(funcList, paramList)]
+        wait(futures)

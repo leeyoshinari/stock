@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import Optional, List
+from pydantic import BaseModel
 
 
 class SearchStockParam(BaseModel):
@@ -33,6 +33,5 @@ class StockModelDo(BaseModel):
         from_attributes = True
 
 
-class StockDetailData(BaseModel):   # 日期、开盘、收盘、最低、最高、成交量
-    code: str
-    day: str
+class RequestData(BaseModel):
+    data: List
