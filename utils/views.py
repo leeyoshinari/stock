@@ -54,16 +54,16 @@ async def queryByCode(code: str) -> Result:
     result = Result()
     try:
         stockInfo = Detail.query(code=code).order_by(asc(Detail.create_time)).all()
-        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr']] for row in stockInfo[20:]]
+        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr']] for row in stockInfo]
         result.data = {
-            'x': [getattr(row, 'day') for row in stockInfo[20:]],
+            'x': [getattr(row, 'day') for row in stockInfo],
             'price': data,
             'volumn': [[index, d[-2], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
             'qrr': [[index, d[-1], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
-            'ma_three': [getattr(row, 'ma_three') for row in stockInfo[20:]],
-            'ma_five': [getattr(row, 'ma_five') for row in stockInfo[20:]],
-            'ma_ten': [getattr(row, 'ma_ten') for row in stockInfo[20:]],
-            'ma_twenty': [getattr(row, 'ma_twenty') for row in stockInfo[20:]]
+            'ma_three': [getattr(row, 'ma_three') for row in stockInfo],
+            'ma_five': [getattr(row, 'ma_five') for row in stockInfo],
+            'ma_ten': [getattr(row, 'ma_ten') for row in stockInfo],
+            'ma_twenty': [getattr(row, 'ma_twenty') for row in stockInfo]
         }
         result.total = len(result.data)
         logger.info(f"查询信息成功, 代码: {code}")

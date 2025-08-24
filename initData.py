@@ -101,13 +101,6 @@ def saveStockInfo(stockDo: StockModelDo):
         average_volumn = sum(stock_volumn[-5: -2]) / 3
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         Detail.update(stockObj, qrr=round(stockDo.volumn / average_volumn, 2))
-        if stockDo.current_price > MAX_PRICE or stockDo.current_price < 1:
-            try:
-                stockBase = Stock.get_one(stockDo.code)
-                Stock.update(stockBase, running=0)
-                logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格为 {stockDo.current_price}, 忽略掉...")
-            except:
-                logger.error(traceback.format_exc())
 
 
 def setAvailableStock():

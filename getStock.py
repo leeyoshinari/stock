@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy import desc, asc
-from settings import BATCH_SIZE, MAX_PRICE, THREAD_POOL_SIZE, BATCH_INTERVAL
+from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL
 from utils.model import StockModelDo
 from utils.scheduler import scheduler
 from utils.database import Stock, Detail, Volumn, Recommend, Tools
@@ -385,13 +385,6 @@ def saveStockInfo(stockDo: StockModelDo):
         average_volumn = sum(stock_volumn[1:]) / 3
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         Detail.update(stockObj, qrr=round(stockDo.volumn / average_volumn, 2))
-        if stockDo.current_price > MAX_PRICE:
-            try:
-                stockBase = Stock.get_one(stockDo.code)
-                Stock.update(stockBase, running=0)
-                logger.info(f"股票 {stockBase.name} - {stockBase.code} 当前价格 {stockDo.current_price} 大于 {MAX_PRICE}, 忽略掉...")
-            except:
-                logger.error(traceback.format_exc())
 
 
 def setAllStock():
