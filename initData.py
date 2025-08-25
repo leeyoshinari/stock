@@ -141,8 +141,22 @@ def fixStockQrr():
         logger.error(traceback.format_exc())
 
 
+def fixQrrLastDay():
+    try:
+        stockInfo = Stock.query(running=1).all()
+        for s in stockInfo:
+            stocks = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(4).all()
+            volumn = [stocks[3].volumn, stocks[1].volumn, stocks[2].volumn]
+            avg_v = sum(volumn) / 3
+            Detail.update(stocks[0], qrr=round(stocks[0].volumn / avg_v, 2))
+            logger.info(f"正在处理第 {s.code} 个...")
+        logger.info("completed!!!!")
+    except:
+        logger.error(traceback.format_exc())
+
+
 if __name__ == '__main__':
-    s = executor.submit(getStockFromSohu)
+    s = executor.submit(fixQrrLastDay)
     scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     time.sleep(2)
     scheduler.start()
