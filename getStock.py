@@ -522,7 +522,7 @@ if __name__ == '__main__':
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)  # 必须在 16点后启动
-    scheduler.add_job(setAllStock, 'cron', hour=7, minute=54, second=20)    # 更新股票信息
+    scheduler.add_job(setAllStock, 'cron', hour=22, minute=54, second=20)    # 更新股票信息
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()
