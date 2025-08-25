@@ -16,11 +16,13 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy import desc, asc
 from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL
 from utils.model import StockModelDo
+from utils.database import Database
 from utils.scheduler import scheduler
 from utils.database import Stock, Detail, Volumn, Recommend, Tools
 from utils.logging import logger
 
 
+Database.init_db()
 queryTask = queue.Queue()   # FIFO queue
 running_job_id = None
 is_trade_day = False
@@ -514,7 +516,7 @@ def stopTask():
 #     except:
 #         logger.error(traceback.format_exc())
 
-is_trade_day = True
+
 if __name__ == '__main__':
     http1_host = "https://usc.ihuster.top"
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
