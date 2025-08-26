@@ -51,17 +51,17 @@ function plot_k_line(myChart, title, x, price, volume, ma3, ma5, ma10, ma20, qrr
       grid: [
         {
           left: '10px',
-          right: '10px',
+          right: '30px',
           top: '20px',
           height: '300px'
         },{
           left: '30px',
-          right: '10px',
+          right: '30px',
           top: '350px',
           height: '80px'
         },{
           left: '30px',
-          right: '10px',
+          right: '30px',
           top: '440px',
           height: '40px'
         }
