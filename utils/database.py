@@ -214,6 +214,7 @@ class Detail(Base, CRUDBase):
     name = Column(String(8), nullable=False, comment="股票名称")
     current_price = Column(Float, nullable=False, comment="当前价")
     open_price = Column(Float, nullable=False, comment="开盘价")
+    last_price = Column(Float, nullable=False, comment="前一天收盘价")
     max_price = Column(Float, nullable=False, comment="最高价")
     min_price = Column(Float, nullable=False, comment="最低价")
     volumn = Column(Integer, nullable=False, comment="成交量（股）")

@@ -18,8 +18,8 @@ from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL
 from utils.model import StockModelDo
 from utils.database import Database
 from utils.scheduler import scheduler
-from utils.database import Stock, Detail, Volumn, Recommend, Tools
-from utils.logging import logger
+from utils.database import Stock, Detail, Volumn, Tools
+from utils.logging_getstock import logger
 
 
 Database.init_db()
@@ -111,6 +111,7 @@ def getStockFromTencent(a):
                         stockDo.name = stockInfo[1]
                         stockDo.code = stockInfo[2]
                         stockDo.current_price = float(stockInfo[3])
+                        stockDo.last_price = float(stockInfo[4])
                         stockDo.open_price = float(stockInfo[5])
                         if int(stockInfo[6]) < 2:
                             logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
@@ -159,6 +160,7 @@ def getStockFromXueQiu(a):
                         stockDo.code = code
                         stockDo.current_price = s['current']
                         stockDo.open_price = s['open']
+                        stockDo.last_price = s['last_close']
                         stockDo.max_price = s['high']
                         stockDo.min_price = s['low']
                         if not s['volume'] or s['volume'] < 2:
@@ -216,6 +218,7 @@ def getStockFromSina(a):
                             logger.info(f"Sina - {stockDo.code} - {stockDo.name} 休市, 跳过")
                             continue
                         stockDo.volumn = int(int(stockInfo[8]) / 100)
+                        stockDo.last_price = float(stockInfo[2])
                         stockDo.max_price = float(stockInfo[4])
                         stockDo.min_price = float(stockInfo[5])
                         stockDo.day = stockInfo[30].replace('-', '')
@@ -259,6 +262,7 @@ def queryStockTencentFromHttp(host: str):
                             stockDo.code = stockInfo['code']
                             stockDo.current_price = stockInfo['current_price']
                             stockDo.open_price = stockInfo['open_price']
+                            stockDo.last_price = stockInfo['last_price']
                             stockDo.volumn = stockInfo['volumn']
                             stockDo.max_price = stockInfo['max_price']
                             stockDo.min_price = stockInfo['min_price']
@@ -299,6 +303,7 @@ def queryStockXueQiuFromHttp(host: str):
                             stockDo.code = stockInfo['code']
                             stockDo.current_price = stockInfo['current_price']
                             stockDo.open_price = stockInfo['open_price']
+                            stockDo.last_price = stockInfo['last_price']
                             stockDo.volumn = stockInfo['volumn']
                             stockDo.max_price = stockInfo['max_price']
                             stockDo.min_price = stockInfo['min_price']
@@ -339,6 +344,7 @@ def queryStockSinaFromHttp(host: str):
                             stockDo.code = stockInfo['code']
                             stockDo.current_price = stockInfo['current_price']
                             stockDo.open_price = stockInfo['open_price']
+                            stockDo.last_price = stockInfo['last_price']
                             stockDo.volumn = stockInfo['volumn']
                             stockDo.max_price = stockInfo['max_price']
                             stockDo.min_price = stockInfo['min_price']
@@ -375,14 +381,14 @@ def saveStockInfo(stockDo: StockModelDo):
     try:
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         stock_price[0] = stockDo.current_price
-        Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price,
+        Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
                       max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn,
                       ma_three=calc_MA(stock_price, 3), ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10),
                       ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2))
     except NoResultFound:
         stock_price.insert(0, stockDo.current_price)
         Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_three=calc_MA(stock_price, 3),
+                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_three=calc_MA(stock_price, 3), last_price=stockDo.last_price,
                       ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2))
     Volumn.create(code=stockDo.code, date=current_date, volumn=stockDo.volumn)
 
@@ -473,7 +479,7 @@ def checkTradeDay():
                     v2 = res_list[1].split('~')[6]
                     if int(v1) > 2 or int(v2) > 2:
                         is_trade_day = True
-                        job = scheduler.add_job(setAvailableStock, "interval", minutes=20, next_run_time=datetime.now() + timedelta(minutes=3))
+                        job = scheduler.add_job(setAvailableStock, "interval", minutes=10, next_run_time=datetime.now() + timedelta(minutes=3))
                         running_job_id = job.id
                         try:
                             tool = Tools.get_one("openDoor")

@@ -19,6 +19,7 @@ class StockModelDo(BaseModel):
     name: str = None
     day: str = None
     current_price: float = None
+    last_price: float = None
     open_price: float = None
     max_price: float = None
     min_price: float = None

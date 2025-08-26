@@ -144,6 +144,7 @@ async def query_tencent(query: RequestData) -> Result:
                     stockDo.name = stockInfo[1]
                     stockDo.code = stockInfo[2]
                     stockDo.current_price = float(stockInfo[3])
+                    stockDo.last_price = float(stockInfo[4])
                     stockDo.open_price = float(stockInfo[5])
                     if int(stockInfo[6]) < 2:
                         logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
@@ -189,6 +190,7 @@ async def query_xueqiu(query: RequestData) -> Result:
                     stockDo.code = code
                     stockDo.current_price = s['current']
                     stockDo.open_price = s['open']
+                    stockDo.last_price = s['last_close']
                     stockDo.max_price = s['high']
                     stockDo.min_price = s['low']
                     if not s['volume'] or s['volume'] < 2:
@@ -243,6 +245,7 @@ async def query_sina(query: RequestData) -> Result:
                         logger.info(f"Sina - {stockDo.code} - {stockDo.name} 休市, 跳过")
                         continue
                     stockDo.volumn = int(int(stockInfo[8]) / 100)
+                    stockDo.last_price = float(stockInfo[2])
                     stockDo.max_price = float(stockInfo[4])
                     stockDo.min_price = float(stockInfo[5])
                     stockDo.day = stockInfo[30].replace('-', '')
