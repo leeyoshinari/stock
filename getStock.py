@@ -115,7 +115,7 @@ def getStockFromTencent(a):
                         if int(stockInfo[6]) < 2:
                             logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
                             continue
-                        stockDo.volumn = int(int(stockInfo[6]) / 100)
+                        stockDo.volumn = int(int(stockInfo[6]))
                         stockDo.max_price = float(stockInfo[33])
                         stockDo.min_price = float(stockInfo[34])
                         stockDo.day = stockInfo[30][:8]
@@ -506,15 +506,6 @@ def stopTask():
         logger.info("查询任务已停止...")
     else:
         logger.info("查询任务不存在或已结束...")
-
-
-# async def calcRecommendStock():
-#     try:
-#         stocks = Stock.query(running=1).all()
-#         for stock in stocks:
-#             stockInfo = Detail.query(code=stock.code).order_by(asc(Detail.create_time)).all()
-#     except:
-#         logger.error(traceback.format_exc())
 
 
 if __name__ == '__main__':

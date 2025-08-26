@@ -148,7 +148,7 @@ async def query_tencent(query: RequestData) -> Result:
                     if int(stockInfo[6]) < 2:
                         logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
                         continue
-                    stockDo.volumn = int(int(stockInfo[6]) / 100)
+                    stockDo.volumn = int(int(stockInfo[6]))
                     stockDo.max_price = float(stockInfo[33])
                     stockDo.min_price = float(stockInfo[34])
                     stockDo.day = stockInfo[30][:8]

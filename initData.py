@@ -19,8 +19,7 @@ from utils.database import Stock, Detail
 from utils.logging import logger
 
 
-MAX_PRICE = 500
-BATCH_SIZE = 5
+BATCH_SIZE = 30
 Database.init_db()
 queryTask = queue.Queue()
 executor = ThreadPoolExecutor(1)
@@ -118,7 +117,7 @@ def setAvailableStock():
                 queryTask.put(stockList)
             page += 1
             logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次...")
-            time.sleep(15)
+            time.sleep(10)
         queryTask.put("end")
     except:
         logger.error(traceback.format_exc())
@@ -155,8 +154,23 @@ def fixQrrLastDay():
         logger.error(traceback.format_exc())
 
 
+def fixTencentVolume():
+    try:
+        stockInfo = Detail.query(day='20250825').order_by(asc(Detail.qrr)).limit(1470).all()
+        for s in stockInfo:
+            if s.qrr <= 0.06 and s.code not in ['600246', '605255']:
+                stocks = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(4).all()
+                volumn = [stocks[3].volumn, stocks[1].volumn, stocks[2].volumn]
+                avg_v = sum(volumn) / 3
+                Detail.update(stocks[0], volumn=s.volumn * 100, qrr=round(s.volumn * 100 / avg_v, 2))
+            logger.info(f"正在处理第 {s.code} 个...")
+        logger.info("completed!!!!")
+    except:
+        logger.error(traceback.format_exc())
+
+
 if __name__ == '__main__':
-    s = executor.submit(fixQrrLastDay)
+    s = executor.submit(fixTencentVolume)
     scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     time.sleep(2)
     scheduler.start()
