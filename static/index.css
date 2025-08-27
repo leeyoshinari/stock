@@ -32,7 +32,8 @@
 }
 
 .item-header>div {
-    width: 10%;
+    flex: 1;
+    min-width: 0;
     text-align: center;
 }
 
@@ -44,6 +45,7 @@
 .list>div {
     display: flex;
     flex-direction: row;
+    flex-wrap: nowrap;
     align-items: center;
     height: 36px;
 }
@@ -55,7 +57,8 @@
 }
 
 .list>div>div {
-    width: 10%;
+    flex: 1;
+    min-width: 0;
     text-align: center;
 }
 

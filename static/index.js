@@ -36,8 +36,23 @@ function getStockList(sortField) {
         .then(data => {
             let s = ""
             data.data.forEach(item => {
-                s += `<div id="${item.code}" class="item-list"><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${item.volumn}</div><div>${item.ma_three}</div>
-                      <div>${item.ma_five}</div><div>${item.ma_ten}</div><div>${item.ma_twenty}</div><div>${item.qrr}</div><div><button onclick="get_stock_figure('${item.code}', '${item.name}');">View</button></div></div>`;
+                let zhang = (item.current_price - item.last_price) / item.last_price * 100;
+                let zhen = (item.max_price - item.min_price) / item.last_price * 100;
+                let color = zhang >= 0 ? zhang > 0 ? 'red' : 'black' : 'green';
+                let neng;
+                if (zhang >= 1 && item.qrr >= 2) {
+                    neng = '放量上涨';
+                } else if (zhang >= 1 && item.qrr <= 0.7) {
+                    neng = '缩量上涨';
+                } else if (zhang <= -1 && item.qrr >= 1.5) {
+                    neng = '放量下跌';
+                } else if (zhang <= -1 && item.qrr <= 0.7) {
+                    neng = '缩量下跌';
+                } else {
+                    neng = '';
+                }
+                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
+                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${neng}</div><div><button onclick="get_stock_figure('${item.code}', '${item.name}');">K线</button><button onclick="get_stock_figure();">推荐值</button></div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
