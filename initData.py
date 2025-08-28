@@ -170,7 +170,7 @@ def fixTencentVolume():
 
 
 if __name__ == '__main__':
-    s = executor.submit(fixTencentVolume)
+    s = executor.submit(fixQrrLastDay)
     scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     time.sleep(2)
     scheduler.start()

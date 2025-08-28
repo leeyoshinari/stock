@@ -5,7 +5,6 @@
 import os
 import json
 import time
-import math
 import queue
 import traceback
 import requests
@@ -75,19 +74,6 @@ def generateStockCode(data: dict) -> str:
 
 def calc_MA(data: List, window: int) -> float:
     return round(sum(data[:window]) / window, 2)
-
-
-def linear_least_squares(x: List, y: List) -> float:
-    n = len(x)
-    sum_x = sum(x)
-    sum_y = sum(y)
-    sum_xy = sum(xi * yi for xi, yi in zip(x, y))
-    sum_x2 = sum(xi ** 2 for xi in x)
-    numerator = n * sum_xy - sum_x * sum_y
-    denominator = n * sum_x2 - sum_x ** 2
-    k = numerator / denominator
-    angle_deg = math.degrees(math.atan(k))
-    return angle_deg
 
 
 def getStockFromTencent(a):
@@ -479,7 +465,7 @@ def checkTradeDay():
                     v2 = res_list[1].split('~')[6]
                     if int(v1) > 2 or int(v2) > 2:
                         is_trade_day = True
-                        job = scheduler.add_job(setAvailableStock, "interval", minutes=10, next_run_time=datetime.now() + timedelta(minutes=3))
+                        job = scheduler.add_job(setAvailableStock, "interval", minutes=10, next_run_time=datetime.now() + timedelta(minutes=2))
                         running_job_id = job.id
                         try:
                             tool = Tools.get_one("openDoor")

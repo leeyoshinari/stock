@@ -107,6 +107,17 @@ async def queryStockList(query: SearchStockParam) -> Result:
     return result
 
 
+async def calcStockPriceMeanAngle(code: str) -> Result:
+    result = Result()
+    try:
+        stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(20).all()
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.msg = e
+        result.success = False
+    return result
+
+
 async def queryStockRetailQrr(codeList: List) -> Result:
     result = Result()
     try:
