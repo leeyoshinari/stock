@@ -376,7 +376,7 @@ def saveStockInfo(stockDo: StockModelDo):
         current_date = "2021"
     volume_obj = Volumn.query_fields(columns=['volumn'], code=stockDo.code, date=current_date).order_by(desc(Volumn.create_time)).limit(3).all()
     stock_volume = [r[0] for r in volume_obj]
-    average_volumn = sum(stock_volume) / 3
+    average_volumn = sum(stock_volume) / len(stock_volume)
     average_volumn = average_volumn if average_volumn > 0 else 1
     try:
         stockObj = Detail.get_one((stockDo.code, stockDo.day))

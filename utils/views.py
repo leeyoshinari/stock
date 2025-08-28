@@ -87,9 +87,15 @@ async def queryStockList(query: SearchStockParam) -> Result:
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
         else:
             logger.info(query)
+            sort_key = query.sortField.split('_')[0]
+            sort_type = query.sortField.split('_')[1]
+            if sort_type == 'desc':
+                detail_sort = desc(getattr(Detail, sort_key))
+            else:
+                detail_sort = asc(getattr(Detail, sort_key))
             offset = (query.page - 1) * query.pageSize
             total_num = Detail.query(day=day).count()
-            stockInfo = Detail.query(day=day).order_by(desc(getattr(Detail, query.sortField))).offset(offset).limit(query.pageSize).all()
+            stockInfo = Detail.query(day=day).order_by(detail_sort).offset(offset).limit(query.pageSize).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList

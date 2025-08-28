@@ -17,6 +17,14 @@
                 <label>股票代码：</label> <input type="text" id="stock-code" placeholder="">
             </div>
             <div>
+                <label>排序：</label> <select id="order-by" style="height:34px;width:108px;" onchange="change_select();">
+                    <option value="qrr_desc">量比降序</option>
+                    <option value="qrr_asc">量比升序</option>
+                    <option value="volumn_desc">成交量降序</option>
+                    <option value="volumn_asc">成交量升序</option>
+                </select>
+            </div>
+            <div>
                 <button id="search">搜 索</button>
             </div>
             <div>

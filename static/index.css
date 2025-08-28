@@ -6,7 +6,8 @@
     display: flex;
     flex-direction: row;
     justify-content: flex-start;
-    gap: 33px;
+    align-items: center;
+    gap: 30px;
 }
 
 .header>div>input {

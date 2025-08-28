@@ -1,15 +1,15 @@
 const pageSize = 20;
 let page = 1;
 document.getElementById("search").addEventListener("click", () => {
-    page = 1; getStockList("");
+    page = 1; getStockList();
 })
 
 document.getElementById("pre-page").addEventListener("click", () => {
     page -= 1;
-    if (page === 1) {
+    if (page <= 1) {
         document.getElementById("pre-page").disabled = 'true';
     }
-    getStockList("");
+    getStockList();
 })
 
 document.getElementById("next-page").addEventListener("click", () => {
@@ -17,11 +17,12 @@ document.getElementById("next-page").addEventListener("click", () => {
     if (page > 1) {
         document.getElementById("pre-page").disabled = '';
     }
-    getStockList("");
+    getStockList();
 })
 
 
-function getStockList(sortField) {
+function getStockList() {
+    let sortField = document.getElementById("order-by").value;
     let url = prefix + `/list?pageSize=20&page=${page}&sortField=${sortField}`;
     let stock_name = document.getElementById("stock-name").value;
     let stock_code = document.getElementById("stock-code").value;
@@ -62,6 +63,9 @@ function getStockList(sortField) {
 }
 
 
+function change_select() {page = 1;getStockList();}
+
+
 function get_stock_figure(code, name) {
     fetch(prefix + `/get?code=${code}`)
         .then(res => res.json())
@@ -85,4 +89,4 @@ overlay.addEventListener('click', function(event) {
 });
 
 document.getElementById("pre-page").disabled = 'true';
-getStockList('');
+getStockList();
