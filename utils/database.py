@@ -197,6 +197,7 @@ class Stock(Base, CRUDBase):
     code = Column(String(8), primary_key=True, comment="股票代码")
     name = Column(String(8), nullable=False, comment="股票名称")
     running = Column(Integer, default=1, nullable=False, comment="0-不获取数据，1-获取数据")
+    checking = Column(Integer, default=0, nullable=False, comment="0-不实时检查，1-实时检查")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -217,7 +218,7 @@ class Detail(Base, CRUDBase):
     last_price = Column(Float, nullable=False, comment="前一天收盘价")
     max_price = Column(Float, nullable=False, comment="最高价")
     min_price = Column(Float, nullable=False, comment="最低价")
-    volumn = Column(Integer, nullable=False, comment="成交量（股）")
+    volumn = Column(Integer, nullable=False, comment="成交量（手）")
     ma_three = Column(Float, nullable=True, comment="3日均线")
     ma_five = Column(Float, nullable=True, comment="5日均线")
     ma_ten = Column(Float, nullable=True, comment="10日均线")
@@ -236,7 +237,8 @@ class Volumn(Base, CRUDBaseVolumn):
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(8), ForeignKey('stock.code', ondelete="CASCADE"), nullable=False, comment="股票代码")
     date = Column(String(4), nullable=False, comment="时间")
-    volumn = Column(Integer, nullable=False, comment="成交量（股）")
+    volumn = Column(Integer, nullable=False, comment="成交量（手）")
+    price = Column(Float, nullable=False, comment="价格")
     create_time = Column(DateTime, default=datetime.now)
 
 

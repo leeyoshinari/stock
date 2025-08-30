@@ -362,8 +362,9 @@ def saveStockInfo(stockDo: StockModelDo):
         current_date = "2021"
     volume_obj = Volumn.query_fields(columns=['volumn'], code=stockDo.code, date=current_date).order_by(desc(Volumn.create_time)).limit(3).all()
     stock_volume = [r[0] for r in volume_obj]
-    average_volumn = sum(stock_volume) / len(stock_volume)
-    average_volumn = average_volumn if average_volumn > 0 else 1
+    volume_len = len(stock_volume) if len(stock_volume) > 0 else 1
+    average_volumn = sum(stock_volume) / volume_len
+    average_volumn = average_volumn if average_volumn > 0 else stockDo.volumn
     try:
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         stock_price[0] = stockDo.current_price
@@ -376,7 +377,7 @@ def saveStockInfo(stockDo: StockModelDo):
         Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
                       max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_three=calc_MA(stock_price, 3), last_price=stockDo.last_price,
                       ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2))
-    Volumn.create(code=stockDo.code, date=current_date, volumn=stockDo.volumn)
+    Volumn.create(code=stockDo.code, date=current_date, volumn=stockDo.volumn, price=stockDo.current_price)
 
 
 def setAllStock():
@@ -401,7 +402,7 @@ def setAllStock():
                         is_running = getStockType(code)
                         if 'ST' in name.upper():
                             is_running = 0
-                        Stock.create(code=code, name=name, running=is_running)
+                        Stock.create(code=code, name=name, running=is_running, checking=0)
                         logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
                     except:
                         logger.error(traceback.format_exc())

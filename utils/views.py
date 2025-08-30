@@ -14,6 +14,7 @@ from utils.model import SearchStockParam, StockModelDo, RequestData
 from utils.logging import logger
 from utils.results import Result
 from utils.database import Stock, Detail, Volumn, Tools
+from utils.recommend import calc_price_average
 
 
 headers = {
@@ -107,10 +108,25 @@ async def queryStockList(query: SearchStockParam) -> Result:
     return result
 
 
+async def check_stock(code: str, checking: int) -> Result:
+    result = Result()
+    try:
+        stock = Stock.get_one(code)
+        checking = checking if checking == 0 else 1
+        Stock.update(stock, checking=checking)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = e
+    return result
+
+
 async def calcStockPriceMeanAngle(code: str) -> Result:
     result = Result()
     try:
         stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(20).all()
+        res = {"price": calc_price_average(stockList)}
+        result.data = res
     except Exception as e:
         logger.error(traceback.format_exc())
         result.msg = e
