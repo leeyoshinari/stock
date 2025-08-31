@@ -8,10 +8,10 @@ from typing import List, Optional
 # from utils.results import Result
 
 
-def linear_least_squares(y: List[float], period: int = 5) -> float:
+def linear_least_squares(y: List[float], period: int = 5, delta: float = 0.03) -> float:
     n = len(y)
     if n == 0: return 0
-    t = [x * 0.03 for x in range(1, n + 1)]
+    t = [x * delta for x in range(1, n + 1)]
     alpha = 2 / (period + 1)
     weights = [(1 - alpha) ** (n - i - 1) for i in range(n)]
     # weights = [1] * n
@@ -78,10 +78,10 @@ def calc_volume_average(stock: List) -> dict:
     res = {}
     qrr_list = [s.qrr for s in stock[-20:]]
 
-    res.update({"volume_angle_l3d": linear_least_squares(qrr_list[-3:], 3)})
-    res.update({"volume_angle_l5d": linear_least_squares(qrr_list[-5:], 5)})
-    res.update({"volume_angle_l10d": linear_least_squares(qrr_list[-10:], 10)})
-    res.update({"volume_angle_l20d": linear_least_squares(qrr_list[-20:], 20)})
+    res.update({"volume_angle_l3d": linear_least_squares(qrr_list[-3:], 3, 0.5)})
+    res.update({"volume_angle_l5d": linear_least_squares(qrr_list[-5:], 5, 0.5)})
+    res.update({"volume_angle_l10d": linear_least_squares(qrr_list[-10:], 10, 0.5)})
+    res.update({"volume_angle_l20d": linear_least_squares(qrr_list[-20:], 20, 0.5)})
     res.update({"qrr_deviation_l1d": standard_deviation(qrr_list[-5:])})
     res.update({"qrr_deviation_l2d": standard_deviation(qrr_list[-6: -1])})
     res.update({"qrr_deviation_l3d": standard_deviation(qrr_list[-7: -2])})
@@ -92,13 +92,13 @@ def calc_volume_average(stock: List) -> dict:
 def calc_volume_realtime_average(stock: List) -> dict:
     res = {}
     volumn_list = [s.volumn for s in stock[-10:]]
-    res.update({"volumn_angle_l3d": calc_angle(volumn_list[-3:])})
-    res.update({"volumn_angle_l5d": calc_angle(volumn_list[-5:])})
+    res.update({"volumn_angle_l3d": linear_least_squares(volumn_list[-3:], 3, 0.3)})
+    res.update({"volumn_angle_l5d": linear_least_squares(volumn_list[-5:], 5, 0.3)})
     return res
 
 
 if __name__ == '__main__':
     a = [159.68, 176.86, 193.1, 210, 201]
-    b = [6.6, 6.7, 7.31]
-    print(linear_least_squares(a, 5))
-    print(calc_angle(a))
+    b = [709992, 463985, 359579]
+    print(linear_least_squares(b, 3, 0.3))
+    print(calc_angle(b))
