@@ -29,6 +29,15 @@ def linear_least_squares(y: List[float], period: int = 5) -> float:
     return round(angle, 1)
 
 
+def calc_angle(y: List[float]) -> float:
+    n = len(y)
+    if n == 0: return 0
+    y_mean = sum(y) / n
+    delta = (y[-1] - y[0]) / (n - 1) / y_mean / 0.03
+    angle = math.degrees(math.atan(delta))
+    return round(angle, 1)
+
+
 def standard_deviation(data: List[float]) -> float:
     n = len(data)
     mean = sum(data) / n
@@ -67,13 +76,12 @@ def calc_price_average(stock: List) -> dict:
 
 def calc_volume_average(stock: List) -> dict:
     res = {}
-    volume_list = [s.volumn for s in stock[-20:]]
     qrr_list = [s.qrr for s in stock[-20:]]
 
-    res.update({"volume_angle_l3d": linear_least_squares(volume_list[-4: -1], 3)})
-    res.update({"volume_angle_l5d": linear_least_squares(volume_list[-6: -1], 5)})
-    res.update({"volume_angle_l10d": linear_least_squares(volume_list[-11: -1], 10)})
-    res.update({"volume_angle_l20d": linear_least_squares(volume_list[-21: -1], 20)})
+    res.update({"volume_angle_l3d": linear_least_squares(qrr_list[-3:], 3)})
+    res.update({"volume_angle_l5d": linear_least_squares(qrr_list[-5:], 5)})
+    res.update({"volume_angle_l10d": linear_least_squares(qrr_list[-10:], 10)})
+    res.update({"volume_angle_l20d": linear_least_squares(qrr_list[-20:], 20)})
     res.update({"qrr_deviation_l1d": standard_deviation(qrr_list[-5:])})
     res.update({"qrr_deviation_l2d": standard_deviation(qrr_list[-6: -1])})
     res.update({"qrr_deviation_l3d": standard_deviation(qrr_list[-7: -2])})
@@ -84,8 +92,8 @@ def calc_volume_average(stock: List) -> dict:
 def calc_volume_realtime_average(stock: List) -> dict:
     res = {}
     volumn_list = [s.volumn for s in stock[-10:]]
-    res.update({"volumn_angle_l3d": linear_least_squares(volumn_list[-3:], 3)})
-    res.update({"volumn_angle_l5d": linear_least_squares(volumn_list[-5:], 5)})
+    res.update({"volumn_angle_l3d": calc_angle(volumn_list[-3:])})
+    res.update({"volumn_angle_l5d": calc_angle(volumn_list[-5:])})
     return res
 
 
@@ -93,3 +101,4 @@ if __name__ == '__main__':
     a = [159.68, 176.86, 193.1, 210, 201]
     b = [6.6, 6.7, 7.31]
     print(linear_least_squares(a, 5))
+    print(calc_angle(a))

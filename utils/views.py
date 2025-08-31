@@ -124,13 +124,8 @@ async def check_stock(code: str, checking: int) -> Result:
 async def calcStockPriceMeanAngle(code: str, start_date: str, end_date: str) -> Result:
     result = Result()
     try:
-        now = datetime.now().time()
-        start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
-        end_time = datetime.strptime("13:00:00", "%H:%M:%S").time()
-        if start_time < now < end_time:
-            date = "1130"
-        else:
-            date = normalizeHourAndMinute()
+        stock_date = Volumn.query_fields(columns=['date'], code=code).order_by(desc(Volumn.create_time)).limit(1).all()
+        date = stock_date[0][0]
         if start_date and end_date:
             stockList = Detail.filter_condition(equal_condition={'code': code}, greater_equal_condition={'day': start_date}, less_equal_condition={'day': end_date}).order_by(desc(Detail.day)).limit(20).all()
         else:

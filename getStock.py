@@ -441,7 +441,7 @@ def setAvailableStock():
                 logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
                 time.sleep(BATCH_INTERVAL)
             now = datetime.now().time()
-            stop_time = datetime.strptime("16:30:00", "%H:%M:%S").time()
+            stop_time = datetime.strptime("15:30:00", "%H:%M:%S").time()
             if now > stop_time:
                 is_trade_day = False
         except:
@@ -505,7 +505,7 @@ if __name__ == '__main__':
     http1_host = "https://usc.ihuster.top"
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
-    scheduler.add_job(setAvailableStock, 'cron', hour=18, minute=0, second=20)  # 必须在 16点后启动
+    scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 必须在15点后启动
     scheduler.add_job(setAllStock, 'cron', hour=22, minute=54, second=20)    # 更新股票信息
     scheduler.start()
     time.sleep(2)
