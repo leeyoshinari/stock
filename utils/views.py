@@ -14,7 +14,7 @@ from utils.model import SearchStockParam, StockModelDo, RequestData
 from utils.logging import logger
 from utils.results import Result
 from utils.database import Stock, Detail, Volumn, Tools
-from utils.recommend import calc_price_average
+from utils.recommend import calc_price_average, calc_volume_average, calc_volume_realtime_average
 
 
 headers = {
@@ -121,11 +121,24 @@ async def check_stock(code: str, checking: int) -> Result:
     return result
 
 
-async def calcStockPriceMeanAngle(code: str) -> Result:
+async def calcStockPriceMeanAngle(code: str, start_date: str, end_date: str) -> Result:
     result = Result()
     try:
-        stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(20).all()
-        res = {"price": calc_price_average(stockList)}
+        now = datetime.now().time()
+        start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
+        end_time = datetime.strptime("13:00:00", "%H:%M:%S").time()
+        if start_time < now < end_time:
+            date = "1130"
+        else:
+            date = normalizeHourAndMinute()
+        if start_date and end_date:
+            stockList = Detail.filter_condition(equal_condition={'code': code}, greater_equal_condition={'day': start_date}, less_equal_condition={'day': end_date}).order_by(desc(Detail.day)).limit(20).all()
+        else:
+            stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(20).all()
+        realTimeStockList = Volumn.query(code=code, date=date).order_by(desc(Volumn.create_time)).limit(20).all()
+        stockList.reverse()
+        realTimeStockList.reverse()
+        res = {"price": calc_price_average(stockList), "volume": calc_volume_average(stockList), "real_volume": calc_volume_realtime_average(realTimeStockList)}
         result.data = res
     except Exception as e:
         logger.error(traceback.format_exc())

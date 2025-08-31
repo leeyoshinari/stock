@@ -117,7 +117,7 @@ class CRUDBase:
             Database.close_session()
 
     @classmethod
-    def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None):
+    def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None, greater_equal_condition: dict = None, less_equal_condition: dict = None):
         """
         users = User.filter_condition(equal_condition={'status': 1, 'name': '222'}, not_equal_condition={'description': 'temp'})
         SELECT * FROM catuseralog WHERE status = 1 AND name = '222' AND description != 'temp';
@@ -134,6 +134,12 @@ class CRUDBase:
             if not_equal_condition:
                 for column, value in not_equal_condition.items():
                     query = query.filter(getattr(cls, column) != value)
+            if greater_equal_condition:
+                for column, value in greater_equal_condition.items():
+                    query = query.filter(getattr(cls, column) >= value)
+            if less_equal_condition:
+                for column, value in less_equal_condition.items():
+                    query = query.filter(getattr(cls, column) <= value)
             return query
         except:
             raise

@@ -41,11 +41,11 @@ class StockController(Controller):
         return result
 
     @get('/getAverage', summary="获取均值走势数据")
-    async def get_average(self, code: str) -> Result:
-        result = await views.calcStockPriceMeanAngle(code)
+    async def get_average(self, code: str, start_date: str = '', end_date: str = '') -> Result:
+        result = await views.calcStockPriceMeanAngle(code, start_date.strip(), end_date.strip())
         return result
 
-    @get('/check', summary="实时监控股票")
+    @get('/check', summary="设置是否监控股票")
     async def check_stock(self, code: str, check: int) -> Result:
         result = await views.check_stock(code, check)
         return result

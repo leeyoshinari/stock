@@ -72,7 +72,7 @@
     font-size: medium;
 }
 
-.stock-chart {
+.stock-chart, .stock-data {
     position: fixed;
     background-color: #8d8a8a61;
     width: 100%;
@@ -89,4 +89,50 @@
     margin: 0 auto;
     background-color: white;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+#data-tips {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 15px;
+    width: 720px;
+    margin: 0 auto;
+    background-color: white;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+#data-tips>.header {
+    font-size: larger;
+    font-weight: bold;
+}
+
+#data-tips>div {
+    display: flex;
+    flex-direction: column;
+}
+
+#data-tips>div>.title {
+    font-size: large;
+    font-weight: bold;
+}
+
+#data-tips>div>.value {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    flex: 1;
+    gap: 8%;
+    align-items: center;
+}
+
+#data-tips>div>.value>div>.value-text {
+    font-weight: bold;
+    margin-left: 8px;
+}
+
+#data-tips>div>.value>div>img {
+    width: 20px;
+    height: 20px;
+    margin-left: 15px;
 }

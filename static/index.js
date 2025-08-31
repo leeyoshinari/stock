@@ -20,7 +20,6 @@ document.getElementById("next-page").addEventListener("click", () => {
     getStockList();
 })
 
-
 function getStockList() {
     let sortField = document.getElementById("order-by").value;
     let url = prefix + `/list?pageSize=20&page=${page}&sortField=${sortField}`;
@@ -53,7 +52,7 @@ function getStockList() {
                     neng = '';
                 }
                 s += `<div id="${item.code}" class="item-list" style="color:${color};"><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
-                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${neng}</div><div><button onclick="get_stock_figure('${item.code}', '${item.name}');">K线</button><!--button onclick="get_stock_figure();">推荐值</button--></div></div>`;
+                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${neng}</div><div><button onclick="get_stock_figure('${item.code}', '${item.name}');">K线</button><button onclick="get_stock_data('${item.code}', '${item.name}');">走势</button></div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -62,9 +61,7 @@ function getStockList() {
         })
 }
 
-
 function change_select() {page = 1;getStockList();}
-
 
 function get_stock_figure(code, name) {
     fetch(prefix + `/get?code=${code}`)
@@ -81,11 +78,32 @@ function get_stock_figure(code, name) {
         })
 }
 
+function get_stock_data(code, name) {
+    fetch(prefix + `/getAverage?code=${code}&start_date=&end_date=`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                let stock = data.data;
+                let s = `<div class="header">${name} - ${code}</div><div><div class="title">价格-3日均线</div><div class="value"><div><span>L3D: </span><span class="value-text" style="color:${stock.price.ma3_angle_l3d >= 0 ? 'red' : 'green'}">${stock.price.ma3_angle_l3d}°</span><img src="${prefix}/static/${stock.price.ma3_angle_l3d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L5D: </span><span class="value-text" style="color:${stock.price.ma3_angle_l5d >= 0 ? 'red' : 'green'}">${stock.price.ma3_angle_l5d}°</span><img src="${prefix}/static/${stock.price.ma3_angle_l5d >= 0 ? 'up' : 'down'}.svg" /></div></div></div>
+                <div><div class="title">价格-5日均线</div><div class="value"><div><span>L3D: </span><span class="value-text" style="color:${stock.price.ma5_angle_l3d >= 0 ? 'red' : 'green'}">${stock.price.ma5_angle_l3d}°</span><img src="${prefix}/static/${stock.price.ma5_angle_l3d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L5D: </span><span class="value-text" style="color:${stock.price.ma5_angle_l5d >= 0 ? 'red' : 'green'}">${stock.price.ma5_angle_l5d}°</span><img src="${prefix}/static/${stock.price.ma5_angle_l5d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L10D: </span><span class="value-text" style="color:${stock.price.ma5_angle_l10d >= 0 ? 'red' : 'green'}">${stock.price.ma5_angle_l10d}°</span><img src="${prefix}/static/${stock.price.ma5_angle_l10d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L20D: </span><span class="value-text" style="color:${stock.price.ma5_angle_l20d >= 0 ? 'red' : 'green'}">${stock.price.ma5_angle_l20d}°</span><img src="${prefix}/static/${stock.price.ma5_angle_l20d >= 0 ? 'up' : 'down'}.svg" /></div></div></div>
+                <div><div class="title">价格-10日均线</div><div class="value"><div><span>L5D: </span><span class="value-text" style="color:${stock.price.ma10_angle_l5d >= 0 ? 'red' : 'green'}">${stock.price.ma10_angle_l5d}°</span><img src="${prefix}/static/${stock.price.ma10_angle_l5d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L10D: </span><span class="value-text" style="color:${stock.price.ma10_angle_l10d >= 0 ? 'red' : 'green'}">${stock.price.ma10_angle_l10d}°</span><img src="${prefix}/static/${stock.price.ma10_angle_l10d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L20D: </span><span class="value-text" style="color:${stock.price.ma10_angle_l20d >= 0 ? 'red' : 'green'}">${stock.price.ma10_angle_l20d}°</span><img src="${prefix}/static/${stock.price.ma10_angle_l20d >= 0 ? 'up' : 'down'}.svg" /></div></div></div>
+                <div><div class="title">价格-20日均线</div><div class="value"><div><span>L5D: </span><span class="value-text" style="color:${stock.price.ma20_angle_l5d >= 0 ? 'red' : 'green'}">${stock.price.ma20_angle_l5d}°</span><img src="${prefix}/static/${stock.price.ma20_angle_l5d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L10D: </span><span class="value-text" style="color:${stock.price.ma20_angle_l10d >= 0 ? 'red' : 'green'}">${stock.price.ma20_angle_l10d}°</span><img src="${prefix}/static/${stock.price.ma20_angle_l10d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L20D: </span><span class="value-text" style="color:${stock.price.ma20_angle_l20d >= 0 ? 'red' : 'green'}">${stock.price.ma20_angle_l20d}°</span><img src="${prefix}/static/${stock.price.ma20_angle_l20d >= 0 ? 'up' : 'down'}.svg" /></div></div></div>
+                <div><div class="title">成交量</div><div class="value"><div><span>L3D: </span><span class="value-text" style="color:${stock.volume.volume_angle_l3d >= 0 ? 'red' : 'green'}">${stock.volume.volume_angle_l3d}°</span><img src="${prefix}/static/${stock.volume.volume_angle_l3d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L5D: </span><span class="value-text" style="color:${stock.volume.volume_angle_l5d >= 0 ? 'red' : 'green'}">${stock.volume.volume_angle_l5d}°</span><img src="${prefix}/static/${stock.volume.volume_angle_l5d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L10D: </span><span class="value-text" style="color:${stock.volume.volume_angle_l10d >= 0 ? 'red' : 'green'}">${stock.volume.volume_angle_l10d}°</span><img src="${prefix}/static/${stock.volume.volume_angle_l10d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L20D: </span><span class="value-text" style="color:${stock.volume.volume_angle_l20d >= 0 ? 'red' : 'green'}">${stock.volume.volume_angle_l20d}°</span><img src="${prefix}/static/${stock.volume.volume_angle_l20d >= 0 ? 'up' : 'down'}.svg" /></div></div></div>
+                <div><div class="title">量比(标准差)</div><div class="value"><div><span>L1D: </span><span class="value-text" style="color:${stock.volume.qrr_deviation_l1d >= 0 ? 'red' : 'green'}">${stock.volume.qrr_deviation_l1d}</span></div><div><span>L2D: </span><span class="value-text" style="color:${stock.volume.qrr_deviation_l2d >= 0 ? 'red' : 'green'}">${stock.volume.qrr_deviation_l2d}</span></div><div><span>L3D: </span><span class="value-text" style="color:${stock.volume.qrr_deviation_l3d >= 0 ? 'red' : 'green'}">${stock.volume.qrr_deviation_l3d}</span></div><div><span>L4D: </span><span class="value-text" style="color:${stock.volume.qrr_deviation_l4d >= 0 ? 'red' : 'green'}">${stock.volume.qrr_deviation_l4d}</span></div></div></div>
+                <div><div class="title">实时成交量</div><div class="value"><div><span>L3D: </span><span class="value-text" style="color:${stock.real_volume.volumn_angle_l3d >= 0 ? 'red' : 'green'}">${stock.real_volume.volumn_angle_l3d}°</span><img src="${prefix}/static/${stock.real_volume.volumn_angle_l3d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L5D: </span><span class="value-text" style="color:${stock.real_volume.volumn_angle_l5d >= 0 ? 'red' : 'green'}">${stock.real_volume.volumn_angle_l5d}°</span><img src="${prefix}/static/${stock.real_volume.volumn_angle_l5d >= 0 ? 'up' : 'down'}.svg" /></div></div></div>`;
+                document.getElementById("data-tips").innerHTML = s;
+                document.getElementsByClassName("stock-data")[0].style.display = "flex";
+            }
+        })
+}
+
 const overlay = document.querySelector('.stock-chart');
+const overlay_data = document.querySelector('.stock-data');
 overlay.addEventListener('click', function(event) {
-  if (event.target === overlay) {
-    overlay.style.display = 'none';
-  }
+  if (event.target === overlay) {overlay.style.display = 'none';}
+});
+overlay_data.addEventListener('click', function(event) {
+  if (event.target === overlay_data) {overlay_data.style.display = 'none';}
 });
 
 document.getElementById("pre-page").disabled = 'true';
