@@ -3,6 +3,11 @@ let page = 1;
 document.getElementById("search").addEventListener("click", () => {
     page = 1; getStockList();
 })
+document.addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        page = 1; getStockList();
+    }
+});
 
 document.getElementById("pre-page").addEventListener("click", () => {
     page -= 1;
