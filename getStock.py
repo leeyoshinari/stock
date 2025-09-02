@@ -528,8 +528,8 @@ if __name__ == '__main__':
     PID = os.getpid()
     with open('pid', 'w', encoding='utf-8') as f:
         f.write(str(PID))
-    funcList = [getStockFromTencent, getStockFromXueQiu, getStockFromSina, queryStockTencentFromHttp, queryStockXueQiuFromHttp, queryStockSinaFromHttp]
-    paramList = ['', '', '', http1_host, http1_host, http1_host]
+    funcList = [getStockFromTencent, getStockFromSina, queryStockTencentFromHttp, queryStockXueQiuFromHttp, queryStockSinaFromHttp]
+    paramList = ['', '', http1_host, http1_host, http1_host]
     with ThreadPoolExecutor(max_workers=THREAD_POOL_SIZE) as executor:
         futures = [executor.submit(func, param) for func, param in zip(funcList, paramList)]
         wait(futures)
