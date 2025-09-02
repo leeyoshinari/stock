@@ -26,7 +26,7 @@ queryTask = queue.Queue()   # FIFO queue
 running_job_id = None
 is_trade_day = False
 headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
 
 
@@ -115,13 +115,15 @@ def getStockFromTencent(a):
                 if len(error_list) > 0:
                     queryTask.put(error_list)
             else:
-                logger.error("Tencent - 请求未正常返回...")
+                logger.error(f"Tencent - 请求未正常返回... {datas}")
                 queryTask.put(datas)
+                time.sleep(2)
             error_list = []
         except:
-            logger.error("Tencent - 出现异常......")
+            logger.error(f"Tencent - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
+            time.sleep(2)
         finally:
             if datas: queryTask.task_done()
 
@@ -137,6 +139,7 @@ def getStockFromXueQiu(a):
             stockCode = generateStockCode(dataDict)
             res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
             if res.status_code == 200:
+                logger.info(f"XueQiu - {res.text}")
                 res_json = json.loads(res.text)
                 for s in res_json['data']:
                     try:
@@ -163,13 +166,15 @@ def getStockFromXueQiu(a):
                 if len(error_list) > 0:
                     queryTask.put(error_list)
             else:
-                logger.error("XueQiu - 请求未正常返回...")
+                logger.error(f"XueQiu - 请求未正常返回... {datas}")
                 queryTask.put(datas)
+                time.sleep(2)
             error_list = []
         except:
-            logger.error("XueQiu - 出现异常......")
+            logger.error(f"XueQiu - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
+            time.sleep(2)
         finally:
             if datas: queryTask.task_done()
 
@@ -185,7 +190,7 @@ def getStockFromSina(a):
             stockCode = generateStockCode(dataDict)
             h = {
                 'Referer': 'https://finance.sina.com.cn',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
             }
             res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
             if res.status_code == 200:
@@ -217,13 +222,15 @@ def getStockFromSina(a):
                 if len(error_list) > 0:
                     queryTask.put(error_list)
             else:
-                logger.error("Sina - 请求未正常返回...")
+                logger.error(f"Sina - 请求未正常返回... {datas}")
                 queryTask.put(datas)
+                time.sleep(2)
             error_list = []
         except:
-            logger.error("Sina - 出现异常......")
+            logger.error(f"Sina - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
+            time.sleep(2)
         finally:
             if datas: queryTask.task_done()
 
@@ -256,15 +263,18 @@ def queryStockTencentFromHttp(host: str):
                             saveStockInfo(stockDo)
                             logger.info(f"Tencent - Http: {stockDo}")
                 else:
-                    logger.error(f"Tencent - Http 请求未正常返回, {res.text}...")
+                    logger.error(f"Tencent - Http 请求未正常返回, {res.text} - {datas}...")
                     queryTask.put(datas)
+                    time.sleep(2)
             else:
-                logger.error(f"Tencent - Http 请求未正常返回 - {res.status_code}")
+                logger.error(f"Tencent - Http 请求未正常返回 - {res.status_code} - {datas}")
                 queryTask.put(datas)
+                time.sleep(2)
         except:
-            logger.error("Tencent - Http 出现异常......")
+            logger.error(f"Tencent - Http 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
+            time.sleep(2)
         finally:
             if datas: queryTask.task_done()
 
@@ -297,15 +307,18 @@ def queryStockXueQiuFromHttp(host: str):
                             saveStockInfo(stockDo)
                             logger.info(f"XueQiu - Http: {stockDo}")
                 else:
-                    logger.error(f"XueQiu - Http 请求未正常返回, {res.text}...")
+                    logger.error(f"XueQiu - Http 请求未正常返回, {res.text} - {datas}...")
                     queryTask.put(datas)
+                    time.sleep(2)
             else:
-                logger.error(f"XueQiu - Http 请求未正常返回 - {res.status_code}")
+                logger.error(f"XueQiu - Http 请求未正常返回 - {res.status_code} - {datas}")
                 queryTask.put(datas)
+                time.sleep(2)
         except:
-            logger.error("XueQiu - Http 出现异常......")
+            logger.error(f"XueQiu - Http 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
+            time.sleep(2)
         finally:
             if datas: queryTask.task_done()
 
@@ -338,15 +351,18 @@ def queryStockSinaFromHttp(host: str):
                             saveStockInfo(stockDo)
                             logger.info(f"Sina - Http: {stockDo}")
                 else:
-                    logger.error(f"Sina - Http 请求未正常返回, {res.text}...")
+                    logger.error(f"Sina - Http 请求未正常返回, {res.text} - {datas}...")
                     queryTask.put(datas)
+                    time.sleep(2)
             else:
-                logger.error(f"Sina - Http 请求未正常返回 - {res.status_code}")
+                logger.error(f"Sina - Http 请求未正常返回 - {res.status_code} - {datas}")
                 queryTask.put(datas)
+                time.sleep(2)
         except:
-            logger.error("Sina - Http 出现异常......")
+            logger.error(f"Sina - Http 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
+            time.sleep(2)
         finally:
             if datas: queryTask.task_done()
 

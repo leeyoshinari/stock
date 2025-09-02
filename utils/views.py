@@ -18,7 +18,7 @@ from utils.recommend import calc_price_average, calc_volume_average, calc_volume
 
 
 headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
 
 
@@ -267,7 +267,7 @@ async def query_sina(query: RequestData) -> Result:
         stockCode = generateStockCode(dataDict)
         h = {
             'Referer': 'https://finance.sina.com.cn',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
         }
         res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
         if res.status_code == 200:
