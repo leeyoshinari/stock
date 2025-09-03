@@ -165,8 +165,8 @@ async def queryStockPriceAndVolume(code: str) -> Result:
         sort_l5d = dict(sorted(l5d.items()))
         x_label = []
         real_y = list(sort_real.values())
-        l3d_y = [round(sum(x) / 3, 2) for x in list(sort_l3d.values())]
-        l5d_y = [round(sum(x) / 3, 2) for x in list(sort_l5d.values())]
+        l3d_y = [int(sum(x) / 3) for x in list(sort_l3d.values())]
+        l5d_y = [int(sum(x) / 5) for x in list(sort_l5d.values())]
         xt = list(sort_l5d.keys())
         max_x_len = len(l5d_y)
         if len(l3d_y) > max_x_len:
