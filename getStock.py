@@ -371,7 +371,7 @@ def saveStockInfo(stockDo: StockModelDo):
     stock_price_obj = Detail.query_fields(columns=['current_price'], code=stockDo.code).order_by(desc(Detail.day)).limit(21).all()
     stock_price = [r[0] for r in stock_price_obj]
     now = datetime.now().time()
-    stop_time = datetime.strptime("15:00:00", "%H:%M:%S").time()
+    stop_time = datetime.strptime("15:00:20", "%H:%M:%S").time()
     if now < stop_time:
         current_date = normalizeHourAndMinute()
     else:

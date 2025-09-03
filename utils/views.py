@@ -7,7 +7,6 @@ import json
 import traceback
 from typing import List
 from collections import defaultdict
-from datetime import datetime
 import requests
 from sqlalchemy import desc, asc
 from utils.model import SearchStockParam, StockModelDo, RequestData
@@ -142,22 +141,51 @@ async def calcStockPriceMeanAngle(code: str, start_date: str, end_date: str) -> 
     return result
 
 
-async def queryStockRetailQrr(codeList: List) -> Result:
+async def queryStockPriceAndVolume(code: str) -> Result:
     result = Result()
     try:
-        now = datetime.now().time()
-        start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
-        end_time = datetime.strptime("13:00:00", "%H:%M:%S").time()
-        if start_time < now < end_time:
-            date = "1130"
-        else:
-            date = normalizeHourAndMinute()
-        stockVolumn = Volumn.queryByCodeAndDate(codeList, date).all()
-        dataDict = defaultdict(list)
-        for s in stockVolumn:
-            dataDict[s.code].append(s.volumn)
-        result.data = dict(dataDict)
-        logger.info(f"查询量比成功, code: {codeList}")
+        tool = Tools.get_one("openDoor")
+        day = tool.value
+        current_date = f"{day[:4]}-{day[4:6]}-{day[6:8]}"
+        real = {}
+        l3d = defaultdict(list)
+        l5d = defaultdict(list)
+        stockInfo = Volumn.query(code=code).order_by(desc(Volumn.create_time)).limit(150).all()
+        for s in stockInfo:
+            if current_date == s.create_time_date:
+                real.update({s.date: s.volumn})
+            else:
+                if len(l3d[s.date]) <= 3:
+                    l3d[s.date].append(s.volumn)
+                if len(l5d[s.date]) <= 5:
+                    l5d[s.date].append(s.volumn)
+
+        sort_real = dict(sorted(real.items()))
+        sort_l3d = dict(sorted(l3d.items()))
+        sort_l5d = dict(sorted(l5d.items()))
+        real_x = []
+        l3d_x = []
+        l5d_x = []
+        for x in list(sort_real.keys()):
+            if x == '2021':
+                real_x.append('15:10')
+            else:
+                real_x.append(f"{x[:2]}:{x[2:]}")
+        for x in list(sort_l3d.keys()):
+            if x == '2021':
+                l3d_x.append('15:10')
+            else:
+                l3d_x.append(f"{x[:2]}:{x[2:]}")
+        for x in list(sort_l5d.keys()):
+            if x == '2021':
+                l5d_x.append('15:10')
+            else:
+                l5d_x.append(f"{x[:2]}:{x[2:]}")
+        real_y = list(sort_real.values())
+        l3d_y = [sum(x) / 3 for x in list(sort_l3d.values())]
+        l5d_y = [sum(x) / 3 for x in list(sort_l5d.values())]
+        result.data = {'real': {'x': real_x, 'y': real_y}, 'lxd': {'x3': l3d_x, 'x5': l5d_x, 'y3': l3d_y, 'y5': l5d_y}}
+        logger.info(f"查询量比成功, code: {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

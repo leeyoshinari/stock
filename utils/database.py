@@ -233,7 +233,7 @@ class Detail(Base, CRUDBase):
     create_time = Column(DateTime, default=datetime.now)
 
 
-class Volumn(Base, CRUDBaseVolumn):
+class Volumn(Base, CRUDBase):
     __tablename__ = 'volumn'
     __table_args__ = (
         Index('idx_code_date_create_time_desc', 'code', 'date', 'create_time'),
@@ -246,6 +246,12 @@ class Volumn(Base, CRUDBaseVolumn):
     volumn = Column(Integer, nullable=False, comment="成交量（手）")
     price = Column(Float, nullable=False, comment="价格")
     create_time = Column(DateTime, default=datetime.now)
+
+    @property
+    def create_time_date(self):
+        if self.create_time:
+            return self.create_time.strftime('%Y-%m-%d')
+        return None
 
 
 class Recommend(Base, CRUDBase):
