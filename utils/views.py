@@ -155,9 +155,9 @@ async def queryStockPriceAndVolume(code: str) -> Result:
             if current_date == s.create_time_date:
                 real.update({s.date: s.volumn})
             else:
-                if len(l3d[s.date]) <= 3:
+                if len(l3d[s.date]) < 3:
                     l3d[s.date].append(s.volumn)
-                if len(l5d[s.date]) <= 5:
+                if len(l5d[s.date]) < 5:
                     l5d[s.date].append(s.volumn)
 
         sort_real = dict(sorted(real.items()))
