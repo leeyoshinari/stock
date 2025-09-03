@@ -204,3 +204,122 @@ function plot_k_line(myChart, title, x, price, volume, ma3, ma5, ma10, ma20, qrr
   );
   option && myChart.setOption(option);
 };
+
+function plot_trend(myChart, title, x, y1, y3, y5) {
+  option = {
+    title: {
+      text: title,
+      left: 'center',
+      top: 10,
+      textStyle: {
+        fontSize: 13,
+        fontWeight: 'bold'
+      }
+    },
+    grid: [
+      {
+        left: '5%',
+        right: '5%',
+        top: 80,
+        height: 350
+      }
+    ],
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      }
+    },
+    color: ['red', 'blue', 'orange'],
+    legend: [
+      {
+        data: ['实时', '最近3天', '最近5天'],
+        x: 'center',
+        y: 40,
+        icon: 'line'
+      }
+    ],
+    dataZoom: [{
+        type: 'inside',
+        xAxisIndex: [0],
+        start: 0,
+        end: 100
+      },
+      {
+        show: false,
+        xAxisIndex: [0],
+        type: 'slider',
+        start: 0,
+        end: 100
+      }
+    ],
+    xAxis: [
+      {
+        gridIndex: 0,
+        type: 'category',
+        boundaryGap: false,
+        data: x,
+        axisTick: {
+          alignWithLabel: true,
+          interval: 'auto'
+        },
+        axisLabel: {
+          interval: 'auto',
+          showMaxLabel: true
+        }
+      }
+    ],
+    yAxis: [
+      {
+        gridIndex: 0,
+        name: '成交量',
+        type: 'value',
+        max: findMax(y1.concat(y3).concat(y5))
+      },
+      {gridIndex: 0}
+    ],
+    series: [
+      {
+        name: '实时',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1, color: 'red'},
+        data: y1
+      },
+      {
+        name: '最近3天',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1, color: 'blue'},
+        data: y3
+      },
+      {
+        name: '最近5天',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1, color: 'orange'},
+        data: y5
+      }
+    ]
+};
+
+  myChart.clear();
+  myChart.setOption(option);
+}
+
+function findMax(arr) {
+  let len = arr.length;
+  let max = arr[0];
+  while (len--) {
+      if (arr[len] > max) {
+          max = arr[len];
+      }
+  }
+  return max;
+}

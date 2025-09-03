@@ -163,28 +163,24 @@ async def queryStockPriceAndVolume(code: str) -> Result:
         sort_real = dict(sorted(real.items()))
         sort_l3d = dict(sorted(l3d.items()))
         sort_l5d = dict(sorted(l5d.items()))
-        real_x = []
-        l3d_x = []
-        l5d_x = []
-        for x in list(sort_real.keys()):
-            if x == '2021':
-                real_x.append('15:10')
-            else:
-                real_x.append(f"{x[:2]}:{x[2:]}")
-        for x in list(sort_l3d.keys()):
-            if x == '2021':
-                l3d_x.append('15:10')
-            else:
-                l3d_x.append(f"{x[:2]}:{x[2:]}")
-        for x in list(sort_l5d.keys()):
-            if x == '2021':
-                l5d_x.append('15:10')
-            else:
-                l5d_x.append(f"{x[:2]}:{x[2:]}")
+        x_label = []
         real_y = list(sort_real.values())
-        l3d_y = [sum(x) / 3 for x in list(sort_l3d.values())]
-        l5d_y = [sum(x) / 3 for x in list(sort_l5d.values())]
-        result.data = {'real': {'x': real_x, 'y': real_y}, 'lxd': {'x3': l3d_x, 'x5': l5d_x, 'y3': l3d_y, 'y5': l5d_y}}
+        l3d_y = [round(sum(x) / 3, 2) for x in list(sort_l3d.values())]
+        l5d_y = [round(sum(x) / 3, 2) for x in list(sort_l5d.values())]
+        xt = list(sort_l5d.keys())
+        max_x_len = len(l5d_y)
+        if len(l3d_y) > max_x_len:
+            max_x_len = len(l3d_y)
+            xt = list(sort_l3d.keys())
+        if len(real_y) > max_x_len:
+            max_x_len = len(real_y)
+            xt = list(sort_real.keys())
+        for x in xt:
+            if x == '2021':
+                x_label.append('15:10')
+            else:
+                x_label.append(f"{x[:2]}:{x[2:]}")
+        result.data = {'x': x_label, 'y1': real_y, 'y3': l3d_y, 'y5': l5d_y}
         logger.info(f"查询量比成功, code: {code}")
     except Exception as e:
         logger.error(traceback.format_exc())

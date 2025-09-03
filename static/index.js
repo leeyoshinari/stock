@@ -57,7 +57,8 @@ function getStockList() {
                     neng = '';
                 }
                 s += `<div id="${item.code}" class="item-list" style="color:${color};"><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
-                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${neng}</div><div><button onclick="get_stock_figure('${item.code}', '${item.name}');">K线</button><button onclick="get_stock_data('${item.code}', '${item.name}');">走势</button></div></div>`;
+                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${neng}</div><div><button onclick="get_stock_figure('${item.code}', '${item.name}');">K线</button>
+                      <button onclick="plot_stock_trend('${item.code}', '${item.name}');">走势</button><button onclick="get_stock_data('${item.code}', '${item.name}');">概览</button></div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -98,6 +99,21 @@ function get_stock_data(code, name) {
                 <div><div class="title">实时成交量</div><div class="value"><div><span>L3D: </span><span class="value-text" style="color:${stock.real_volume.volumn_angle_l3d >= 0 ? 'red' : 'green'}">${stock.real_volume.volumn_angle_l3d}°</span><img src="${prefix}/static/${stock.real_volume.volumn_angle_l3d >= 0 ? 'up' : 'down'}.svg" /></div><div><span>L5D: </span><span class="value-text" style="color:${stock.real_volume.volumn_angle_l5d >= 0 ? 'red' : 'green'}">${stock.real_volume.volumn_angle_l5d}°</span><img src="${prefix}/static/${stock.real_volume.volumn_angle_l5d >= 0 ? 'up' : 'down'}.svg" /></div></div></div>`;
                 document.getElementById("data-tips").innerHTML = s;
                 document.getElementsByClassName("stock-data")[0].style.display = "flex";
+            }
+        })
+}
+
+function plot_stock_trend(code, name) {
+    fetch(prefix + `/check?code=${code}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                let figure = document.getElementById("figure");
+                figure.removeAttribute("_echarts_instance_")
+                figure.innerHTML = '';
+                let stockChart = echarts.init(figure);
+                plot_trend(stockChart, `${name} - ${code}`, data.data.x, data.data.y1, data.data.y3, data.data.y5);
+                document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
 }
