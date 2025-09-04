@@ -148,12 +148,14 @@ async def queryStockPriceAndVolume(code: str) -> Result:
         day = tool.value
         current_date = f"{day[:4]}-{day[4:6]}-{day[6:8]}"
         real = {}
+        price = {}
         l3d = defaultdict(list)
         l5d = defaultdict(list)
         stockInfo = Volumn.query(code=code).order_by(desc(Volumn.create_time)).limit(150).all()
         for s in stockInfo:
             if current_date == s.create_time_date:
                 real.update({s.date: s.volumn})
+                price.update({s.date: s.price})
             else:
                 if len(l3d[s.date]) < 3:
                     l3d[s.date].append(s.volumn)
@@ -161,10 +163,12 @@ async def queryStockPriceAndVolume(code: str) -> Result:
                     l5d[s.date].append(s.volumn)
 
         sort_real = dict(sorted(real.items()))
+        sort_price = dict(sorted(price.items()))
         sort_l3d = dict(sorted(l3d.items()))
         sort_l5d = dict(sorted(l5d.items()))
         x_label = []
         real_y = list(sort_real.values())
+        price_y = list(sort_price.values())
         l3d_y = [int(sum(x) / 3) for x in list(sort_l3d.values())]
         l5d_y = [int(sum(x) / 5) for x in list(sort_l5d.values())]
         xt = list(sort_l5d.keys())
@@ -180,8 +184,8 @@ async def queryStockPriceAndVolume(code: str) -> Result:
                 x_label.append('15:10')
             else:
                 x_label.append(f"{x[:2]}:{x[2:]}")
-        result.data = {'x': x_label, 'y1': real_y, 'y3': l3d_y, 'y5': l5d_y}
-        logger.info(f"查询量比成功, code: {code}")
+        result.data = {'x': x_label, 'y1': real_y, 'y3': l3d_y, 'y5': l5d_y, 'price1': price_y}
+        logger.info(f"查询股票走势成功, code: {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

@@ -205,7 +205,7 @@ function plot_k_line(myChart, title, x, price, volume, ma3, ma5, ma10, ma20, qrr
   option && myChart.setOption(option);
 };
 
-function plot_trend(myChart, title, x, y1, y3, y5) {
+function plot_trend(myChart, title, x, y1, y3, y5, price1) {
   option = {
     title: {
       text: title,
@@ -230,13 +230,12 @@ function plot_trend(myChart, title, x, y1, y3, y5) {
         type: 'cross'
       }
     },
-    color: ['red', 'blue', 'orange'],
+    color: ['red', 'orange', 'green', 'blue'],
     legend: [
       {
-        data: ['实时', '最近3天', '最近5天'],
+        data: ['实时成交量', '最近3天成交量', '最近5天成交量', '实时价格'],
         x: 'center',
-        y: 40,
-        icon: 'line'
+        y: 40
       }
     ],
     dataZoom: [{
@@ -274,40 +273,51 @@ function plot_trend(myChart, title, x, y1, y3, y5) {
         gridIndex: 0,
         name: '成交量',
         type: 'value',
-        max: findMax(y1.concat(y3).concat(y5))
+        max: findMax([...y1, ...y3, ...y5])
       },
-      {gridIndex: 0}
+      {
+        gridIndex: 0,
+        name: '价格',
+        type: 'value',
+        max: findMax(price1)
+      }
     ],
     series: [
       {
-        name: '实时',
+        name: '实时成交量',
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
         showSymbol: false,
         lineStyle: {width: 1, color: 'red'},
         data: y1
-      },
-      {
-        name: '最近3天',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1, color: 'blue'},
-        data: y3
-      },
-      {
-        name: '最近5天',
+      },{
+        name: '最近3天成交量',
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
         showSymbol: false,
         lineStyle: {width: 1, color: 'orange'},
+        data: y3
+      },{
+        name: '最近5天成交量',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1, color: 'green'},
         data: y5
+      },{
+        name: '实时价格',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 1,
+        showSymbol: false,
+        lineStyle: {width: 1, color: 'blue'},
+        data: price1
       }
     ]
-};
+  };
 
   myChart.clear();
   myChart.setOption(option);

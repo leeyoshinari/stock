@@ -112,7 +112,7 @@ function plot_stock_trend(code, name) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_trend(stockChart, `${name} - ${code}`, data.data.x, data.data.y1, data.data.y3, data.data.y5);
+                plot_trend(stockChart, `${name} - ${code}`, data.data.x, data.data.y1, data.data.y3, data.data.y5, data.data.price1);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
