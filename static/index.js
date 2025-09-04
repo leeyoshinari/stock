@@ -49,10 +49,14 @@ function getStockList() {
                     neng = '放量上涨';
                 } else if (zhang >= 1 && item.qrr <= 0.7) {
                     neng = '缩量上涨';
-                } else if (zhang <= -1 && item.qrr >= 1.5) {
+                } else if (zhang <= -1 && zhang >= -3.5 && item.qrr >= 1.5) {
                     neng = '放量下跌';
-                } else if (zhang <= -1 && item.qrr <= 0.7) {
+                } else if (zhang < -3.5 && item.qrr >= 1.5) {
+                    neng = '放量大跌';
+                } else if (zhang <= -1 && zhang >= -3.5 && item.qrr <= 0.7) {
                     neng = '缩量下跌';
+                } else if (zhang < -3.5 && item.qrr <= 0.7) {
+                    neng = '缩量大跌';
                 } else {
                     neng = '';
                 }
@@ -112,7 +116,7 @@ function plot_stock_trend(code, name) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_trend(stockChart, `${name} - ${code}`, data.data.x, data.data.y1, data.data.y3, data.data.y5, data.data.price1);
+                plot_trend(stockChart, `${name} - ${code}`, data.data.x, data.data.y1, data.data.y3, data.data.y5, data.data.price1, data.data.price3, data.data.price5);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })

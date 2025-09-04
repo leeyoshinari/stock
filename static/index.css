@@ -38,6 +38,11 @@
     text-align: center;
 }
 
+.item-header>div:last-child {
+    flex: 0 0 133px;
+    min-width: 133px;
+}
+
 .list {
     display: flex;
     flex-direction: column;
@@ -61,6 +66,11 @@
     flex: 1;
     min-width: 0;
     text-align: center;
+}
+
+.list>div>div:last-child {
+    flex: 0 0 133px;
+    min-width: 133px;
 }
 
 .list>div>div>button {

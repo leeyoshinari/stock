@@ -205,7 +205,7 @@ function plot_k_line(myChart, title, x, price, volume, ma3, ma5, ma10, ma20, qrr
   option && myChart.setOption(option);
 };
 
-function plot_trend(myChart, title, x, y1, y3, y5, price1) {
+function plot_trend(myChart, title, x, y1, y3, y5, price1, price3, price5) {
   option = {
     title: {
       text: title,
@@ -220,7 +220,7 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1) {
       {
         left: '5%',
         right: '5%',
-        top: 80,
+        top: 100,
         height: 350
       }
     ],
@@ -230,10 +230,10 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1) {
         type: 'cross'
       }
     },
-    color: ['red', 'orange', 'green', 'blue'],
+    color: ['red', 'orange', 'green', 'blue', 'purple', 'gray'],
     legend: [
       {
-        data: ['实时成交量', '最近3天成交量', '最近5天成交量', '实时价格'],
+        data: ['实时成交量', '最近3天成交量', '最近5天成交量', '实时价格', '3日均线价格', '5日均线价格'],
         x: 'center',
         y: 40
       }
@@ -278,8 +278,7 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1) {
       {
         gridIndex: 0,
         name: '价格',
-        type: 'value',
-        max: findMax(price1)
+        type: 'value'
       }
     ],
     series: [
@@ -315,6 +314,22 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1) {
         showSymbol: false,
         lineStyle: {width: 1, color: 'blue'},
         data: price1
+      },{
+        name: '3日均线价格',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 1,
+        showSymbol: false,
+        lineStyle: {width: 1, color: 'purple'},
+        data: price3
+      },{
+        name: '5日均线价格',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 1,
+        showSymbol: false,
+        lineStyle: {width: 1, color: 'gray'},
+        data: price3
       }
     ]
   };
