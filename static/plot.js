@@ -329,7 +329,7 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1, price3, price5) {
         yAxisIndex: 1,
         showSymbol: false,
         lineStyle: {width: 1, color: 'gray'},
-        data: price3
+        data: price5
       }
     ]
   };
