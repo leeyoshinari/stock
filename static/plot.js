@@ -278,7 +278,9 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1, price3, price5) {
       {
         gridIndex: 0,
         name: '价格',
-        type: 'value'
+        type: 'value',
+        min: (findMin([...price1, ...price3, ...price5]) - 0.1).toFixed(2),
+        max: (findMax([...price1, ...price3, ...price5]) + 0.1).toFixed(2)
       }
     ],
     series: [
@@ -343,6 +345,17 @@ function findMax(arr) {
   let max = arr[0];
   while (len--) {
       if (arr[len] > max) {
+          max = arr[len];
+      }
+  }
+  return max;
+}
+
+function findMin(arr) {
+  let len = arr.length;
+  let max = arr[0];
+  while (len--) {
+      if (arr[len] < max) {
           max = arr[len];
       }
   }
