@@ -30,6 +30,12 @@ headers = {
 }
 
 
+alpha_trix = 2.0 / (12 + 1)
+alpha_s = 2.0 / (12 + 1)
+alpha_l = 2.0 / (26 + 1)
+alpha_sig = 2.0 / (9 + 1)
+
+
 def getStockRegion(code: str) -> str:
     if code.startswith("60") or code.startswith("68"):
         return "sh"
@@ -367,9 +373,51 @@ def queryStockSinaFromHttp(host: str):
             if datas: queryTask.task_done()
 
 
+def calc_macd(price: float, ema_s: float, ema_l: float, dea: float) -> dict:
+    ema_s = alpha_s * price + (1 - alpha_s) * ema_s
+    ema_l = alpha_l * price + (1 - alpha_l) * ema_l
+    diff = ema_s - ema_l
+    dea = alpha_sig * diff + (1 - alpha_sig) * dea
+    return {'emas': ema_s, 'emal': ema_l, 'diff': diff, 'dea': dea}
+
+
+def calc_kdj(price: float, high_price: list, low_price: list, kdjk: float, kdjd: float) -> dict:
+    high_n = max(high_price[: 9])
+    low_n = min(low_price[: 9])
+    if high_n == low_n:
+        rsv = 50
+    else:
+        rsv = (price - low_n) / (high_n - low_n) * 100
+    kdjk = 2.0 * kdjk / 3 + rsv / 3
+    kdjd = 2.0 * kdjd / 3 + kdjk / 3
+    kdjj = 3 * kdjk - 2 * kdjd
+    return {'k': kdjk, 'd': kdjd, 'j': kdjj}
+
+
+def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: float) -> dict:
+    ema1 = price * alpha_trix + ema1 * (1 - alpha_trix)
+    ema2 = ema1 * alpha_trix + ema2 * (1 - alpha_trix)
+    ema_three = ema2 * alpha_trix + ema3 * (1 - alpha_trix)
+    trix = (ema_three - ema3) / ema3 * 100
+    trix_list[0] = trix
+    trma = sum(trix_list[: 9]) / 9
+    return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
+
+
 def saveStockInfo(stockDo: StockModelDo):
-    stock_price_obj = Detail.query_fields(columns=['current_price'], code=stockDo.code).order_by(desc(Detail.day)).limit(21).all()
-    stock_price = [r[0] for r in stock_price_obj]
+    stock_price_obj = Detail.query(code=stockDo.code).order_by(desc(Detail.day)).limit(21).all()
+    stock_price = [r.current_price for r in stock_price_obj]
+    high_price = [r.max_price for r in stock_price_obj]
+    low_price = [r.min_price for r in stock_price_obj]
+    trix_list = [r.trix for r in stock_price_obj]
+    emas = stock_price_obj[1].emas
+    emal = stock_price_obj[1].emal
+    dea = stock_price_obj[1].dea
+    kdjk = stock_price_obj[1].kdjk
+    kdjd = stock_price_obj[1].kdjd
+    trix_ema_one = stock_price_obj[1].trix_ema_one
+    trix_ema_two = stock_price_obj[1].trix_ema_two
+    trix_ema_three = stock_price_obj[1].trix_ema_three
     now = datetime.now().time()
     stop_time = datetime.strptime("15:00:20", "%H:%M:%S").time()
     if now < stop_time:
@@ -384,15 +432,38 @@ def saveStockInfo(stockDo: StockModelDo):
     try:
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         stock_price[0] = stockDo.current_price
+        high_price[0] = stockDo.max_price
+        low_price[0] = stockDo.min_price
+        trix_list[0] = 0
+        macd = calc_macd(stockDo.current_price, emas, emal, dea)
+        kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
+        trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
-                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn,
-                      ma_three=calc_MA(stock_price, 3), ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10),
-                      ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2))
+                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_five=calc_MA(stock_price, 5),
+                      ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2), emas=macd['emas'],
+                      emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'],
+                      trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'])
     except NoResultFound:
         stock_price.insert(0, stockDo.current_price)
+        high_price.insert(0, stockDo.max_price)
+        low_price.insert(0, stockDo.min_price)
+        trix_list.index(0, 0)
+        emas = stock_price_obj[0].emas
+        emal = stock_price_obj[0].emal
+        dea = stock_price_obj[0].dea
+        kdjk = stock_price_obj[0].kdjk
+        kdjd = stock_price_obj[0].kdjd
+        trix_ema_one = stock_price_obj[0].trix_ema_one
+        trix_ema_two = stock_price_obj[0].trix_ema_two
+        trix_ema_three = stock_price_obj[0].trix_ema_three
+        macd = calc_macd(stockDo.current_price, emas, emal, dea)
+        kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
+        trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_three=calc_MA(stock_price, 3), last_price=stockDo.last_price,
-                      ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2))
+                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=stockDo.last_price,
+                      ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2),
+                      emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'],
+                      trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'])
     Volumn.create(code=stockDo.code, date=current_date, volumn=stockDo.volumn, price=stockDo.current_price)
 
 

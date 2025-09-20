@@ -32,6 +32,19 @@ def calc_MA(data: List, window: int) -> float:
     return round(sum(data[-window:]) / window, 2)
 
 
+def calc_ema(current_price, previous_ema, period) -> float:
+    alpha = 2 / (period + 1)
+    return (current_price - previous_ema) * alpha + previous_ema
+
+
+def calc_macd(current_price, pre_ema_12, pre_ema_26, pre_dea) -> List[float]:
+    ema12 = calc_ema(current_price, pre_ema_12, 12)
+    ema26 = calc_ema(current_price, pre_ema_26, 26)
+    dif = ema12 - ema26
+    dma = calc_ema(dif, pre_dea, 9)
+    return {'dif': dif, 'dma': dma, 'ema12': ema12, 'ema26': ema26}
+
+
 def getStockFromSohu():
     start_time = datetime.now() - timedelta(days=60)
     start_date = start_time.strftime("%Y%m%d")
@@ -169,12 +182,89 @@ def fixTencentVolume():
         logger.error(traceback.format_exc())
 
 
+def getAllStockData(code):
+    try:
+        res = requests.get(f"https://hq.stock.sohu.com/mkline/cn/{code[-3:]}/cn_{code}-10_2.html?_={int(time.time() * 1000)}", headers=headers)
+        if res.status_code == 200:
+            res_text = res.text[17:-1]
+            res_json = json.loads(res_text)
+            data_basic = res_json['dataBasic']
+            alpha_trix = 2.0 / (12 + 1)
+            alpha_s = 2.0 / (12 + 1)
+            alpha_l = 2.0 / (26 + 1)
+            alpha_sig = 2.0 / (9 + 1)
+            ema_s = float(data_basic[-1][2])
+            ema_l = float(data_basic[-1][2])
+            dea = 0
+            kdjk = 50
+            kdjd = 50
+            high_price = []
+            low_price = []
+            ema1 = float(data_basic[-1][2])
+            ema2 = float(data_basic[-1][2])
+            ema3 = float(data_basic[-1][2])
+            pre_ema3 = ema3
+            trix_list = []
+            for item in data_basic[::-1][1:]:
+                price = float(item[2])
+                high_price.append(float(item[3]))
+                low_price.append(float(item[4]))
+                if len(high_price) > 9:
+                    high_price.pop(0)
+                    low_price.pop(0)
+                ema_s = alpha_s * price + (1 - alpha_s) * ema_s
+                ema_l = alpha_l * price + (1 - alpha_l) * ema_l
+                diff = ema_s - ema_l
+                dea = alpha_sig * diff + (1 - alpha_sig) * dea
+
+                high_n = max(high_price)
+                low_n = min(low_price)
+                if high_n == low_n:
+                    rsv = 50
+                else:
+                    rsv = (price - low_n) / (high_n - low_n) * 100
+                kdjk = 2.0 * kdjk / 3 + rsv / 3
+                kdjd = 2.0 * kdjd / 3 + kdjk / 3
+                kdjj = 3 * kdjk - 2 * kdjd
+
+                ema1 = price * alpha_trix + ema1 * (1 - alpha_trix)
+                ema2 = ema1 * alpha_trix + ema2 * (1 - alpha_trix)
+                ema3 = ema2 * alpha_trix + ema3 * (1 - alpha_trix)
+                trix = (ema3 - pre_ema3) / pre_ema3 * 100
+                trix_list.append(trix)
+                pre_ema3 = ema3
+                if len(trix_list) > 9:
+                    trix_list.pop(0)
+                trma = sum(trix_list) / 9
+                if item[0] >= '20250901':
+                    stock = Detail.get_one((code, item[0]))
+                    Detail.update(stock, emas=ema_s, emal=ema_l, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj, trix_ema_one=ema1, trix_ema_two=ema2, trix_ema_three=ema3, trix=trix, trma=trma)
+                    logger.info(f"{item[0]} - diff: {diff} - dea: {dea} - K: {kdjk} - D: {kdjd} - J: {kdjj} - TRIX: {trix} - TRMA: {trma}")
+
+    except:
+        logger.error(traceback.format_exc())
+
+
+def initMetricsData():
+    try:
+        stockInfo = Stock.query(running=1).all()
+        for s in stockInfo:
+            getAllStockData(s.code)
+            time.sleep(10)
+        logger.info("completed!!!!")
+    except:
+        logger.error(traceback.format_exc())
+
+
 if __name__ == '__main__':
-    s = executor.submit(fixQrrLastDay)
-    scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
-    time.sleep(2)
-    scheduler.start()
-    PID = os.getpid()
-    with open('pid', 'w', encoding='utf-8') as f:
-        f.write(str(PID))
-    wait([s])
+    # s = executor.submit(fixQrrLastDay)
+    # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
+    # time.sleep(2)
+    # scheduler.start()
+    # PID = os.getpid()
+    # with open('pid', 'w', encoding='utf-8') as f:
+    #     f.write(str(PID))
+    # wait([s])
+    # fixMacdData()
+    # fixMacdEma()
+    initMetricsData()

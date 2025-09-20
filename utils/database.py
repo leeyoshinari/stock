@@ -225,11 +225,21 @@ class Detail(Base, CRUDBase):
     max_price = Column(Float, nullable=False, comment="最高价")
     min_price = Column(Float, nullable=False, comment="最低价")
     volumn = Column(Integer, nullable=False, comment="成交量（手）")
-    ma_three = Column(Float, nullable=True, comment="3日均线")
     ma_five = Column(Float, nullable=True, comment="5日均线")
     ma_ten = Column(Float, nullable=True, comment="10日均线")
     ma_twenty = Column(Float, nullable=True, comment="20日均线")
     qrr = Column(Float, nullable=True, comment="量比")
+    emas = Column(Float, nullable=True, comment="MACD ema12")
+    emal = Column(Float, nullable=True, comment="MACD ema26")
+    dea = Column(Float, nullable=True, comment="MACD dea")
+    kdjk = Column(Float, nullable=True, comment="KDJ k")
+    kdjd = Column(Float, nullable=True, comment="KDJ d")
+    kdjj = Column(Float, nullable=True, comment="KDJ j")
+    trix_ema_one = Column(Float, nullable=True, comment="TRIX ema1")
+    trix_ema_two = Column(Float, nullable=True, comment="TRIX ema2")
+    trix_ema_three = Column(Float, nullable=True, comment="TRIX ema3")
+    trix = Column(Float, nullable=True, comment="TRIX")
+    trma = Column(Float, nullable=True, comment="MA_TRIX")
     create_time = Column(DateTime, default=datetime.now)
 
 
@@ -264,13 +274,37 @@ class Recommend(Base, CRUDBase):
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(8), nullable=False, comment="股票代码")
     name = Column(String(8), nullable=False, comment="股票名称")
-    type = Column(Integer, nullable=False, comment="类型, 0-短期, 1-长期")
+    type = Column(Integer, nullable=False, comment="类型, 0-手动选股, 1-自动选股")
     price = Column(Float, nullable=False, comment="推荐时的价格")
     last_one_price = Column(Float, nullable=True, comment="1天后的收盘价")
     last_two_price = Column(Float, nullable=True, comment="2天后的收盘价")
-    rate = Column(Integer, nullable=True, comment="胜率, 0, 33, 67, 100")
+    last_three_price = Column(Float, nullable=True, comment="3天后的收盘价")
+    last_four_price = Column(Float, nullable=True, comment="4天后的收盘价")
+    last_five_price = Column(Float, nullable=True, comment="5天后的收盘价")
+    rate = Column(Integer, nullable=True, comment="胜率, 0, 50, 100")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+# class RealVolumn(Base, CRUDBase):
+#     __tablename__ = 'volumn'
+#     __table_args__ = (
+#         Index('idx_code_date_create_time_desc', 'code', 'date', 'create_time'),
+#         {'sqlite_autoincrement': True}
+#     )
+
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     code = Column(String(8), ForeignKey('stock.code', ondelete="CASCADE"), nullable=False, comment="股票代码")
+#     date = Column(String(4), nullable=False, comment="时间")
+#     volumn = Column(Integer, nullable=False, comment="成交量（手）")
+#     price = Column(Float, nullable=False, comment="价格")
+#     create_time = Column(DateTime, default=datetime.now)
+
+#     @property
+#     def create_time_date(self):
+#         if self.create_time:
+#             return self.create_time.strftime('%Y-%m-%d')
+#         return None
 
 
 class Tools(Base, CRUDBase):
