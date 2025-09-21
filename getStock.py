@@ -79,7 +79,7 @@ def generateStockCode(data: dict) -> str:
 
 
 def calc_MA(data: List, window: int) -> float:
-    return round(sum(data[:window]) / window, 2)
+    return round(sum(data[:window]) / len(data[:window]), 2)
 
 
 def getStockFromTencent(a):
@@ -410,14 +410,6 @@ def saveStockInfo(stockDo: StockModelDo):
     high_price = [r.max_price for r in stock_price_obj]
     low_price = [r.min_price for r in stock_price_obj]
     trix_list = [r.trix for r in stock_price_obj]
-    emas = stock_price_obj[1].emas
-    emal = stock_price_obj[1].emal
-    dea = stock_price_obj[1].dea
-    kdjk = stock_price_obj[1].kdjk
-    kdjd = stock_price_obj[1].kdjd
-    trix_ema_one = stock_price_obj[1].trix_ema_one
-    trix_ema_two = stock_price_obj[1].trix_ema_two
-    trix_ema_three = stock_price_obj[1].trix_ema_three
     now = datetime.now().time()
     stop_time = datetime.strptime("15:00:20", "%H:%M:%S").time()
     if now < stop_time:
@@ -435,6 +427,24 @@ def saveStockInfo(stockDo: StockModelDo):
         high_price[0] = stockDo.max_price
         low_price[0] = stockDo.min_price
         trix_list[0] = 0
+        if len(stock_price_obj) > 1:
+            emas = stock_price_obj[1].emas
+            emal = stock_price_obj[1].emal
+            dea = stock_price_obj[1].dea
+            kdjk = stock_price_obj[1].kdjk
+            kdjd = stock_price_obj[1].kdjd
+            trix_ema_one = stock_price_obj[1].trix_ema_one
+            trix_ema_two = stock_price_obj[1].trix_ema_two
+            trix_ema_three = stock_price_obj[1].trix_ema_three
+        else:
+            emas = stockDo.current_price
+            emal = stockDo.current_price
+            dea = 0
+            kdjk = 50
+            kdjd = 50
+            trix_ema_one = stockDo.current_price
+            trix_ema_two = stockDo.current_price
+            trix_ema_three = stockDo.current_price
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
@@ -448,14 +458,14 @@ def saveStockInfo(stockDo: StockModelDo):
         high_price.insert(0, stockDo.max_price)
         low_price.insert(0, stockDo.min_price)
         trix_list.index(0, 0)
-        emas = stock_price_obj[0].emas
-        emal = stock_price_obj[0].emal
-        dea = stock_price_obj[0].dea
-        kdjk = stock_price_obj[0].kdjk
-        kdjd = stock_price_obj[0].kdjd
-        trix_ema_one = stock_price_obj[0].trix_ema_one
-        trix_ema_two = stock_price_obj[0].trix_ema_two
-        trix_ema_three = stock_price_obj[0].trix_ema_three
+        emas = stock_price_obj[0].emas if len(stock_price_obj) > 0 else stockDo.current_price
+        emal = stock_price_obj[0].emal if len(stock_price_obj) > 0 else stockDo.current_price
+        dea = stock_price_obj[0].dea if len(stock_price_obj) > 0 else 0
+        kdjk = stock_price_obj[0].kdjk if len(stock_price_obj) > 0 else 50
+        kdjd = stock_price_obj[0].kdjd if len(stock_price_obj) > 0 else 50
+        trix_ema_one = stock_price_obj[0].trix_ema_one if len(stock_price_obj) > 0 else stockDo.current_price
+        trix_ema_two = stock_price_obj[0].trix_ema_two if len(stock_price_obj) > 0 else stockDo.current_price
+        trix_ema_three = stock_price_obj[0].trix_ema_three if len(stock_price_obj) > 0 else stockDo.current_price
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
@@ -593,7 +603,7 @@ if __name__ == '__main__':
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 必须在15点后启动
-    scheduler.add_job(setAllStock, 'cron', hour=22, minute=54, second=20)    # 更新股票信息
+    scheduler.add_job(setAllStock, 'cron', hour=12, minute=0, second=0)    # 更新股票信息
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()

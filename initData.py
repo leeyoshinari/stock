@@ -256,7 +256,37 @@ def initMetricsData():
         logger.error(traceback.format_exc())
 
 
+def getStocks():
+    try:
+        # fs = 'm:1+t:2,m:1+t:23'
+        fs = 'm:0+t:6,m:0+t:80'
+        t = int(time.time() * 1000)
+        page = 1
+        res = requests.get(f"https://push2.eastmoney.com/api/qt/clist/get?np=1&fltt=1&invt=2&cb=jQuery371018318697960546626_{t}&fs={fs}&fields=f12%2Cf14&fid=f3&pn={page}&pz=50&po=1&dect=1&ut=fa5fd1943c7b386f172d6893dbfba10b&wbp2u=%7C0%7C0%7C0%7Cweb&_={t}", headers=headers)
+        if res.status_code == 200:
+            res_text = res.text.split('(')[-1].split(')')[0]
+            res_json = json.loads(res_text)
+            total = res_json['data']['total']
+            total_page = (total + 50 - 1) // 50
+            for p in range(total_page):
+                t = int(time.time() * 1000)
+                res = requests.get(f"https://push2.eastmoney.com/api/qt/clist/get?np=1&fltt=1&invt=2&cb=jQuery371018318697960546626_{t}&fs={fs}&fields=f12%2Cf14&fid=f3&pn={p + 1}&pz=50&po=1&dect=1&ut=fa5fd1943c7b386f172d6893dbfba10b&wbp2u=%7C0%7C0%7C0%7Cweb&_={t}", headers=headers)
+                if res.status_code == 200:
+                    res_text = res.text.split('(')[-1].split(')')[0]
+                    res_json = json.loads(res_text)
+                    stock_list = res_json['data']['diff']
+                    for s in stock_list:
+                        logger.info(s)
+                time.sleep(5)
+    except:
+        logger.error(traceback.format_exc())
+
+
 if __name__ == '__main__':
+    s_list = [{'301575': '艾芬达'}, {'603370': '华新精科'}, {'301656': '联合动力'}, {'301668': '昊创瑞通'}, {'301584': '建发致新'}]
+    executor.submit(getStockFromSohu)
+    queryTask.put(s_list)
+    queryTask.put("end")
     # s = executor.submit(fixQrrLastDay)
     # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     # time.sleep(2)
@@ -267,4 +297,4 @@ if __name__ == '__main__':
     # wait([s])
     # fixMacdData()
     # fixMacdEma()
-    initMetricsData()
+    # initMetricsData()
