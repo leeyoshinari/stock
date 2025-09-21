@@ -40,20 +40,20 @@ class StockController(Controller):
         result = await views.queryByCode(code)
         return result
 
-    @get('/getAverage', summary="获取均值走势数据")
-    async def get_average(self, code: str, start_date: str = '', end_date: str = '') -> Result:
-        result = await views.calcStockPriceMeanAngle(code, start_date.strip(), end_date.strip())
-        return result
+    # @get('/getAverage', summary="获取均值走势数据")
+    # async def get_average(self, code: str, start_date: str = '', end_date: str = '') -> Result:
+    #     result = await views.calcStockPriceMeanAngle(code, start_date.strip(), end_date.strip())
+    #     return result
 
-    @get('/set', summary="设置是否监控股票")
-    async def check_stock(self, code: str, check: int) -> Result:
-        result = await views.check_stock(code, check)
-        return result
+    # @get('/set', summary="设置是否监控股票")
+    # async def check_stock(self, code: str, check: int) -> Result:
+    #     result = await views.check_stock(code, check)
+    #     return result
 
-    @get('/check', summary="查询股票实时趋势")
-    async def query_qushi(self, code: str) -> Result:
-        result = await views.queryStockPriceAndVolume(code)
-        return result
+    # @get('/check', summary="查询股票实时趋势")
+    # async def query_qushi(self, code: str) -> Result:
+    #     result = await views.queryStockPriceAndVolume(code)
+    #     return result
 
     @post('/query/tencent', summary="查询股票数据信息")
     async def query_stock(self, data: model.RequestData) -> Result:

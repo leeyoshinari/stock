@@ -1,4 +1,4 @@
-function plot_k_line(myChart, title, x, price, volume, ma3, ma5, ma10, ma20, qrr) {
+function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
   let option;
@@ -148,15 +148,6 @@ function plot_k_line(myChart, title, x, price, volume, ma3, ma5, ma10, ma20, qrr
             color0: downColor,
             borderColor: undefined,
             borderColor0: undefined
-          }
-        },{
-          name: 'MA3',
-          type: 'line',
-          data: ma3,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {
-            opacity: 0.5
           }
         },{
           name: 'MA5',

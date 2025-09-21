@@ -105,7 +105,7 @@ def saveStockInfo(stockDo: StockModelDo):
     stock_price = [r[0] for r in stock_price_obj]
     stock_price.append(stockDo.current_price)
     Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                  max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_three=calc_MA(stock_price, 3),
+                  max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn,
                   ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20))
     if len(stock_price) > 4:
         stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(asc(Detail.day)).all()

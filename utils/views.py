@@ -60,7 +60,6 @@ async def queryByCode(code: str) -> Result:
             'price': data,
             'volumn': [[index, d[-2], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
             'qrr': [[index, d[-1], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
-            'ma_three': [getattr(row, 'ma_three') for row in stockInfo],
             'ma_five': [getattr(row, 'ma_five') for row in stockInfo],
             'ma_ten': [getattr(row, 'ma_ten') for row in stockInfo],
             'ma_twenty': [getattr(row, 'ma_twenty') for row in stockInfo]

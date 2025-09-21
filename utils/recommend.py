@@ -51,13 +51,9 @@ def calc_MA(data: List, window: int) -> float:
 
 def calc_price_average(stock: List) -> dict:
     res = {}
-    ma3_price_list = [s.ma_three for s in stock[-5:]]
     ma5_price_list = [s.ma_five for s in stock[-20:]]
     ma10_price_list = [s.ma_ten for s in stock[-20:]]
     ma20_price_list = [s.ma_twenty for s in stock[-20:]]
-
-    res.update({"ma3_angle_l3d": linear_least_squares(ma3_price_list[-3:], 3)})
-    res.update({"ma3_angle_l5d": linear_least_squares(ma3_price_list[-5:], 5)})
 
     res.update({"ma5_angle_l3d": linear_least_squares(ma5_price_list[-3:], 3)})
     res.update({"ma5_angle_l5d": linear_least_squares(ma5_price_list[-5:], 5)})

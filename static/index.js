@@ -82,7 +82,7 @@ function get_stock_figure(code, name) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volumn, data.data.ma_three, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr);
+                plot_k_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })

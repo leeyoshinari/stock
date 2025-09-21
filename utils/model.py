@@ -24,7 +24,6 @@ class StockModelDo(BaseModel):
     max_price: float = None
     min_price: float = None
     volumn: int = None
-    ma_three: float = None
     ma_five: float = None
     ma_ten: float = None
     ma_twenty: float = None
