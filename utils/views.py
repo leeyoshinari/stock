@@ -206,7 +206,8 @@ async def query_tencent(query: RequestData) -> Result:
         r_list = []
         error_list = []
         datas = query.data
-        dataDict = {k: v for d in datas for k, v in d.items()}
+        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
         stockCode = generateStockCode(dataDict)
         res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
         if res.status_code == 200:
@@ -234,7 +235,9 @@ async def query_tencent(query: RequestData) -> Result:
                 except:
                     logger.error(f"Tencent - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                     logger.error(traceback.format_exc())
-                    error_list.append({stockDo.code: stockDo.name})
+                    key_stock = f"{stockDo.code}count"
+                    if dataCount[key_stock] < 5:
+                        error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
             result.data = {"data": r_list, "error": error_list}
         else:
             logger.error("Tencent - 请求未正常返回...")
@@ -253,7 +256,8 @@ async def query_xueqiu(query: RequestData) -> Result:
         r_list = []
         error_list = []
         datas = query.data
-        dataDict = {k: v for d in datas for k, v in d.items()}
+        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
         stockCode = generateStockCode(dataDict)
         res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
         if res.status_code == 200:
@@ -279,7 +283,9 @@ async def query_xueqiu(query: RequestData) -> Result:
                 except:
                     logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                     logger.error(traceback.format_exc())
-                    error_list.append({stockDo.code: stockDo.name})
+                    key_stock = f"{stockDo.code}count"
+                    if dataCount[key_stock] < 5:
+                        error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
             result.data = {"data": r_list, "error": error_list}
         else:
             logger.error("XueQiu - 请求未正常返回...")
@@ -298,7 +304,8 @@ async def query_sina(query: RequestData) -> Result:
         r_list = []
         error_list = []
         datas = query.data
-        dataDict = {k: v for d in datas for k, v in d.items()}
+        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
         stockCode = generateStockCode(dataDict)
         h = {
             'Referer': 'https://finance.sina.com.cn',
@@ -330,7 +337,9 @@ async def query_sina(query: RequestData) -> Result:
                 except:
                     logger.error(f"Sina - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                     logger.error(traceback.format_exc())
-                    error_list.append({stockDo.code: stockDo.name})
+                    key_stock = f"{stockDo.code}count"
+                    if dataCount[key_stock] < 5:
+                        error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
             result.data = {"data": r_list, "error": error_list}
         else:
             logger.error("Sina - 请求未正常返回...")

@@ -89,7 +89,8 @@ def getStockFromTencent(a):
             datas = queryTask.get()
             if datas == 'end': break
             error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items()}
+            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
             stockCode = generateStockCode(dataDict)
             res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
             if res.status_code == 200:
@@ -117,19 +118,22 @@ def getStockFromTencent(a):
                     except:
                         logger.error(f"Tencent - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                         logger.error(traceback.format_exc())
-                        error_list.append({stockDo.code: stockDo.name})
+                        key_stock = f"{stockDo.code}count"
+                        if dataCount[key_stock] < 5:
+                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
                 if len(error_list) > 0:
                     queryTask.put(error_list)
+                    time.sleep(3)
             else:
                 logger.error(f"Tencent - 请求未正常返回... {datas}")
                 queryTask.put(datas)
-                time.sleep(2)
+                time.sleep(3)
             error_list = []
         except:
             logger.error(f"Tencent - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
-            time.sleep(2)
+            time.sleep(3)
         finally:
             if datas: queryTask.task_done()
 
@@ -141,7 +145,8 @@ def getStockFromXueQiu(a):
             datas = queryTask.get()
             if datas == 'end': break
             error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items()}
+            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
             stockCode = generateStockCode(dataDict)
             res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
             if res.status_code == 200:
@@ -168,19 +173,22 @@ def getStockFromXueQiu(a):
                     except:
                         logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                         logger.error(traceback.format_exc())
-                        error_list.append({stockDo.code: stockDo.name})
+                        key_stock = f"{stockDo.code}count"
+                        if dataCount[key_stock] < 5:
+                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
                 if len(error_list) > 0:
                     queryTask.put(error_list)
+                    time.sleep(3)
             else:
                 logger.error(f"XueQiu - 请求未正常返回... {datas}")
                 queryTask.put(datas)
-                time.sleep(2)
+                time.sleep(3)
             error_list = []
         except:
             logger.error(f"XueQiu - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
-            time.sleep(2)
+            time.sleep(3)
         finally:
             if datas: queryTask.task_done()
 
@@ -192,7 +200,8 @@ def getStockFromSina(a):
             datas = queryTask.get()
             if datas == 'end': break
             error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items()}
+            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
             stockCode = generateStockCode(dataDict)
             h = {
                 'Referer': 'https://finance.sina.com.cn',
@@ -224,19 +233,22 @@ def getStockFromSina(a):
                     except:
                         logger.error(f"Sina - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                         logger.error(traceback.format_exc())
-                        error_list.append({stockDo.code: stockDo.name})
+                        key_stock = f"{stockDo.code}count"
+                        if dataCount[key_stock] < 5:
+                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
                 if len(error_list) > 0:
                     queryTask.put(error_list)
+                    time.sleep(3)
             else:
                 logger.error(f"Sina - 请求未正常返回... {datas}")
                 queryTask.put(datas)
-                time.sleep(2)
+                time.sleep(3)
             error_list = []
         except:
             logger.error(f"Sina - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
-            time.sleep(2)
+            time.sleep(3)
         finally:
             if datas: queryTask.task_done()
 
@@ -271,16 +283,16 @@ def queryStockTencentFromHttp(host: str):
                 else:
                     logger.error(f"Tencent - Http 请求未正常返回, {res.text} - {datas}...")
                     queryTask.put(datas)
-                    time.sleep(2)
+                    time.sleep(3)
             else:
                 logger.error(f"Tencent - Http 请求未正常返回 - {res.status_code} - {datas}")
                 queryTask.put(datas)
-                time.sleep(2)
+                time.sleep(3)
         except:
             logger.error(f"Tencent - Http 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
-            time.sleep(2)
+            time.sleep(3)
         finally:
             if datas: queryTask.task_done()
 
@@ -315,16 +327,16 @@ def queryStockXueQiuFromHttp(host: str):
                 else:
                     logger.error(f"XueQiu - Http 请求未正常返回, {res.text} - {datas}...")
                     queryTask.put(datas)
-                    time.sleep(2)
+                    time.sleep(3)
             else:
                 logger.error(f"XueQiu - Http 请求未正常返回 - {res.status_code} - {datas}")
                 queryTask.put(datas)
-                time.sleep(2)
+                time.sleep(3)
         except:
             logger.error(f"XueQiu - Http 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
-            time.sleep(2)
+            time.sleep(3)
         finally:
             if datas: queryTask.task_done()
 
@@ -359,16 +371,16 @@ def queryStockSinaFromHttp(host: str):
                 else:
                     logger.error(f"Sina - Http 请求未正常返回, {res.text} - {datas}...")
                     queryTask.put(datas)
-                    time.sleep(2)
+                    time.sleep(3)
             else:
                 logger.error(f"Sina - Http 请求未正常返回 - {res.status_code} - {datas}")
                 queryTask.put(datas)
-                time.sleep(2)
+                time.sleep(3)
         except:
             logger.error(f"Sina - Http 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
-            time.sleep(2)
+            time.sleep(3)
         finally:
             if datas: queryTask.task_done()
 
@@ -457,7 +469,7 @@ def saveStockInfo(stockDo: StockModelDo):
         stock_price.insert(0, stockDo.current_price)
         high_price.insert(0, stockDo.max_price)
         low_price.insert(0, stockDo.min_price)
-        trix_list.index(0, 0)
+        trix_list.insert(0, 0)
         emas = stock_price_obj[0].emas if len(stock_price_obj) > 0 else stockDo.current_price
         emal = stock_price_obj[0].emal if len(stock_price_obj) > 0 else stockDo.current_price
         dea = stock_price_obj[0].dea if len(stock_price_obj) > 0 else 0
@@ -531,7 +543,7 @@ def setAvailableStock():
                 stockList = []
                 stockInfo = Stock.query(running=1).order_by(asc(Stock.create_time)).offset(offset).limit(BATCH_SIZE).all()
                 for s in stockInfo:
-                    stockList.append({s.code: s.name})
+                    stockList.append({s.code: s.name, f'{s.code}count': 1})
                 for i in range(0, len(stockList), one_batch_size):
                     d = stockList[i: i + one_batch_size]
                     queryTask.put(d)
