@@ -105,7 +105,7 @@ def saveStockInfo(stockDo: StockModelDo):
     stock_price = [r[0] for r in stock_price_obj]
     stock_price.append(stockDo.current_price)
     Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                  max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn,
+                  max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=0,
                   ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20))
     if len(stock_price) > 4:
         stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(asc(Detail.day)).all()
@@ -258,25 +258,38 @@ def initMetricsData():
 
 def getStocks():
     try:
-        # fs = 'm:1+t:2,m:1+t:23'
-        fs = 'm:0+t:6,m:0+t:80'
         t = int(time.time() * 1000)
         page = 1
-        res = requests.get(f"https://push2.eastmoney.com/api/qt/clist/get?np=1&fltt=1&invt=2&cb=jQuery371018318697960546626_{t}&fs={fs}&fields=f12%2Cf14&fid=f3&pn={page}&pz=50&po=1&dect=1&ut=fa5fd1943c7b386f172d6893dbfba10b&wbp2u=%7C0%7C0%7C0%7Cweb&_={t}", headers=headers)
+        headers.update({'host': 'query.sse.com.cn', 'referer': 'https://www.sse.com.cn/'})
+        res = requests.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={page}&pageHelp.pageSize=50&pageHelp.pageNo={page}&pageHelp.endPage={page}&_={t}", headers=headers)
         if res.status_code == 200:
-            res_text = res.text.split('(')[-1].split(')')[0]
-            res_json = json.loads(res_text)
-            total = res_json['data']['total']
-            total_page = (total + 50 - 1) // 50
+            res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+            res_json = json.loads('{' + res_text + '}')
+            total_page = res_json['pageHelp']['pageCount']
             for p in range(total_page):
                 t = int(time.time() * 1000)
-                res = requests.get(f"https://push2.eastmoney.com/api/qt/clist/get?np=1&fltt=1&invt=2&cb=jQuery371018318697960546626_{t}&fs={fs}&fields=f12%2Cf14&fid=f3&pn={p + 1}&pz=50&po=1&dect=1&ut=fa5fd1943c7b386f172d6893dbfba10b&wbp2u=%7C0%7C0%7C0%7Cweb&_={t}", headers=headers)
+                res = requests.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={p + 1}&pageHelp.pageSize=50&pageHelp.pageNo={p + 1}&pageHelp.endPage={p + 1}&_={t}", headers=headers)
                 if res.status_code == 200:
-                    res_text = res.text.split('(')[-1].split(')')[0]
-                    res_json = json.loads(res_text)
-                    stock_list = res_json['data']['diff']
+                    res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+                    res_json = json.loads('{' + res_text + '}')
+                    stock_list = res_json['pageHelp']['data']
                     for s in stock_list:
-                        logger.info(s)
+                        logger.info(f"{s['A_STOCK_CODE']} - {s['COMPANY_ABBR']}")
+                time.sleep(5)
+
+        headers.update({'host': 'www.szse.cn', 'referer': 'https://www.szse.cn/market/product/stock/list/index.html', 'content-type': 'application/json'})
+        res = requests.get(f"https://www.szse.cn/api/report/ShowReport/data?SHOWTYPE=JSON&CATALOGID=1110&TABKEY=tab1&PAGENO={page}&random=0.574{t}", headers=headers)
+        if res.status_code == 200:
+            res_json = json.loads(res.text)[0]
+            total_page = res_json['metadata']['pagecount']
+            for p in range(total_page):
+                t = int(time.time() * 1000)
+                res = requests.get(f"https://www.szse.cn/api/report/ShowReport/data?SHOWTYPE=JSON&CATALOGID=1110&TABKEY=tab1&PAGENO={p + 1}&random=0.574{t}", headers=headers)
+                if res.status_code == 200:
+                    res_json = json.loads(res.text)[0]
+                    stock_list = res_json['data']
+                    for s in stock_list:
+                        logger.info(f"{s['agdm']} - {s['agjc'].split('<u>')[-1].split('</u>')[0]}")
                 time.sleep(5)
     except:
         logger.error(traceback.format_exc())
@@ -284,9 +297,9 @@ def getStocks():
 
 if __name__ == '__main__':
     s_list = [{'301575': '艾芬达'}, {'603370': '华新精科'}, {'301656': '联合动力'}, {'301668': '昊创瑞通'}, {'301584': '建发致新'}]
-    executor.submit(getStockFromSohu)
-    queryTask.put(s_list)
-    queryTask.put("end")
+    # executor.submit(getStockFromSohu)
+    # queryTask.put(s_list)
+    # queryTask.put("end")
     # s = executor.submit(fixQrrLastDay)
     # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     # time.sleep(2)
@@ -297,4 +310,4 @@ if __name__ == '__main__':
     # wait([s])
     # fixMacdData()
     # fixMacdEma()
-    # initMetricsData()
+    # getStocks()

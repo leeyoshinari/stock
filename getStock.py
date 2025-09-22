@@ -489,7 +489,7 @@ def setAllStock():
                     name = r['mc']
                     try:
                         s = Stock.get_one(code)
-                        if 'ST' in name.upper():
+                        if 'ST' in name.upper() or '退' in name:
                             Stock.update(s, running=0)
                             logger.info(f"股票 {s.name} - {s.code} 处于退市状态, 忽略掉...")
                         if 'ST' in s.name.upper() and 'ST' not in name.upper():
@@ -497,10 +497,11 @@ def setAllStock():
                             logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
                     except NoResultFound:
                         is_running = getStockType(code)
-                        if 'ST' in name.upper():
+                        if 'ST' in name.upper() or '退' in name:
                             is_running = 0
-                        Stock.create(code=code, name=name, running=is_running, checking=0)
-                        logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
+                        if is_running == 1:
+                            Stock.create(code=code, name=name, running=is_running)
+                            logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
                     except:
                         logger.error(traceback.format_exc())
             else:
@@ -587,6 +588,114 @@ def checkTradeDay():
         time.sleep(3)
 
 
+def setAllSHStock():
+    today = datetime.today()
+    if today.weekday() < 5:
+        try:
+            t = int(time.time() * 1000)
+            page = 1
+            hh = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+                'host': 'query.sse.com.cn', 'referer': 'https://www.sse.com.cn/'
+            }
+            res = requests.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={page}&pageHelp.pageSize=50&pageHelp.pageNo={page}&pageHelp.endPage={page}&_={t}", headers=hh)
+            if res.status_code == 200:
+                res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+                res_json = json.loads('{' + res_text + '}')
+                total_page = res_json['pageHelp']['pageCount']
+                for p in range(total_page):
+                    try:
+                        t = int(time.time() * 1000)
+                        res = requests.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={p + 1}&pageHelp.pageSize=50&pageHelp.pageNo={p + 1}&pageHelp.endPage={p + 1}&_={t}", headers=hh)
+                        if res.status_code == 200:
+                            res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+                            res_json = json.loads('{' + res_text + '}')
+                            stock_list = res_json['pageHelp']['data']
+                            for s in stock_list:
+                                code = s['A_STOCK_CODE']
+                                name = s['COMPANY_ABBR']
+                                try:
+                                    s = Stock.get_one(code)
+                                    if ('ST' in name.upper() or '退' in name) and s.running == 1:
+                                        Stock.update(s, running=0)
+                                        logger.info(f"股票 {s.name} - {s.code} 处于退市状态, 忽略掉...")
+                                    if 'ST' in s.name.upper() and 'ST' not in name.upper():
+                                        Stock.update(s, running=1)
+                                        logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
+                                except NoResultFound:
+                                    is_running = getStockType(code)
+                                    if 'ST' in name.upper() or '退' in name:
+                                        is_running = 0
+                                    if is_running == 1:
+                                        Stock.create(code=code, name=name, running=is_running)
+                                        logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
+                                except:
+                                    logger.error(traceback.format_exc())
+                        else:
+                            logger.error('数据更新异常')
+                    except:
+                        logger.error(traceback.format_exc())
+                        logger.error("请求SH数据异常...")
+                    logger.info(f"正在处理SH第 {p + 1} 页...")
+                    time.sleep(6)
+        except:
+            logger.error(traceback.format_exc())
+            logger.error("数据更新异常...")
+
+
+def setAllSZStock():
+    today = datetime.today()
+    if today.weekday() < 5:
+        try:
+            t = int(time.time() * 1000)
+            page = 1
+            hh = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+                'host': 'www.szse.cn', 'referer': 'https://www.szse.cn/market/product/stock/list/index.html', 'content-type': 'application/json'
+            }
+            res = requests.get(f"https://www.szse.cn/api/report/ShowReport/data?SHOWTYPE=JSON&CATALOGID=1110&TABKEY=tab1&PAGENO={page}&random=0.574{t}", headers=hh)
+            if res.status_code == 200:
+                res_json = json.loads(res.text)[0]
+                total_page = res_json['metadata']['pagecount']
+                for p in range(total_page):
+                    try:
+                        t = int(time.time() * 1000)
+                        res = requests.get(f"https://www.szse.cn/api/report/ShowReport/data?SHOWTYPE=JSON&CATALOGID=1110&TABKEY=tab1&PAGENO={p + 1}&random=0.574{t}", headers=hh)
+                        if res.status_code == 200:
+                            res_json = json.loads(res.text)[0]
+                            stock_list = res_json['data']
+                            for s in stock_list:
+                                code = s['agdm']
+                                name = s['agjc'].split('<u>')[-1].split('</u>')[0]
+                                try:
+                                    s = Stock.get_one(code)
+                                    if ('ST' in name.upper() or '退' in name) and s.running == 1:
+                                        Stock.update(s, running=0)
+                                        logger.info(f"股票 {s.name} - {s.code} 处于退市状态, 忽略掉...")
+                                    if 'ST' in s.name.upper() and 'ST' not in name.upper():
+                                        Stock.update(s, running=1)
+                                        logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
+                                except NoResultFound:
+                                    is_running = getStockType(code)
+                                    if 'ST' in name.upper() or '退' in name:
+                                        is_running = 0
+                                    if is_running == 1:
+                                        Stock.create(code=code, name=name, running=is_running)
+                                        logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
+                                except:
+                                    logger.error(traceback.format_exc())
+                        else:
+                            logger.error('数据更新异常')
+                    except:
+                        logger.error(traceback.format_exc())
+                        logger.error("请求SZ数据异常...")
+                    logger.info(f"正在处理SZ第 {p + 1} 页...")
+                    time.sleep(6)
+        except:
+            logger.error(traceback.format_exc())
+            logger.error("数据更新异常...")
+
+
 def stopTask():
     global running_job_id
     global is_trade_day
@@ -603,7 +712,8 @@ if __name__ == '__main__':
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 必须在15点后启动
-    scheduler.add_job(setAllStock, 'cron', hour=12, minute=0, second=0)    # 更新股票信息
+    scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
+    scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()
