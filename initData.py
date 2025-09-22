@@ -296,10 +296,10 @@ def getStocks():
 
 
 if __name__ == '__main__':
-    s_list = [{'301575': '艾芬达'}, {'603370': '华新精科'}, {'301656': '联合动力'}, {'301668': '昊创瑞通'}, {'301584': '建发致新'}]
-    # executor.submit(getStockFromSohu)
-    # queryTask.put(s_list)
-    # queryTask.put("end")
+    s_list = [{'002316': '亚联发展'}]
+    executor.submit(getStockFromSohu)
+    queryTask.put(s_list)
+    queryTask.put("end")
     # s = executor.submit(fixQrrLastDay)
     # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     # time.sleep(2)
