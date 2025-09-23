@@ -54,15 +54,44 @@ async def queryByCode(code: str) -> Result:
     result = Result()
     try:
         stockInfo = Detail.query(code=code).order_by(asc(Detail.create_time)).all()
-        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr']] for row in stockInfo]
+        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr', 'emas', 'emal', 'dea']] for row in stockInfo]
+        x = []
+        volumn = []
+        qrr = []
+        ma_five = []
+        ma_ten = []
+        ma_twenty = []
+        diff = []
+        dea = []
+        macd = []
+        kdjk = []
+        kdjd = []
+        kdjj = []
+        trix = []
+        trma = []
+        for index, d in enumerate(data):
+            x.append(stockInfo[index].day)
+            volumn.append([index, d[4], 1 if d[0] >= d[1] else -1])
+            qrr.append([index, d[5], 1 if d[0] >= d[1] else -1])
+            ma_five.append(stockInfo[index].ma_five)
+            ma_ten.append(stockInfo[index].ma_ten)
+            ma_twenty.append(stockInfo[index].ma_twenty)
+            diff_x = d[6] - d[7]
+            macd_x = (diff_x - d[8]) * 2
+            diff.append([index, round(diff_x, 3), 1 if macd_x < 0 else -1])
+            dea.append([index, round(d[8], 3), 1 if macd_x < 0 else -1])
+            macd.append([index, round(macd_x, 3), 1 if macd_x < 0 else -1])
+            kdjk.append(round(stockInfo[index].kdjk, 3))
+            kdjd.append(round(stockInfo[index].kdjd, 3))
+            kdjj.append(round(stockInfo[index].kdjj, 3))
+            trix.append(round(stockInfo[index].trix, 3))
+            trma.append(round(stockInfo[index].trma, 3))
         result.data = {
-            'x': [getattr(row, 'day') for row in stockInfo],
-            'price': data,
-            'volumn': [[index, d[-2], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
-            'qrr': [[index, d[-1], 1 if d[0] > d[1] else -1] for index, d in enumerate(data)],
-            'ma_five': [getattr(row, 'ma_five') for row in stockInfo],
-            'ma_ten': [getattr(row, 'ma_ten') for row in stockInfo],
-            'ma_twenty': [getattr(row, 'ma_twenty') for row in stockInfo]
+            'x': x,
+            'price': data, 'volumn': volumn, 'qrr': qrr,
+            'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty,
+            'diff': diff, 'dea': dea, 'macd': macd,
+            'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma
         }
         result.total = len(result.data)
         logger.info(f"查询信息成功, 代码: {code}")

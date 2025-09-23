@@ -29,7 +29,7 @@ headers = {
 
 
 def calc_MA(data: List, window: int) -> float:
-    return round(sum(data[-window:]) / window, 2)
+    return round(sum(data[-window:]) / len(data[-window:]), 2)
 
 
 def calc_ema(current_price, previous_ema, period) -> float:
@@ -297,9 +297,9 @@ def getStocks():
 
 if __name__ == '__main__':
     s_list = [{'002316': '亚联发展'}]
-    executor.submit(getStockFromSohu)
-    queryTask.put(s_list)
-    queryTask.put("end")
+    # executor.submit(getStockFromSohu)
+    # queryTask.put(s_list)
+    # queryTask.put("end")
     # s = executor.submit(fixQrrLastDay)
     # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     # time.sleep(2)
@@ -311,3 +311,4 @@ if __name__ == '__main__':
     # fixMacdData()
     # fixMacdEma()
     # getStocks()
+    getAllStockData('002316')

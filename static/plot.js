@@ -1,4 +1,4 @@
-function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
+function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
   let option;
@@ -21,21 +21,21 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
         borderWidth: 1,
         borderColor: '#ccc',
         padding: 10,
-        textStyle: {color: '#000'}
+        textStyle: {color: '#000'},
+        extraCssText: `
+          width: auto; 
+          max-width: 800px;
+          column-count: 2;
+          column-gap: 20px;
+        `
       },
       axisPointer: {
-        link: [
-          {
-            xAxisIndex: 'all'
-          }
-        ],
-        label: {
-          backgroundColor: '#777'
-        }
+        link: [{xAxisIndex: 'all'}],
+        label: {backgroundColor: '#777'}
       },
       visualMap: {
         show: false,
-        seriesIndex: [5, 6],
+        seriesIndex: [4, 6],
         dimension: 2,
         pieces: [
           {
@@ -58,11 +58,21 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
           left: '30px',
           right: '30px',
           top: '350px',
-          height: '80px'
+          height: '60px'
         },{
           left: '30px',
           right: '30px',
-          top: '440px',
+          top: '420px',
+          height: '40px'
+        },{
+          left: '30px',
+          right: '30px',
+          top: '470px',
+          height: '40px'
+        },{
+          left: '30px',
+          right: '30px',
+          top: '520px',
           height: '40px'
         }
       ],
@@ -74,9 +84,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
           splitLine: { show: false },
           min: 'dataMin',
           max: 'dataMax',
-          axisPointer: {
-            z: 100
-          }
+          axisPointer: {z: 100}
         },{
           type: 'category',
           gridIndex: 1,
@@ -93,7 +101,29 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
           gridIndex: 2,
           data: x,
           boundaryGap: false,
-          axisLine: { onZero: false },
+          axisLine: { onZero: true },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { show: false },
+          min: 'dataMin',
+          max: 'dataMax'
+        },{
+          type: 'category',
+          gridIndex: 3,
+          data: x,
+          boundaryGap: false,
+          axisLine: { onZero: true },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { show: false },
+          min: 'dataMin',
+          max: 'dataMax'
+        },{
+          type: 'category',
+          gridIndex: 4,
+          data: x,
+          boundaryGap: false,
+          axisLine: { onZero: true },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: { show: false },
@@ -103,9 +133,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
       ],
       yAxis: [{
           scale: true,
-          splitArea: {
-            show: true
-          }
+          splitArea: {show: true}
         },{
           scale: true,
           gridIndex: 1,
@@ -113,26 +141,50 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
           axisLabel: { show: false },
           axisLine: { show: false },
           axisTick: { show: false },
-          splitLine: { show: false }
+          splitLine: { show: false },
+          position: 'left'
+        },{
+          scale: true,
+          gridIndex: 1,
+          splitNumber: 2,
+          axisLabel: { show: false },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          position: 'right'
         },{
           scale: true,
           gridIndex: 2,
           splitNumber: 2,
           axisLabel: { show: false },
-          axisLine: { show: false },
+          axisLine: { show: true, onZero: true },
+          axisTick: { show: false },
+          splitLine: { show: false }
+        },{
+          scale: true,
+          gridIndex: 3,
+          axisLabel: { show: false },
+          axisLine: { show: true, onZero: true },
+          axisTick: { show: false },
+          splitLine: { show: false }
+        },{
+          scale: true,
+          gridIndex: 4,
+          axisLabel: { show: false },
+          axisLine: { show: true, onZero: true },
           axisTick: { show: false },
           splitLine: { show: false }
         }
       ],
       dataZoom: [{
           type: 'inside',
-          xAxisIndex: [0, 1, 2],
+          xAxisIndex: [0, 1, 2, 3, 4],
           start: 0,
           end: 100
         },
         {
           show: false,
-          xAxisIndex: [0, 1, 2],
+          xAxisIndex: [0, 1, 2, 3, 4],
           type: 'slider',
           start: 0,
           end: 100
@@ -184,10 +236,82 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr) {
           data: volume
         },{
           name: 'Qrr',
+          type: 'line',
+          xAxisIndex: 1,
+          yAxisIndex: 2,
+          data: qrr,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'blue', opacity: 0.5}
+        },{
+          name: 'MACD',
           type: 'bar',
           xAxisIndex: 2,
-          yAxisIndex: 2,
-          data: qrr
+          yAxisIndex: 3,
+          data: macd
+        },{
+          name: 'DIFF',
+          type: 'line',
+          xAxisIndex: 2,
+          yAxisIndex: 3,
+          data: diff,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'blue', opacity: 0.5}
+        },{
+          name: 'DEA',
+          type: 'line',
+          xAxisIndex: 2,
+          yAxisIndex: 3,
+          data: dea,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'orange', opacity: 0.5}
+        },{
+          name: 'K',
+          type: 'line',
+          xAxisIndex: 3,
+          yAxisIndex: 4,
+          data: kdjk,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'blue', opacity: 0.5}
+        },{
+          name: 'D',
+          type: 'line',
+          xAxisIndex: 3,
+          yAxisIndex: 4,
+          data: kdjd,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'orange', opacity: 0.5}
+        },{
+          name: 'J',
+          type: 'line',
+          xAxisIndex: 3,
+          yAxisIndex: 4,
+          data: kdjj,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'purple', opacity: 0.5}
+        },{
+          name: 'TRIX',
+          type: 'line',
+          xAxisIndex: 4,
+          yAxisIndex: 5,
+          data: trix,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'blue', opacity: 0.5}
+        },{
+          name: 'MATRIX',
+          type: 'line',
+          xAxisIndex: 4,
+          yAxisIndex: 5,
+          data: trma,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'orange', opacity: 0.5}
         }
       ]
     }),
