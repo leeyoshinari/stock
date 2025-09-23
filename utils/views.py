@@ -71,16 +71,16 @@ async def queryByCode(code: str) -> Result:
         trma = []
         for index, d in enumerate(data):
             x.append(stockInfo[index].day)
-            volumn.append([index, d[4], 1 if d[0] >= d[1] else -1])
-            qrr.append([index, d[5], 1 if d[0] >= d[1] else -1])
+            volumn.append(d[4])
+            qrr.append(d[5])
             ma_five.append(stockInfo[index].ma_five)
             ma_ten.append(stockInfo[index].ma_ten)
             ma_twenty.append(stockInfo[index].ma_twenty)
             diff_x = d[6] - d[7]
             macd_x = (diff_x - d[8]) * 2
-            diff.append([index, round(diff_x, 3), 1 if macd_x < 0 else -1])
-            dea.append([index, round(d[8], 3), 1 if macd_x < 0 else -1])
-            macd.append([index, round(macd_x, 3), 1 if macd_x < 0 else -1])
+            diff.append(round(diff_x, 3))
+            dea.append(round(d[8], 3))
+            macd.append(round(macd_x, 3))
             kdjk.append(round(stockInfo[index].kdjk, 3))
             kdjd.append(round(stockInfo[index].kdjd, 3))
             kdjj.append(round(stockInfo[index].kdjj, 3))
