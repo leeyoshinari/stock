@@ -113,6 +113,7 @@ def getStockFromTencent(a):
                         stockDo.volumn = int(int(stockInfo[6]))
                         stockDo.max_price = float(stockInfo[33])
                         stockDo.min_price = float(stockInfo[34])
+                        # stockDo.turnover_rate = float(stockInfo[38])
                         stockDo.day = stockInfo[30][:8]
                         saveStockInfo(stockDo)
                         logger.info(f"Tencent: {stockDo}")
@@ -153,30 +154,36 @@ def getStockFromXueQiu(a):
             if res.status_code == 200:
                 logger.info(f"XueQiu - {res.text}")
                 res_json = json.loads(res.text)
-                for s in res_json['data']:
-                    try:
-                        stockDo = StockModelDo()
-                        code = s['symbol'][2:]
-                        stockDo.name = dataDict[code]
-                        stockDo.code = code
-                        stockDo.current_price = s['current']
-                        stockDo.open_price = s['open']
-                        stockDo.last_price = s['last_close']
-                        stockDo.max_price = s['high']
-                        stockDo.min_price = s['low']
-                        if not s['volume'] or s['volume'] < 2:
-                            logger.info(f"XueQiu - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                            continue
-                        stockDo.volumn = int(s['volume'] / 100)
-                        stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
-                        saveStockInfo(stockDo)
-                        logger.info(f"XueQiu: {stockDo}")
-                    except:
-                        logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                        logger.error(traceback.format_exc())
-                        key_stock = f"{stockDo.code}count"
-                        if dataCount[key_stock] < 5:
-                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                if len(res_json['data']) > 0:
+                    for s in res_json['data']:
+                        try:
+                            stockDo = StockModelDo()
+                            code = s['symbol'][2:]
+                            stockDo.name = dataDict[code]
+                            stockDo.code = code
+                            stockDo.current_price = s['current']
+                            stockDo.open_price = s['open']
+                            stockDo.last_price = s['last_close']
+                            stockDo.max_price = s['high']
+                            stockDo.min_price = s['low']
+                            # stockDo.turnover_rate = s['turnover_rate']
+                            if not s['volume'] or s['volume'] < 2:
+                                logger.info(f"XueQiu - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                                continue
+                            stockDo.volumn = int(s['volume'] / 100)
+                            stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
+                            saveStockInfo(stockDo)
+                            logger.info(f"XueQiu: {stockDo}")
+                        except:
+                            logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                            logger.error(traceback.format_exc())
+                            key_stock = f"{stockDo.code}count"
+                            if dataCount[key_stock] < 5:
+                                error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                else:
+                    logger.error(f"XueQiu - 请求未正常返回...响应值: {res_json}")
+                    queryTask.put(datas)
+                    time.sleep(3)
                 if len(error_list) > 0:
                     queryTask.put(error_list)
                     time.sleep(3)

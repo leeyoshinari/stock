@@ -141,6 +141,8 @@ def fixStockQrr():
         stockInfo = Stock.query(running=1).all()
         for s in stockInfo:
             stocks = Detail.query(code=s.code).order_by(asc(Detail.day)).all()
+            if len(stocks) < 6:
+                continue
             volumn = [stocks[0].volumn, stocks[1].volumn, stocks[2].volumn, stocks[3].volumn, stocks[4].volumn]
             for i in range(5, len(stocks)):
                 avg_v = sum(volumn) / 5.0
@@ -311,4 +313,4 @@ if __name__ == '__main__':
     # fixMacdData()
     # fixMacdEma()
     # getStocks()
-    getAllStockData('002316')
+    # getAllStockData('002316')

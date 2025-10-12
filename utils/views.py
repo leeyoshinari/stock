@@ -172,12 +172,22 @@ async def calcStockPriceMeanAngle(code: str, start_date: str, end_date: str) -> 
 
 async def queryStockMetric(code: str) -> Result:
     result = Result()
+    params = {"qrr_strong": 1.1, "diff_delta": 0.01, "trix_delta_min": 0.001, "down_price_pct": 0.98, "too_hot": 0.055, "min_score": 6}
     try:
-        stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(6).all()
-        stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
-        stockData.reverse()
-        result.data = analyze_buy_signal(stockData)
-        logger.info(f"query {code} successful, data: {result.data}")
+        rr = []
+        stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(-35).all()
+        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
+        stock_data.reverse()
+        logger.info(stock_data[-30:])
+        for i in range(6, len(stock_data) - 1):
+            sub = stock_data[: i + 1]
+            res = analyze_buy_signal(sub, params)
+            next_day_ret = (max(stock_data[i + 1]["current_price"], stock_data[i + 1]["max_price"]) / stock_data[i]["current_price"] - 1)
+            res["next_day_return"] = next_day_ret
+            if res["buy"]: logger.info(f"{code} - {res['day']} - {res['buy']} - {res['score']} - {next_day_ret > 0} - {res['reasons']}")
+            rr.append(res)
+        result.data = rr
+        logger.info(f"query {code} successful")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.msg = e
@@ -274,6 +284,7 @@ async def query_tencent(query: RequestData) -> Result:
                     stockDo.volumn = int(int(stockInfo[6]))
                     stockDo.max_price = float(stockInfo[33])
                     stockDo.min_price = float(stockInfo[34])
+                    # stockDo.turnover_rate = float(stockInfo[38])
                     stockDo.day = stockInfo[30][:8]
                     r_list.append(StockModelDo.model_validate(stockDo).model_dump())
                     logger.info(f"Tencent: {stockDo}")
@@ -307,30 +318,36 @@ async def query_xueqiu(query: RequestData) -> Result:
         res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
         if res.status_code == 200:
             res_json = json.loads(res.text)
-            for s in res_json['data']:
-                try:
-                    stockDo = StockModelDo()
-                    code = s['symbol'][2:]
-                    stockDo.name = dataDict[code]
-                    stockDo.code = code
-                    stockDo.current_price = s['current']
-                    stockDo.open_price = s['open']
-                    stockDo.last_price = s['last_close']
-                    stockDo.max_price = s['high']
-                    stockDo.min_price = s['low']
-                    if not s['volume'] or s['volume'] < 2:
-                        logger.info(f"XueQiu - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                        continue
-                    stockDo.volumn = int(s['volume'] / 100)
-                    stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
-                    r_list.append(StockModelDo.model_validate(stockDo).model_dump())
-                    logger.info(f"XueQiu: {stockDo}")
-                except:
-                    logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                    logger.error(traceback.format_exc())
-                    key_stock = f"{stockDo.code}count"
-                    if dataCount[key_stock] < 5:
-                        error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+            if len(res_json['data']) > 0:
+                for s in res_json['data']:
+                    try:
+                        stockDo = StockModelDo()
+                        code = s['symbol'][2:]
+                        stockDo.name = dataDict[code]
+                        stockDo.code = code
+                        stockDo.current_price = s['current']
+                        stockDo.open_price = s['open']
+                        stockDo.last_price = s['last_close']
+                        stockDo.max_price = s['high']
+                        stockDo.min_price = s['low']
+                        # stockDo.turnover_rate = s['turnover_rate']
+                        if not s['volume'] or s['volume'] < 2:
+                            logger.info(f"XueQiu - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                            continue
+                        stockDo.volumn = int(s['volume'] / 100)
+                        stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
+                        r_list.append(StockModelDo.model_validate(stockDo).model_dump())
+                        logger.info(f"XueQiu: {stockDo}")
+                    except:
+                        logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                        logger.error(traceback.format_exc())
+                        key_stock = f"{stockDo.code}count"
+                        if dataCount[key_stock] < 5:
+                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+            else:
+                logger.error(f"XueQiu - 请求未正常返回...响应值: {res_json}")
+                result.success = False
+                result.msg = "请求未正常返回"
             result.data = {"data": r_list, "error": error_list}
         else:
             logger.error("XueQiu - 请求未正常返回...")

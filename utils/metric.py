@@ -13,16 +13,15 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
     """
 
     # -------------------- 参数 --------------------
-    lookback = 20   # 历史窗口天数（用于计算成交量统计）
     eps = 1e-9
-    if not isinstance(stock_data_list, list) or len(stock_data_list) < max(lookback, 6):
+    if not isinstance(stock_data_list, list) or len(stock_data_list) < 6:
         return {"buy": False, "score": 0, "reason": "数据天数不足或格式错误"}
 
     # -------------------- 最新数据 --------------------
-    d0, d1, d2 = stock_data_list[-1], stock_data_list[-2], stock_data_list[-3]
+    d0, d1, d2, d3 = stock_data_list[-1], stock_data_list[-2], stock_data_list[-3], stock_data_list[-4]
 
     # -------------------- MACD --------------------
-    diff0, diff1, diff2 = d0["diff"], d1["diff"], d2["diff"]
+    diff0, diff1, diff2, diff3 = d0["diff"], d1["diff"], d2["diff"], d3["diff"]
     dea0, dea1, dea2 = d0["dea"], d1["dea"], d2["dea"]
     hist0, hist1, hist2 = diff0 - dea0, diff1 - dea1, diff2 - dea2
     slope_diff1, slope_diff2 = diff0 - diff1, diff1 - diff2
@@ -45,7 +44,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
     j0, j1, j2 = d0["j"], d1["j"], d2["j"]
     k0, k1, _ = d0["k"], d1["k"], d2["k"]
     trix0, trix1, trix2 = d0["trix"], d1["trix"], d2["trix"]
-    trma0 = d0["trma"]
+    trma0, trma2 = d0["trma"], d2["trma"]
 
     # -------------------- 构造子信号 --------------------
     subs = {}
@@ -53,7 +52,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
     score = 0
 
     # ===== 均线趋势 =====
-    subs["ma5_up"] = ma5_0 > ma5_1 > ma5_2
+    subs["ma5_up"] = (ma5_0 >= ma5_1) and (ma5_1 >= ma5_2)
     subs["price_above_ma5"] = price0 > ma5_0
     subs["price_vs_ma10_pct"] = (price0 - ma10_0) / (abs(ma10_0) + eps) > -0.01
     if subs["ma5_up"] and subs["price_above_ma5"] and subs["price_vs_ma10_pct"]:
@@ -65,7 +64,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
 
     # ===== 成交量强度 =====
     subs["vol3_vs_vol5_ratio"] = (vol3 / (vol5 + eps)) if vol5 > 0 else 1.0
-    subs["qrr_strong"] = (qrr0 > params["qrr_strong"] and qrr0 < 3) and (qrr0 > qrr1)
+    subs["qrr_strong"] = (qrr0 >= params["qrr_strong"] and qrr0 <= 3.0) and (qrr1 >= 0.9)
     # if subs["vol3_vs_vol5_ratio"] > params["qrr_strong"]:
     #     score += 1.0
     #     contribs["vol3_vs_vol5_ratio"] = 1.0
@@ -100,7 +99,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
             if slope_delta > 0 and slope_diff1 > params["diff_delta"] and slope_diff2 > params["diff_delta"]:
                 base_strength = 1.0  # 负区间回升但加速 -> 适度正分
             else:
-                base_strength = -1.0   # 负区间但未加速 -> 更小的正分
+                base_strength = 0.5   # 负区间但未加速 -> 更小的正分
 
         if subs["macd_cross_fresh"] or subs["macd_bullish_pre_cross"]:
             score = score + base_strength
@@ -126,28 +125,29 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
     # ===== KDJ =====
     subs["j_low_rebound"] = (j1 < 30) and (j0 > j1)
     subs["kdj_pre_bullish"] = (k0 > k1) and (j0 > j1) and subs["j_low_rebound"]
-    subs["j_high_value"] = (j0 > 70) or (j1 > 60) or (j2 > 50)     # 如果 J 值过高，拒绝买入
+    subs["j_high_value"] = (j0 > 70) or (j1 > 70) or (j2 > 60)     # 如果 J 值过高，拒绝买入
     if subs["kdj_pre_bullish"]:
         score += 1.0
         contribs["kdj_pre_bullish"] = 1.0
     else:
-        score -= 2.0
-        contribs["kdj_pre_bullish"] = -2.0
+        score -= 1.0
+        contribs["kdj_pre_bullish"] = -1.0
 
     # ===== TRIX =====
     subs["trix_up"] = (trix0 > trix1) and (trix1 > trix2) and ((trix0 - trix1) > params["trix_delta_min"])
+    subs["trix_dead"] = (trix2 >= trma2) and (trix0 <= trma0)   # 出现死叉，拒绝买入
     subs["trix_pre_bullish"] = subs["trix_up"] and (trix0 <= trma0 + eps)
     if subs["trix_pre_bullish"]:
         score += 1.0
         contribs["trix_pre_bullish"] = 1.0
     else:
-        score -= 2.0
-        contribs["trix_pre_bullish"] = -2.0
+        score -= 1.0
+        contribs["trix_pre_bullish"] = -1.0
 
     # ===== 风险信号 =====
     candle_range = high0 - low0 if high0 != low0 else eps
     upper_wick_pct = (high0 - price0) / (candle_range + eps)
-    subs["big_upper_wick"] = (upper_wick_pct > params["big_upper_wick"]) and (d0["volume"] > d1["volume"])   # 上影线
+    subs["big_upper_wick"] = (upper_wick_pct > 0.4) and (d0["volume"] > d1["volume"])   # 上影线
     subs["bear_volume_today"] = (price0 < last0 * params["down_price_pct"]) and (qrr0 > params["qrr_strong"])    # 放量下跌, 拒绝买入
     subs["too_hot"] = ((price0 - price2) / (price2 + eps)) > params["too_hot"]         # 近2天上涨幅度, 拒绝买入
     subs["high_position_volume"] = (price0 > ma10_0 * 1.05) and (subs["vol3_vs_vol5_ratio"] > params["qrr_strong"])    # 价格处于高位, 拒绝买入
@@ -160,12 +160,24 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
     #     score += 1.0
     #     contribs["big_upper_wick"] = 1.0
 
-    if subs["rebound_from_ma5"]:    # 不易出现的信号，不计入得分门槛
-        score += 2.0
-        contribs["rebound_from_ma5"] = 2.0
+    if subs["rebound_from_ma5"]:    # 超跌后回踩5日均线, 不易出现的信号，不计入得分门槛
+        score += 3.0
+        contribs["rebound_from_ma5"] = 3.0
+
+    # 缩量下跌后的放量反弹
+    price3 = d3["current_price"]
+    qrr2, qrr3 = d2["qrr"], d3["qrr"]
+    subs["last_3_price"] = (price1 <= price2) and (price2 < price3) and (price0 > ma5_0)    # 价格逐日下跌
+    subs["last_3_diff"] = (diff0 > diff1) and (diff2 <= diff3) and (diff1 <= diff2) and (diff1 > 0) and (diff3 > 0) and (diff3 - diff1 < 0.03)  # 允许diff轻微下跌，但必须大于0 +2.0
+    subs["last_3_macd"] = hist0 > 0 and hist1 > 0 and hist2 > 0     # +2.0
+    subs["last_trix_delta"] = trix0 - trma0 > 0      # +1.0
+    subs["last_3_qrr"] = (qrr1 <= qrr2) and (qrr2 < qrr3) and (qrr1 < 0.6) and (qrr0 > 2 * qrr1)    # 先缩量下跌，再放量上涨 +1.5
+    if subs["ma5_up"] and subs["last_3_price"] and subs["last_3_diff"] and subs["last_3_macd"] and subs["last_trix_delta"] and subs["last_3_qrr"]:
+        score += 12.0
+        contribs["volume_decline_rise"] = 12.0
 
     # -------------------- 硬拒绝条件 --------------------
-    hard_reject = subs["high_position_volume"] or subs["bear_volume_today"] or subs["diff_decreasing"] or subs["j_high_value"] or subs["too_hot"]
+    hard_reject = subs["high_position_volume"] or subs["bear_volume_today"] or subs["diff_decreasing"] or subs["j_high_value"] or subs["too_hot"] or subs["trix_dead"]
     buy = (score >= params["min_score"]) and (not hard_reject)
 
     # -------------------- 结果输出 --------------------
