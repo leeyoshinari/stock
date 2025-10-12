@@ -110,7 +110,7 @@ def saveStockInfo(stockDo: StockModelDo):
     if len(stock_price) > 4:
         stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(asc(Detail.day)).all()
         stock_volumn = [r[0] for r in stock_volumn_obj]
-        average_volumn = sum(stock_volumn[-5: -2]) / 3
+        average_volumn = sum(stock_volumn[-7: -2]) / 5
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         Detail.update(stockObj, qrr=round(stockDo.volumn / average_volumn, 2))
 
@@ -141,9 +141,9 @@ def fixStockQrr():
         stockInfo = Stock.query(running=1).all()
         for s in stockInfo:
             stocks = Detail.query(code=s.code).order_by(asc(Detail.day)).all()
-            volumn = [stocks[0].volumn, stocks[1].volumn, stocks[2].volumn]
-            for i in range(3, len(stocks)):
-                avg_v = sum(volumn) / 3
+            volumn = [stocks[0].volumn, stocks[1].volumn, stocks[2].volumn, stocks[3].volumn, stocks[4].volumn]
+            for i in range(5, len(stocks)):
+                avg_v = sum(volumn) / 5.0
                 Detail.update(stocks[i], qrr=round(stocks[i].volumn / avg_v, 2))
                 volumn.append(stocks[i].volumn)
                 volumn.pop(0)
@@ -158,8 +158,8 @@ def fixQrrLastDay():
         stockInfo = Stock.query(running=1).all()
         for s in stockInfo:
             stocks = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(4).all()
-            volumn = [stocks[3].volumn, stocks[1].volumn, stocks[2].volumn]
-            avg_v = sum(volumn) / 3
+            volumn = [stocks[3].volumn, stocks[1].volumn, stocks[2].volumn, stocks[5].volumn, stocks[4].volumn]
+            avg_v = sum(volumn) / 5
             Detail.update(stocks[0], qrr=round(stocks[0].volumn / avg_v, 2))
             logger.info(f"正在处理第 {s.code} 个...")
         logger.info("completed!!!!")
@@ -172,9 +172,9 @@ def fixTencentVolume():
         stockInfo = Detail.query(day='20250825').order_by(asc(Detail.qrr)).limit(1470).all()
         for s in stockInfo:
             if s.qrr <= 0.06 and s.code not in ['600246', '605255']:
-                stocks = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(4).all()
-                volumn = [stocks[3].volumn, stocks[1].volumn, stocks[2].volumn]
-                avg_v = sum(volumn) / 3
+                stocks = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(6).all()
+                volumn = [stocks[3].volumn, stocks[1].volumn, stocks[2].volumn, stocks[5].volumn, stocks[4].volumn]
+                avg_v = sum(volumn) / 5
                 Detail.update(stocks[0], volumn=s.volumn * 100, qrr=round(s.volumn * 100 / avg_v, 2))
             logger.info(f"正在处理第 {s.code} 个...")
         logger.info("completed!!!!")

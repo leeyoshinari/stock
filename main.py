@@ -71,8 +71,8 @@ class StockController(Controller):
         return result
 
     @get('/test')
-    async def test(self) -> Result:
-        result = await views.test()
+    async def test(self, code: str) -> Result:
+        result = await views.queryStockMetric(code)
         return result
 
 

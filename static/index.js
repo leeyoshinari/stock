@@ -45,17 +45,17 @@ function getStockList() {
                 let zhen = (item.max_price - item.min_price) / item.last_price * 100;
                 let color = zhang >= 0 ? zhang > 0 ? 'red' : 'black' : 'green';
                 let neng;
-                if (zhang >= 1 && item.qrr >= 2) {
+                if (zhang >= 1 && item.qrr >= 1.5) {
                     neng = '放量上涨';
-                } else if (zhang >= 1 && item.qrr <= 0.7) {
+                } else if (zhang >= 1 && item.qrr <= 0.6) {
                     neng = '缩量上涨';
                 } else if (zhang <= -1 && zhang >= -3.5 && item.qrr >= 1.5) {
                     neng = '放量下跌';
                 } else if (zhang < -3.5 && item.qrr >= 1.5) {
                     neng = '放量大跌';
-                } else if (zhang <= -1 && zhang >= -3.5 && item.qrr <= 0.7) {
+                } else if (zhang <= -1 && zhang >= -3.5 && item.qrr <= 0.6) {
                     neng = '缩量下跌';
-                } else if (zhang < -3.5 && item.qrr <= 0.7) {
+                } else if (zhang < -3.5 && item.qrr <= 0.6) {
                     neng = '缩量大跌';
                 } else {
                     neng = '';

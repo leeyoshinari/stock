@@ -9,9 +9,10 @@ from typing import List
 from collections import defaultdict
 import requests
 from sqlalchemy import desc, asc
-from utils.model import SearchStockParam, StockModelDo, RequestData
+from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList
 from utils.logging import logger
 from utils.results import Result
+from utils.metric import analyze_buy_signal
 from utils.database import Stock, Detail, Volumn, Tools
 from utils.recommend import calc_price_average, calc_volume_average, calc_volume_realtime_average
 
@@ -162,6 +163,21 @@ async def calcStockPriceMeanAngle(code: str, start_date: str, end_date: str) -> 
         realTimeStockList.reverse()
         res = {"price": calc_price_average(stockList), "volume": calc_volume_average(stockList), "real_volume": calc_volume_realtime_average(realTimeStockList)}
         result.data = res
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.msg = e
+        result.success = False
+    return result
+
+
+async def queryStockMetric(code: str) -> Result:
+    result = Result()
+    try:
+        stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(6).all()
+        stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
+        stockData.reverse()
+        result.data = analyze_buy_signal(stockData)
+        logger.info(f"query {code} successful, data: {result.data}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.msg = e

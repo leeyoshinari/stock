@@ -14,9 +14,10 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy import desc, asc
 from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL
-from utils.model import StockModelDo
+from utils.model import StockModelDo, StockDataList
 from utils.database import Database
 from utils.scheduler import scheduler
+from utils.metric import analyze_buy_signal
 from utils.database import Stock, Detail, Volumn, Tools
 from utils.logging_getstock import logger
 
@@ -428,7 +429,7 @@ def saveStockInfo(stockDo: StockModelDo):
         current_date = normalizeHourAndMinute()
     else:
         current_date = "2021"
-    volume_obj = Volumn.query_fields(columns=['volumn'], code=stockDo.code, date=current_date).order_by(desc(Volumn.create_time)).limit(3).all()
+    volume_obj = Volumn.query_fields(columns=['volumn'], code=stockDo.code, date=current_date).order_by(desc(Volumn.create_time)).limit(5).all()
     stock_volume = [r[0] for r in volume_obj]
     volume_len = len(stock_volume) if len(stock_volume) > 0 else 1
     average_volumn = sum(stock_volume) / volume_len
@@ -600,6 +601,30 @@ def checkTradeDay():
         time.sleep(3)
 
 
+def calcStockMetric():
+    global is_trade_day
+    try:
+        if is_trade_day:
+            stockInfos = Stock.query(running=1).all()
+            for s in stockInfos:
+                try:
+                    stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(16).all()
+                    stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
+                    stockData.reverse()
+                    for i in range(5, len(stockData)):
+                        s_d = stockData[:i]
+                        stockMetric = analyze_buy_signal(s_d)
+                        if stockMetric['buy']:
+                            logger.info(f"{s.code} - {s.name} : Day: {stockMetric['day']} - Score: {stockMetric['score']} - isBuy: {stockMetric['buy']}")
+                except:
+                    logger.error(f"{s.code} - {s.name}")
+                    logger.error(traceback.format_exc())
+        else:
+            logger.info("不在交易时间。。。")
+    except:
+        logger.error(traceback.format_exc())
+
+
 def setAllSHStock():
     today = datetime.today()
     if today.weekday() < 5:
@@ -628,12 +653,14 @@ def setAllSHStock():
                                 name = s['COMPANY_ABBR']
                                 try:
                                     s = Stock.get_one(code)
+                                    is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
-                                        Stock.update(s, running=0)
+                                        is_running = 0
                                         logger.info(f"股票 {s.name} - {s.code} 处于退市状态, 忽略掉...")
                                     if 'ST' in s.name.upper() and 'ST' not in name.upper():
-                                        Stock.update(s, running=1)
+                                        is_running = 1
                                         logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
+                                    Stock.update(s, running=is_running, name=name)
                                 except NoResultFound:
                                     is_running = getStockType(code)
                                     if 'ST' in name.upper() or '退' in name:
@@ -681,12 +708,14 @@ def setAllSZStock():
                                 name = s['agjc'].split('<u>')[-1].split('</u>')[0]
                                 try:
                                     s = Stock.get_one(code)
+                                    is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
-                                        Stock.update(s, running=0)
+                                        is_running = 0
                                         logger.info(f"股票 {s.name} - {s.code} 处于退市状态, 忽略掉...")
                                     if 'ST' in s.name.upper() and 'ST' not in name.upper():
-                                        Stock.update(s, running=1)
+                                        is_running = 1
                                         logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
+                                    Stock.update(s, running=is_running, name=name)
                                 except NoResultFound:
                                     is_running = getStockType(code)
                                     if 'ST' in name.upper() or '退' in name:
@@ -726,6 +755,7 @@ if __name__ == '__main__':
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 必须在15点后启动
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
+    # scheduler.add_job(calcStockMetric, 'cron', hour=8, minute=25, second=35)    # 更新股票信息
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()
