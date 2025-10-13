@@ -611,6 +611,14 @@ def checkTradeDay():
 def calcStockMetric():
     global is_trade_day
     try:
+        params = {
+            "qrr_strong": 1.25,
+            "diff_delta": 0.015,
+            "trix_delta_min": 0.002,
+            "down_price_pct": 0.97,
+            "too_hot": 0.045,
+            "min_score": 5.5
+        }
         if is_trade_day:
             stockInfos = Stock.query(running=1).all()
             for s in stockInfos:
@@ -618,11 +626,9 @@ def calcStockMetric():
                     stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(16).all()
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
-                    for i in range(5, len(stockData)):
-                        s_d = stockData[:i]
-                        stockMetric = analyze_buy_signal(s_d)
-                        if stockMetric['buy']:
-                            logger.info(f"{s.code} - {s.name} : Day: {stockMetric['day']} - Score: {stockMetric['score']} - isBuy: {stockMetric['buy']}")
+                    stockMetric = analyze_buy_signal(stockData, params)
+                    if stockMetric['buy']:
+                        logger.info(f"{s.code} - {s.name} : Day: {stockMetric['day']} - Score: {stockMetric['score']} - isBuy: {stockMetric['buy']}")
                 except:
                     logger.error(f"{s.code} - {s.name}")
                     logger.error(traceback.format_exc())
@@ -762,7 +768,7 @@ if __name__ == '__main__':
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 必须在15点后启动
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
-    # scheduler.add_job(calcStockMetric, 'cron', hour=8, minute=25, second=35)    # 更新股票信息
+    scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=49, second=55)    # 更新股票信息
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()

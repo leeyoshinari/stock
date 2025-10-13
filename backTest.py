@@ -60,12 +60,12 @@ def backtest(params):
 
 
 param_grid = {
-    "qrr_strong": [1.1, 1.2, 1.3],
-    "diff_delta": [0.01, 0.005, 0.015],
-    "trix_delta_min": [0.001, 0.002, 0.003],
-    "down_price_pct": [0.98, 0.97, 0.96],
-    "too_hot": [0.045, 0.05, 0.055, 0.06],
-    "min_score": [5, 6]
+    "qrr_strong": [1.2, 1.3, 1.4],
+    "diff_delta": [0.01, 0.02, 0.015],
+    "trix_delta_min": [0.002],
+    "down_price_pct": [0.97],
+    "too_hot": [0.045, 0.04, 0.035],
+    "min_score": [5]
 }
 
 # 笛卡尔积生成所有参数组合
@@ -85,4 +85,4 @@ for idx, params in enumerate(param_combinations, 1):
 summary.sort(key=lambda x: x["hit_rate"], reverse=True)
 logger.info("\n===== 最优参数组合前10名 =====")
 for i, s in enumerate(summary[:10], 1):
-    logger.info(f"{i:02d}. 命中率 {s['hit_rate']:.2%}, 平均收益 {s['avg_return']:.2%}, 信号数 {s['signals']}, min_score={s['min_score']}, too_hot={s['too_hot']}, down_price_pct={s['down_price_pct']}, trix_delta_min={s['trix_delta_min']}, vol3_vs_vol5_ratio={s['vol3_vs_vol5_ratio']}, diff_delta={s['diff_delta']}, qrr_strong={s['qrr_strong']}")
+    logger.info(f"{i:02d}. 命中率 {s['hit_rate']:.2%}, 平均收益 {s['avg_return']:.2%}, 信号数 {s['signals']}, min_score={s['min_score']}, too_hot={s['too_hot']}, down_price_pct={s['down_price_pct']}, trix_delta_min={s['trix_delta_min']}, diff_delta={s['diff_delta']}, qrr_strong={s['qrr_strong']}")
