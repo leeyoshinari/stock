@@ -559,10 +559,6 @@ def setAvailableStock():
                 page += 1
                 logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
                 time.sleep(BATCH_INTERVAL)
-            now = datetime.now().time()
-            stop_time = datetime.strptime("15:30:00", "%H:%M:%S").time()
-            if now > stop_time:
-                is_trade_day = False
         except:
             logger.error(traceback.format_exc())
 
@@ -634,7 +630,9 @@ def calcStockMetric():
                     day = stockMetric['day']
                     if stockMetric['buy']:
                         res.append(f"{s.code} - {s.name}, 当前价: {stockList[0].current_price}")
-                        Recommend.create(code=s.code, name=s.name, price=stockList[0].current_price)
+                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": s.code}, is_null_condition=['last_five_price']).all()
+                        if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
+                            Recommend.create(code=s.code, name=s.name, price=stockList[0].current_price, source=0)
                         logger.info(f"{s.code} - {s.name} : Day: {stockMetric['day']} - Score: {stockMetric['score']} - isBuy: {stockMetric['buy']}")
                     elif stockMetric['score'] > 2:
                         stock_metric.append(stockMetric)
@@ -654,6 +652,42 @@ def calcStockMetric():
                 stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
                 stockData.reverse()
                 logger.info(stockData)
+        else:
+            logger.info("不在交易时间。。。")
+    except:
+        logger.error(traceback.format_exc())
+
+
+def updateRecommendPrice():
+    global is_trade_day
+    try:
+        if is_trade_day:
+            recommend_stocks = Recommend.filter_condition(is_null_condition=['last_five_price']).all()
+            for r in recommend_stocks:
+                try:
+                    stocks = Detail.query(code=r.code).order_by(desc(Detail.day)).limit(1).all()
+                    price_pct = round((stocks[0].current_price - r.price) / r.price * 100, 2)
+                    max_price_pct = round((stocks[0].max_price - r.price) / r.price * 100, 2)
+                    min_price_pct = round((stocks[0].min_price - r.price) / r.price * 100, 2)
+                    if r.last_one_price is None:
+                        Recommend.update(r, last_one_price=price_pct, last_one_high=max_price_pct, last_one_low=min_price_pct)
+                    elif r.last_two_price is None:
+                        Recommend.update(r, last_two_price=price_pct, last_two_high=max_price_pct, last_two_low=min_price_pct)
+                    elif r.last_three_price is None:
+                        Recommend.update(r, last_three_price=price_pct, last_three_high=max_price_pct, last_three_low=min_price_pct)
+                    elif r.last_four_price is None:
+                        Recommend.update(r, last_four_price=price_pct, last_four_high=max_price_pct, last_four_low=min_price_pct)
+                    elif r.last_five_price is None:
+                        Recommend.update(r, last_five_price=price_pct, last_five_high=max_price_pct, last_five_low=min_price_pct)
+                except:
+                    sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, "更新推荐股票的价格报错，请抽时间核对")
+                    logger.error(traceback.format_exc())
+
+            # 更新交易标识
+            now = datetime.now().time()
+            stop_time = datetime.strptime("15:30:00", "%H:%M:%S").time()
+            if now > stop_time:
+                is_trade_day = False
         else:
             logger.info("不在交易时间。。。")
     except:
@@ -690,19 +724,20 @@ def setAllSHStock():
                                     s = Stock.get_one(code)
                                     is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
-                                        is_running = 0
-                                        logger.info(f"股票 {s.name} - {s.code} 处于退市状态, 忽略掉...")
+                                        Stock.update(s, running=0, name=name)
+                                        logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 处于退市状态, 忽略掉...")
+                                        continue
                                     if 'ST' in s.name.upper() and 'ST' not in name.upper():
-                                        is_running = 1
-                                        logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
-                                    Stock.update(s, running=is_running, name=name)
+                                        Stock.update(s, running=1, name=name)
+                                        logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 重新上市, 继续处理...")
+                                        continue
                                 except NoResultFound:
                                     is_running = getStockType(code)
                                     if 'ST' in name.upper() or '退' in name:
                                         is_running = 0
                                     if is_running == 1:
                                         Stock.create(code=code, name=name, running=is_running)
-                                        logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
+                                        logger.info(f"股票 {name} - {code}  | {name} - {code} 添加成功, 状态是 {is_running} ...")
                                 except:
                                     logger.error(traceback.format_exc())
                         else:
@@ -745,19 +780,20 @@ def setAllSZStock():
                                     s = Stock.get_one(code)
                                     is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
-                                        is_running = 0
-                                        logger.info(f"股票 {s.name} - {s.code} 处于退市状态, 忽略掉...")
+                                        Stock.update(s, running=0, name=name)
+                                        logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 处于退市状态, 忽略掉...")
+                                        continue
                                     if 'ST' in s.name.upper() and 'ST' not in name.upper():
-                                        is_running = 1
-                                        logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
-                                    Stock.update(s, running=is_running, name=name)
+                                        Stock.update(s, running=1, name=name)
+                                        logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 重新上市, 继续处理...")
+                                        continue
                                 except NoResultFound:
                                     is_running = getStockType(code)
                                     if 'ST' in name.upper() or '退' in name:
                                         is_running = 0
                                     if is_running == 1:
                                         Stock.create(code=code, name=name, running=is_running)
-                                        logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
+                                        logger.info(f"股票 {name} - {code} | {name} - {code} 添加成功, 状态是 {is_running} ...")
                                 except:
                                     logger.error(traceback.format_exc())
                         else:
@@ -791,6 +827,7 @@ if __name__ == '__main__':
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
     scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=49, second=50)    # 计算推荐股票
+    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()

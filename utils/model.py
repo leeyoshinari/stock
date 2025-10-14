@@ -4,6 +4,7 @@
 
 from typing import Optional, List
 from pydantic import BaseModel
+from datetime import datetime
 
 
 class SearchStockParam(BaseModel):
@@ -64,6 +65,29 @@ class StockDataList(BaseModel):
                    open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn,
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=obj.emas - obj.emal,
                    dea=obj.dea, k=obj.kdjk, d=obj.kdjd, j=obj.kdjj, trix=obj.trix, trma=obj.trma)
+
+
+class RecommendStockDataList(BaseModel):
+    code: str = None
+    name: str = None
+    source: int = None
+    current_price: float = None
+    last_one_price: float = None
+    last_one_high: float = None
+    last_one_low: float = None
+    last_two_price: float = None
+    last_two_high: float = None
+    last_two_low: float = None
+    last_three_price: float = None
+    last_three_high: float = None
+    last_three_low: float = None
+    last_four_price: float = None
+    last_four_high: float = None
+    last_four_low: float = None
+    last_five_price: float = None
+    last_five_high: float = None
+    last_five_low: float = None
+    create_time: datetime = None
 
 
 class RequestData(BaseModel):

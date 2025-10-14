@@ -95,7 +95,10 @@ class CRUDBase:
         """
         session = Database.get_session()
         try:
-            return session.query(cls).filter_by(**kwargs)
+            if kwargs:
+                return session.query(cls).filter_by(**kwargs)
+            else:
+                return session.query(cls)
         except:
             raise
         finally:
@@ -117,7 +120,7 @@ class CRUDBase:
             Database.close_session()
 
     @classmethod
-    def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None, greater_equal_condition: dict = None, less_equal_condition: dict = None, in_condition: dict = None):
+    def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None, greater_equal_condition: dict = None, less_equal_condition: dict = None, in_condition: dict = None, is_null_condition: list = None, is_not_null_condition: list = None):
         """
         users = User.filter_condition(equal_condition={'status': 1, 'name': '222'}, not_equal_condition={'description': 'temp'})
         SELECT * FROM catuseralog WHERE status = 1 AND name = '222' AND description != 'temp';
@@ -143,6 +146,12 @@ class CRUDBase:
             if in_condition:
                 for column, value in in_condition.items():
                     query = query.filter(getattr(cls, column).in_(value))
+            if is_null_condition:
+                for column in is_null_condition:
+                    query = query.filter(getattr(cls, column).is_(None))
+            if is_not_null_condition:
+                for column in is_not_null_condition:
+                    query = query.filter(getattr(cls, column).isnot(None))
             return query
         except:
             raise
@@ -293,6 +302,7 @@ class Recommend(Base, CRUDBase):
     last_five_price = Column(Float, nullable=True, comment="5天后的收盘价")
     last_five_high = Column(Float, nullable=True, comment="5天后的最高")
     last_five_low = Column(Float, nullable=True, comment="5天后的最低")
+    source = Column(Integer, default=0, comment="来源 0-自动, 1-大模型, 2-手动")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

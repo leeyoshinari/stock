@@ -5,15 +5,13 @@
 import time
 import json
 import traceback
-from typing import List
-from collections import defaultdict
 import requests
 from sqlalchemy import desc, asc
-from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList
+from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList, RecommendStockDataList
 from utils.logging import logger
 from utils.results import Result
 from utils.metric import analyze_buy_signal
-from utils.database import Stock, Detail, Volumn, Tools
+from utils.database import Detail, Volumn, Tools, Recommend
 from utils.recommend import calc_price_average, calc_volume_average, calc_volume_realtime_average
 
 
@@ -136,12 +134,17 @@ async def queryStockList(query: SearchStockParam) -> Result:
     return result
 
 
-async def check_stock(code: str, checking: int) -> Result:
+async def queryRecommendStockList(page: int = 1) -> Result:
     result = Result()
+    pageSize = 20
     try:
-        stock = Stock.get_one(code)
-        checking = checking if checking == 0 else 1
-        Stock.update(stock, checking=checking)
+        offset = (page - 1) * pageSize
+        total_num = Recommend.query().count()
+        stockInfo = Recommend.query().order_by(desc(Recommend.create_time)).offset(offset).limit(pageSize).all()
+        stockList = [RecommendStockDataList.model_validate(f).model_dump() for f in stockInfo]
+        result.total = total_num
+        result.data = stockList
+        logger.info("查询推荐股票列表成功～")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -192,66 +195,6 @@ async def queryStockMetric(code: str) -> Result:
         logger.error(traceback.format_exc())
         result.msg = e
         result.success = False
-    return result
-
-
-async def queryStockPriceAndVolume(code: str) -> Result:
-    result = Result()
-    try:
-        tool = Tools.get_one("openDoor")
-        day = tool.value
-        current_date = f"{day[:4]}-{day[4:6]}-{day[6:8]}"
-        real = {}
-        price = {}
-        l3d = defaultdict(list)
-        l3d_price = defaultdict(list)
-        l5d = defaultdict(list)
-        l5d_price = defaultdict(list)
-        stockInfo = Volumn.query(code=code).order_by(desc(Volumn.create_time)).limit(150).all()
-        for s in stockInfo:
-            if current_date == s.create_time_date:
-                real.update({s.date: s.volumn})
-                price.update({s.date: s.price})
-            else:
-                if len(l3d[s.date]) < 3:
-                    l3d[s.date].append(s.volumn)
-                    l3d_price[s.date].append(s.price)
-                if len(l5d[s.date]) < 5:
-                    l5d[s.date].append(s.volumn)
-                    l5d_price[s.date].append(s.price)
-
-        sort_real = dict(sorted(real.items()))
-        sort_price = dict(sorted(price.items()))
-        sort_l3d = dict(sorted(l3d.items()))
-        sort_l3d_price = dict(sorted(l3d_price.items()))
-        sort_l5d = dict(sorted(l5d.items()))
-        sort_l5d_price = dict(sorted(l5d_price.items()))
-        x_label = []
-        real_y = list(sort_real.values())
-        price_y = list(sort_price.values())
-        l3d_y = [int(sum(x) / 3) for x in list(sort_l3d.values())]
-        l5d_y = [int(sum(x) / 5) for x in list(sort_l5d.values())]
-        l3d_y_price = [round(sum(x) / 3, 2) for x in list(sort_l3d_price.values())]
-        l5d_y_price = [round(sum(x) / 5, 2) for x in list(sort_l5d_price.values())]
-        xt = list(sort_l5d.keys())
-        max_x_len = len(l5d_y)
-        if len(l3d_y) > max_x_len:
-            max_x_len = len(l3d_y)
-            xt = list(sort_l3d.keys())
-        if len(real_y) > max_x_len:
-            max_x_len = len(real_y)
-            xt = list(sort_real.keys())
-        for x in xt:
-            if x == '2021':
-                x_label.append('15:10')
-            else:
-                x_label.append(f"{x[:2]}:{x[2:]}")
-        result.data = {'x': x_label, 'y1': real_y, 'y3': l3d_y, 'y5': l5d_y, 'price1': price_y, 'price3': l3d_y_price, 'price5': l5d_y_price}
-        logger.info(f"查询股票走势成功, code: {code}")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = e
     return result
 
 
