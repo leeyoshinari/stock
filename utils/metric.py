@@ -14,7 +14,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
 
     # -------------------- 参数 --------------------
     eps = 1e-9
-    if not isinstance(stock_data_list, list) or len(stock_data_list) < 6:
+    if not isinstance(stock_data_list, list) or len(stock_data_list) < 5:
         return {"buy": False, "score": 0, "reason": "数据天数不足或格式错误"}
 
     # -------------------- 最新数据 --------------------
@@ -113,7 +113,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
 
     # 连续上方天数
     macd_above_days = 0
-    for i in range(1, min(10, len(stock_data_list)) + 1):
+    for i in range(1, min(5, len(stock_data_list)) + 1):
         if stock_data_list[-i]["diff"] > stock_data_list[-i]["dea"]:
             macd_above_days += 1
         else:
@@ -178,7 +178,9 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
 
     # -------------------- 硬拒绝条件 --------------------
     hard_reject = subs["high_position_volume"] or subs["bear_volume_today"] or subs["diff_decreasing"] or subs["j_high_value"] or subs["too_hot"] or subs["trix_dead"]
-    buy = (score >= params["min_score"]) and (not hard_reject)
+    if hard_reject:
+        score = -9
+    buy = score >= params["min_score"]
 
     # -------------------- 结果输出 --------------------
     reasons = []

@@ -117,7 +117,7 @@ class CRUDBase:
             Database.close_session()
 
     @classmethod
-    def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None, greater_equal_condition: dict = None, less_equal_condition: dict = None):
+    def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None, greater_equal_condition: dict = None, less_equal_condition: dict = None, in_condition: dict = None):
         """
         users = User.filter_condition(equal_condition={'status': 1, 'name': '222'}, not_equal_condition={'description': 'temp'})
         SELECT * FROM catuseralog WHERE status = 1 AND name = '222' AND description != 'temp';
@@ -140,6 +140,9 @@ class CRUDBase:
             if less_equal_condition:
                 for column, value in less_equal_condition.items():
                     query = query.filter(getattr(cls, column) <= value)
+            if in_condition:
+                for column, value in in_condition.items():
+                    query = query.filter(getattr(cls, column).in_(value))
             return query
         except:
             raise
@@ -274,14 +277,22 @@ class Recommend(Base, CRUDBase):
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(8), nullable=False, comment="股票代码")
     name = Column(String(8), nullable=False, comment="股票名称")
-    type = Column(Integer, nullable=False, comment="类型, 0-手动选股, 1-自动选股")
     price = Column(Float, nullable=False, comment="推荐时的价格")
     last_one_price = Column(Float, nullable=True, comment="1天后的收盘价")
+    last_one_high = Column(Float, nullable=True, comment="1天后的最高")
+    last_one_low = Column(Float, nullable=True, comment="1天后的最低")
     last_two_price = Column(Float, nullable=True, comment="2天后的收盘价")
+    last_two_high = Column(Float, nullable=True, comment="2天后的最高")
+    last_two_low = Column(Float, nullable=True, comment="2天后的最低")
     last_three_price = Column(Float, nullable=True, comment="3天后的收盘价")
+    last_three_high = Column(Float, nullable=True, comment="3天后的最高")
+    last_three_low = Column(Float, nullable=True, comment="3天后的最低")
     last_four_price = Column(Float, nullable=True, comment="4天后的收盘价")
+    last_four_high = Column(Float, nullable=True, comment="4天后的最高")
+    last_four_low = Column(Float, nullable=True, comment="4天后的最低")
     last_five_price = Column(Float, nullable=True, comment="5天后的收盘价")
-    rate = Column(Integer, nullable=True, comment="胜率, 0, 50, 100")
+    last_five_high = Column(Float, nullable=True, comment="5天后的最高")
+    last_five_low = Column(Float, nullable=True, comment="5天后的最低")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

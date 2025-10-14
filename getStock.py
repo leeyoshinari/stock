@@ -13,12 +13,13 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy import desc, asc
-from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL
+from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD
 from utils.model import StockModelDo, StockDataList
 from utils.database import Database
 from utils.scheduler import scheduler
+from utils.send_email import sendEmail
 from utils.metric import analyze_buy_signal
-from utils.database import Stock, Detail, Volumn, Tools
+from utils.database import Stock, Detail, Volumn, Tools, Recommend
 from utils.logging_getstock import logger
 
 
@@ -620,18 +621,39 @@ def calcStockMetric():
             "min_score": 5.5
         }
         if is_trade_day:
+            res = []
+            stock_metric = []
+            day = ''
             stockInfos = Stock.query(running=1).all()
             for s in stockInfos:
                 try:
-                    stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(16).all()
+                    stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(6).all()
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
                     stockMetric = analyze_buy_signal(stockData, params)
+                    day = stockMetric['day']
                     if stockMetric['buy']:
+                        res.append(f"{s.code} - {s.name}, 当前价: {stockList[0].current_price}")
+                        Recommend.create(code=s.code, name=s.name, price=stockList[0].current_price)
                         logger.info(f"{s.code} - {s.name} : Day: {stockMetric['day']} - Score: {stockMetric['score']} - isBuy: {stockMetric['buy']}")
+                    elif stockMetric['score'] > 2:
+                        stock_metric.append(stockMetric)
                 except:
                     logger.error(f"{s.code} - {s.name}")
                     logger.error(traceback.format_exc())
+            if len(res) > 0:
+                msg = f"当前交易日: {day} \n {'\n'.join(res)}"
+                sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
+            else:
+                logger.info("no recommend stocks, now use AI to select stocks.")
+                code_list = []
+                stock_metric.sort(key=lambda x: -x['score'])
+                for i in range(min(5, len(stock_metric))):
+                    code_list.append(stock_metric[i]['code'])
+                stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).limit(len(code_list) * 5).all()
+                stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
+                stockData.reverse()
+                logger.info(stockData)
         else:
             logger.info("不在交易时间。。。")
     except:
@@ -768,7 +790,7 @@ if __name__ == '__main__':
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 必须在15点后启动
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
-    scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=49, second=55)    # 更新股票信息
+    scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=49, second=50)    # 计算推荐股票
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()
