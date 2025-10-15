@@ -71,23 +71,34 @@ class RecommendStockDataList(BaseModel):
     code: str = None
     name: str = None
     source: int = None
-    current_price: float = None
-    last_one_price: float = None
-    last_one_high: float = None
-    last_one_low: float = None
-    last_two_price: float = None
-    last_two_high: float = None
-    last_two_low: float = None
-    last_three_price: float = None
-    last_three_high: float = None
-    last_three_low: float = None
-    last_four_price: float = None
-    last_four_high: float = None
-    last_four_low: float = None
-    last_five_price: float = None
-    last_five_high: float = None
-    last_five_low: float = None
-    create_time: datetime = None
+    price: float = None
+    last_one_price: Optional[float] = None
+    last_one_high: Optional[float] = None
+    last_one_low: Optional[float] = None
+    last_two_price: Optional[float] = None
+    last_two_high: Optional[float] = None
+    last_two_low: Optional[float] = None
+    last_three_price: Optional[float] = None
+    last_three_high: Optional[float] = None
+    last_three_low: Optional[float] = None
+    last_four_price: Optional[float] = None
+    last_four_high: Optional[float] = None
+    last_four_low: Optional[float] = None
+    last_five_price: Optional[float] = None
+    last_five_high: Optional[float] = None
+    last_five_low: Optional[float] = None
+    create_time: str = None
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_format(cls, obj):
+        c = obj.create_time.strftime("%Y-%m-%d")
+        return cls(code=obj.code, name=obj.name, source=obj.source, price=obj.price, last_one_price=obj.last_one_price,
+                   last_one_high=obj.last_one_high, last_one_low=obj.last_one_low, last_two_price=obj.last_two_price, last_two_high=obj.last_two_high,
+                   last_two_low=obj.last_two_low, last_three_price=obj.last_three_price, last_three_high=obj.last_three_high, last_three_low=obj.last_three_low, last_four_price=obj.last_four_price,
+                   last_four_high=obj.last_four_high, last_four_low=obj.last_four_low, last_five_price=obj.last_five_price, last_five_high=obj.last_five_high, last_five_low=obj.last_five_low, create_time=c)
 
 
 class RequestData(BaseModel):

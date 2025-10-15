@@ -141,7 +141,7 @@ async def queryRecommendStockList(page: int = 1) -> Result:
         offset = (page - 1) * pageSize
         total_num = Recommend.query().count()
         stockInfo = Recommend.query().order_by(desc(Recommend.create_time)).offset(offset).limit(pageSize).all()
-        stockList = [RecommendStockDataList.model_validate(f).model_dump() for f in stockInfo]
+        stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
         logger.info("查询推荐股票列表成功～")
