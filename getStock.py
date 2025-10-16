@@ -630,7 +630,7 @@ def calcStockMetric():
                     day = stockMetric['day']
                     if stockMetric['buy']:
                         logger.info(f"{s.code} - {s.name} : Day: {stockMetric['day']} - Score: {stockMetric['score']} - isBuy: {stockMetric['buy']}")
-                    if stockMetric['score'] > 3:
+                    if stockMetric['score'] > 2:
                         stock_metric.append(stockMetric)
                 except:
                     logger.error(f"{s.code} - {s.name}")
@@ -658,14 +658,14 @@ def calcStockMetric():
                 if code in stock_dict:      # 根据大模型来判断
                     if stock_dict[code]['buy']:
                         send_msg.append(f"{code} - {s['name']}, 当前价: {s['price']}")
-                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": s.code}, is_null_condition=['last_five_price']).all()
+                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                            Recommend.create(code=s.code, name=s.name, price=stockList[0].current_price, source=0)
+                            Recommend.create(code=code, name=s['name'], price=s['price'], source=1)
                 else:   # 如果大模型调用失败
                     send_msg.append(f"{code} - {s['name']}, 当前价 - {s['price']}")
-                    recommend_stocks = Recommend.filter_condition(equal_condition={"code": s.code}, is_null_condition=['last_five_price']).all()
+                    recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
                     if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                        Recommend.create(code=s.code, name=s.name, price=stockList[0].current_price, source=0)
+                        Recommend.create(code=code, name=s['name'], price=s['price'], source=0)
             msg = f"当前交易日: {day} \n {'\n'.join(send_msg)}"
             sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
             logger.info('Email send success ~')
