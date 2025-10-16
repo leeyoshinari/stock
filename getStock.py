@@ -13,11 +13,12 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy import desc, asc
-from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD
+from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, API_URL, AI_MODEL, AUTH_CODE, HTTP_HOST1
 from utils.model import StockModelDo, StockDataList
 from utils.database import Database
 from utils.scheduler import scheduler
 from utils.send_email import sendEmail
+from utils.ai_model import queryGemini
 from utils.metric import analyze_buy_signal
 from utils.database import Stock, Detail, Volumn, Tools, Recommend
 from utils.logging_getstock import logger
@@ -617,8 +618,7 @@ def calcStockMetric():
             "min_score": 5.5
         }
         if is_trade_day:
-            res = []
-            stock_metric = []
+            stock_metric = []   # 非买入信号的策略选股
             day = ''
             stockInfos = Stock.query(running=1).all()
             for s in stockInfos:
@@ -629,29 +629,46 @@ def calcStockMetric():
                     stockMetric = analyze_buy_signal(stockData, params)
                     day = stockMetric['day']
                     if stockMetric['buy']:
-                        res.append(f"{s.code} - {s.name}, 当前价: {stockList[0].current_price}")
-                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": s.code}, is_null_condition=['last_five_price']).all()
-                        if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                            Recommend.create(code=s.code, name=s.name, price=stockList[0].current_price, source=0)
                         logger.info(f"{s.code} - {s.name} : Day: {stockMetric['day']} - Score: {stockMetric['score']} - isBuy: {stockMetric['buy']}")
-                    elif stockMetric['score'] > 2:
+                    if stockMetric['score'] > 3:
                         stock_metric.append(stockMetric)
                 except:
                     logger.error(f"{s.code} - {s.name}")
                     logger.error(traceback.format_exc())
-            if len(res) > 0:
-                msg = f"当前交易日: {day} \n {'\n'.join(res)}"
-                sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
-            else:
-                logger.info("no recommend stocks, now use AI to select stocks.")
-                code_list = []
-                stock_metric.sort(key=lambda x: -x['score'])
-                for i in range(min(5, len(stock_metric))):
-                    code_list.append(stock_metric[i]['code'])
-                stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).limit(len(code_list) * 5).all()
-                stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
-                stockData.reverse()
-                logger.info(stockData)
+
+            code_list = []
+            stock_metric.sort(key=lambda x: -x['score'])
+            ai_model_list = stock_metric[: 5]
+            for i in range(len(ai_model_list)):
+                logger.info(f"Select stocks: {ai_model_list[i]}")
+                code_list.append(ai_model_list[i]['code'])
+            stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).limit(len(code_list) * 6).all()
+            stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
+            stockData.reverse()
+            # 请求大模型
+            try:
+                stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+            except:
+                logger.error(traceback.format_exc())
+                stock_dict = {}
+            send_msg = []
+            # 处理最终结果
+            for s in ai_model_list:
+                code = s['code']
+                if code in stock_dict:      # 根据大模型来判断
+                    if stock_dict[code]['buy']:
+                        send_msg.append(f"{code} - {s['name']}, 当前价: {s['price']}")
+                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": s.code}, is_null_condition=['last_five_price']).all()
+                        if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
+                            Recommend.create(code=s.code, name=s.name, price=stockList[0].current_price, source=0)
+                else:   # 如果大模型调用失败
+                    send_msg.append(f"{code} - {s['name']}, 当前价 - {s['price']}")
+                    recommend_stocks = Recommend.filter_condition(equal_condition={"code": s.code}, is_null_condition=['last_five_price']).all()
+                    if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
+                        Recommend.create(code=s.code, name=s.name, price=stockList[0].current_price, source=0)
+            msg = f"当前交易日: {day} \n {'\n'.join(send_msg)}"
+            sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
+            logger.info('Email send success ~')
         else:
             logger.info("不在交易时间。。。")
     except:
@@ -820,7 +837,6 @@ def stopTask():
 
 
 if __name__ == '__main__':
-    http1_host = "https://usc.ihuster.top"
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 必须在15点后启动
@@ -834,7 +850,7 @@ if __name__ == '__main__':
     with open('pid', 'w', encoding='utf-8') as f:
         f.write(str(PID))
     funcList = [getStockFromTencent, getStockFromSina, queryStockTencentFromHttp, queryStockXueQiuFromHttp, queryStockSinaFromHttp]
-    paramList = ['', '', http1_host, http1_host, http1_host]
+    paramList = ['', '', HTTP_HOST1, HTTP_HOST1, HTTP_HOST1]
     with ThreadPoolExecutor(max_workers=THREAD_POOL_SIZE) as executor:
         futures = [executor.submit(func, param) for func, param in zip(funcList, paramList)]
         wait(futures)

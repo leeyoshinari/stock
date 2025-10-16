@@ -1,5 +1,7 @@
-import math
-from statistics import median
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Author: leeyoshinari
+
 from typing import List, Dict, Any
 
 
@@ -194,6 +196,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
         "code": d0["code"],
         "name": d0["name"],
         "day": d0["day"],
+        "price": price0,
         "buy": buy,
         "score": score,
         "subsignals": subs,
