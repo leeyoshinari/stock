@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy import desc, asc
-from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, API_URL, AI_MODEL, AUTH_CODE, HTTP_HOST1
+from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, API_URL, AI_MODEL, AUTH_CODE, HTTP_HOST1, HTTP_HOST2
 from utils.model import StockModelDo, StockDataList
 from utils.database import Database
 from utils.scheduler import scheduler
@@ -95,7 +95,11 @@ def getStockFromTencent(a):
             dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
             dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
             stockCode = generateStockCode(dataDict)
-            res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
+            if a == "proxy":
+                param_data = {"url": f"https://qt.gtimg.cn/q={stockCode}", "method": "GET"}
+                res = requests.post(f'{HTTP_HOST2}/api/proxy', json=param_data, headers={'Content-Type': 'application/json'})
+            else:
+                res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
             if res.status_code == 200:
                 res_list = res.text.split(';')
                 for s in res_list:
@@ -152,7 +156,11 @@ def getStockFromXueQiu(a):
             dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
             dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
             stockCode = generateStockCode(dataDict)
-            res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
+            if a == 'proxy':
+                param_data = {"url": f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", "method": "GET"}
+                res = requests.post(f'{HTTP_HOST2}/api/proxy', json=param_data, headers={'Content-Type': 'application/json'})
+            else:
+                res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
             if res.status_code == 200:
                 logger.info(f"XueQiu - {res.text}")
                 res_json = json.loads(res.text)
@@ -217,7 +225,11 @@ def getStockFromSina(a):
                 'Referer': 'https://finance.sina.com.cn',
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
             }
-            res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
+            if a == 'proxy':
+                param_data = {"url": f"http://hq.sinajs.cn/list={stockCode}", "method": "GET", "headers": h}
+                res = requests.post(f'{HTTP_HOST2}/api/proxy', json=param_data, headers={'Content-Type': 'application/json'})
+            else:
+                res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
             if res.status_code == 200:
                 res_list = res.text.split(';')
                 for s in res_list:
@@ -863,8 +875,8 @@ if __name__ == '__main__':
     PID = os.getpid()
     with open('pid', 'w', encoding='utf-8') as f:
         f.write(str(PID))
-    funcList = [getStockFromTencent, getStockFromSina, queryStockTencentFromHttp, queryStockXueQiuFromHttp, queryStockSinaFromHttp]
-    paramList = ['', '', HTTP_HOST1, HTTP_HOST1, HTTP_HOST1]
+    funcList = [getStockFromTencent, getStockFromSina, queryStockTencentFromHttp, queryStockXueQiuFromHttp, queryStockSinaFromHttp, getStockFromTencent, getStockFromSina, getStockFromXueQiu]
+    paramList = ['base', 'base', HTTP_HOST1, HTTP_HOST1, HTTP_HOST1, 'proxy', 'proxy', 'proxy']
     with ThreadPoolExecutor(max_workers=THREAD_POOL_SIZE) as executor:
         futures = [executor.submit(func, param) for func, param in zip(funcList, paramList)]
         wait(futures)
