@@ -5,7 +5,7 @@
 from sqlalchemy import create_engine, Column, BigInteger, Integer, Float, String, ForeignKey, DateTime, Index, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship, scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import text, desc
+from sqlalchemy import text, desc, func
 from typing import List
 from datetime import datetime
 from settings import DB_URL, DB_POOL_SIZE
@@ -107,13 +107,33 @@ class CRUDBase:
     @classmethod
     def query_fields(cls, columns: list, **kwargs):
         """
-        users = User.query(columns=['id', 'name'], name="Documents", is_delete=0).all()
+        users = User.query_fields(columns=['id', 'name'], name="Documents", is_delete=0).all()
         """
         session = Database.get_session()
         try:
             column_attrs = [getattr(cls, col) for col in columns]
             query = session.query(*column_attrs)
             return query.filter_by(**kwargs)
+        except:
+            raise
+        finally:
+            Database.close_session()
+
+    @classmethod
+    def query_groupby(cls, columns: list, **kwargs):
+        """
+        users = User.query_groupby(columns=['id', 'name'], is_delete=0).all()
+        select id, name, count(*) as count from user where is_delete=0 group by id, name;
+        """
+        session = Database.get_session()
+        try:
+            column_attrs = [getattr(cls, col) for col in columns]
+            column_attrs.append(func.count('*').label('count'))
+            group_by_attrs = [getattr(cls, col) for col in columns]
+            query = session.query(*column_attrs)
+            if kwargs:
+                query = query.filter_by(**kwargs)
+            return query.group_by(*group_by_attrs)
         except:
             raise
         finally:
@@ -190,6 +210,40 @@ class CRUDBase:
             current_instance = session.get(cls, instance.id)
             session.delete(current_instance)
             session.commit()
+        except:
+            session.rollback()
+            raise
+        finally:
+            Database.close_session()
+
+    @classmethod
+    def delete_where(cls, where: dict):
+        session = Database.get_session()
+        try:
+            query = session.query(cls)
+            for key, value in where.items():
+                col = getattr(cls, key)
+                if isinstance(value, tuple) and len(value) == 2:
+                    op, val = value
+                    if op == ">":
+                        query = query.filter(col > val)
+                    elif op == "<":
+                        query = query.filter(col < val)
+                    elif op == ">=":
+                        query = query.filter(col >= val)
+                    elif op == "<=":
+                        query = query.filter(col <= val)
+                    elif op in ("!=", "<>"):
+                        query = query.filter(col != val)
+                    elif op == "in":
+                        query = query.filter(col.in_(val))
+                    else:
+                        raise ValueError(f"不支持的操作符: {op}")
+                else:
+                    query = query.filter(col == val)
+            count = query.delete(synchronize_session=False)
+            session.commit()
+            return count
         except:
             session.rollback()
             raise

@@ -71,7 +71,12 @@ async def index() -> Template:
     return Template("index.html", context={'prefix': PREFIX})
 
 
-route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[index])]
+@get("/s")
+async def recommend() -> Template:
+    return Template("recommend.html", context={'prefix': PREFIX})
+
+
+route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[index, recommend])]
 
 
 @asynccontextmanager

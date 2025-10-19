@@ -146,3 +146,17 @@
     height: 20px;
     margin-left: 15px;
 }
+
+.three-price {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    font-family: monospace;
+}
+
+.three-price span {
+    display: inline-block;
+    width: 10ch;
+    text-align: justify;
+    align-self: anchor-center;
+}

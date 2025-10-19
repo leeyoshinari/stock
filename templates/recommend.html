@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock</title>
+    <link rel="stylesheet" href="{{ prefix }}/static/index.css">
+    <script>
+        const prefix = "{{ prefix }}";
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <button id="search">数据统计</button>
+            </div>
+            <div>
+                <button id="pre-page">上一页</button>
+            </div>
+            <div>
+                <button id="next-page">下一页</button>
+            </div>
+        </div>
+        <div class="stock-list">
+            <div class="item-header">
+                <div>名称</div>
+                <div>代码</div>
+                <div>推荐价</div>
+                <div>时间</div>
+                <div>第一天</div>
+                <div>第二天</div>
+                <div>第三天</div>
+                <div>第四天</div>
+                <div>第五天</div>
+            </div>
+            <div class="list"></div>
+        </div>
+        <!-- <div class="stock-chart"><div id="figure"></div></div> -->
+        <!-- <div class="stock-data"><div id="data-tips"></div></div> -->
+    </div>
+</body>
+<script src="{{ prefix }}/static/recommend.js"></script>
+</html>

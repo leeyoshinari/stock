@@ -666,9 +666,12 @@ def calcStockMetric():
                     recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
                     if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                         Recommend.create(code=code, name=s['name'], price=s['price'], source=0)
-            msg = f"当前交易日: {day} \n {'\n'.join(send_msg)}"
-            sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
-            logger.info('Email send success ~')
+            if len(send_msg) > 0:
+                msg = f"当前交易日: {day} \n {'\n'.join(send_msg)}"
+                sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
+                logger.info('Email send success ~')
+            else:
+                logger.info('No stock recommended.')
         else:
             logger.info("不在交易时间。。。")
     except:
@@ -836,6 +839,16 @@ def stopTask():
         logger.info("查询任务不存在或已结束...")
 
 
+def clearStockData():
+    # 清理 volumn 表数据
+    stockInfos = Stock.query().all()
+    for s in stockInfos:
+        s_v = Volumn.query(code=s.code).order_by(asc(Volumn.create_time)).all()
+        if len(s_v) > 6:
+            Volumn.delete(s_v[0])
+            logger.info(f"delete stock volume data success,  {s.code} - {s.name}")
+
+
 if __name__ == '__main__':
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
@@ -844,6 +857,7 @@ if __name__ == '__main__':
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
     scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=49, second=50)    # 计算推荐股票
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
+    scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()
