@@ -6,6 +6,7 @@ import os
 import json
 import time
 import queue
+import random
 import traceback
 import requests
 from typing import List
@@ -566,6 +567,7 @@ def setAvailableStock():
                 stockInfo = Stock.query(running=1).order_by(asc(Stock.create_time)).offset(offset).limit(BATCH_SIZE).all()
                 for s in stockInfo:
                     stockList.append({s.code: s.name, f'{s.code}count': 1})
+                random.shuffle(stockList)
                 for i in range(0, len(stockList), one_batch_size):
                     d = stockList[i: i + one_batch_size]
                     queryTask.put(d)
