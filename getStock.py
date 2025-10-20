@@ -115,7 +115,7 @@ def getStockFromTencent(a):
                         stockDo.last_price = float(stockInfo[4])
                         stockDo.open_price = float(stockInfo[5])
                         if int(stockInfo[6]) < 2:
-                            logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                            logger.info(f"Tencent({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                             continue
                         stockDo.volumn = int(int(stockInfo[6]))
                         stockDo.max_price = float(stockInfo[33])
@@ -123,9 +123,9 @@ def getStockFromTencent(a):
                         # stockDo.turnover_rate = float(stockInfo[38])
                         stockDo.day = stockInfo[30][:8]
                         saveStockInfo(stockDo)
-                        logger.info(f"Tencent: {stockDo}")
+                        logger.info(f"Tencent({a}): {stockDo}")
                     except:
-                        logger.error(f"Tencent - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                        logger.error(f"Tencent({a}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                         logger.error(traceback.format_exc())
                         key_stock = f"{stockDo.code}count"
                         if dataCount[key_stock] < 5:
@@ -134,12 +134,12 @@ def getStockFromTencent(a):
                     queryTask.put(error_list)
                     time.sleep(3)
             else:
-                logger.error(f"Tencent - 请求未正常返回... {datas}")
+                logger.error(f"Tencent({a}) - 请求未正常返回... {datas}")
                 queryTask.put(datas)
                 time.sleep(3)
             error_list = []
         except:
-            logger.error(f"Tencent - 出现异常...... {datas}")
+            logger.error(f"Tencent({a}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
             time.sleep(3)
@@ -163,7 +163,6 @@ def getStockFromXueQiu(a):
             else:
                 res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
             if res.status_code == 200:
-                logger.info(f"XueQiu - {res.text}")
                 res_json = json.loads(res.text)
                 if len(res_json['data']) > 0:
                     for s in res_json['data']:
@@ -179,32 +178,32 @@ def getStockFromXueQiu(a):
                             stockDo.min_price = s['low']
                             # stockDo.turnover_rate = s['turnover_rate']
                             if not s['volume'] or s['volume'] < 2:
-                                logger.info(f"XueQiu - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                                logger.info(f"XueQiu({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                                 continue
                             stockDo.volumn = int(s['volume'] / 100)
                             stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
                             saveStockInfo(stockDo)
-                            logger.info(f"XueQiu: {stockDo}")
+                            logger.info(f"XueQiu({a}): {stockDo}")
                         except:
-                            logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                            logger.error(f"XueQiu({a}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                             logger.error(traceback.format_exc())
                             key_stock = f"{stockDo.code}count"
                             if dataCount[key_stock] < 5:
                                 error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
                 else:
-                    logger.error(f"XueQiu - 请求未正常返回...响应值: {res_json}")
+                    logger.error(f"XueQiu({a}) - 请求未正常返回...响应值: {res_json}")
                     queryTask.put(datas)
                     time.sleep(3)
                 if len(error_list) > 0:
                     queryTask.put(error_list)
                     time.sleep(3)
             else:
-                logger.error(f"XueQiu - 请求未正常返回... {datas}")
+                logger.error(f"XueQiu({a}) - 请求未正常返回... {datas}")
                 queryTask.put(datas)
                 time.sleep(3)
             error_list = []
         except:
-            logger.error(f"XueQiu - 出现异常...... {datas}")
+            logger.error(f"XueQiu({a}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
             time.sleep(3)
@@ -244,7 +243,7 @@ def getStockFromSina(a):
                         stockDo.current_price = float(stockInfo[3])
                         stockDo.open_price = float(stockInfo[1])
                         if int(stockInfo[8]) < 2:
-                            logger.info(f"Sina - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                            logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                             continue
                         stockDo.volumn = int(int(stockInfo[8]) / 100)
                         stockDo.last_price = float(stockInfo[2])
@@ -252,9 +251,9 @@ def getStockFromSina(a):
                         stockDo.min_price = float(stockInfo[5])
                         stockDo.day = stockInfo[30].replace('-', '')
                         saveStockInfo(stockDo)
-                        logger.info(f"Sina: {stockDo}")
+                        logger.info(f"Sina({a}): {stockDo}")
                     except:
-                        logger.error(f"Sina - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                        logger.error(f"Sina({a}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                         logger.error(traceback.format_exc())
                         key_stock = f"{stockDo.code}count"
                         if dataCount[key_stock] < 5:
@@ -263,12 +262,12 @@ def getStockFromSina(a):
                     queryTask.put(error_list)
                     time.sleep(3)
             else:
-                logger.error(f"Sina - 请求未正常返回... {datas}")
+                logger.error(f"Sina({a}) - 请求未正常返回... {datas}")
                 queryTask.put(datas)
                 time.sleep(3)
             error_list = []
         except:
-            logger.error(f"Sina - 出现异常...... {datas}")
+            logger.error(f"Sina({a}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: queryTask.put(datas)
             time.sleep(3)
@@ -651,35 +650,37 @@ def calcStockMetric():
                     logger.error(traceback.format_exc())
 
             code_list = []
+            send_msg = []
             stock_metric.sort(key=lambda x: -x['score'])
             ai_model_list = stock_metric[: 5]
             for i in range(len(ai_model_list)):
                 logger.info(f"Select stocks: {ai_model_list[i]}")
                 code_list.append(ai_model_list[i]['code'])
-            stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).limit(len(code_list) * 6).all()
-            stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
-            stockData.reverse()
-            # 请求大模型
-            try:
-                stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
-            except:
-                logger.error(traceback.format_exc())
-                stock_dict = {}
-            send_msg = []
-            # 处理最终结果
-            for s in ai_model_list:
-                code = s['code']
-                if code in stock_dict:      # 根据大模型来判断
-                    if stock_dict[code]['buy']:
-                        send_msg.append(f"{code} - {s['name']}, 当前价: {s['price']}")
+            if len(code_list) > 0:
+                stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).limit(len(code_list) * 6).all()
+                stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
+                stockData.reverse()
+                # 请求大模型
+                try:
+                    stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+                except:
+                    logger.error(traceback.format_exc())
+                    stock_dict = {}
+                
+                # 处理最终结果
+                for s in ai_model_list:
+                    code = s['code']
+                    if code in stock_dict:      # 根据大模型来判断
+                        if stock_dict[code]['buy']:
+                            send_msg.append(f"{code} - {s['name']}, 当前价: {s['price']}")
+                            recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
+                            if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
+                                Recommend.create(code=code, name=s['name'], price=s['price'], source=1)
+                    else:   # 如果大模型调用失败
+                        send_msg.append(f"{code} - {s['name']}, 当前价 - {s['price']}")
                         recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                            Recommend.create(code=code, name=s['name'], price=s['price'], source=1)
-                else:   # 如果大模型调用失败
-                    send_msg.append(f"{code} - {s['name']}, 当前价 - {s['price']}")
-                    recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
-                    if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                        Recommend.create(code=code, name=s['name'], price=s['price'], source=0)
+                            Recommend.create(code=code, name=s['name'], price=s['price'], source=0)
             if len(send_msg) > 0:
                 msg = f"当前交易日: {day} \n {'\n'.join(send_msg)}"
                 sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
