@@ -666,7 +666,7 @@ def calcStockMetric():
                 except:
                     logger.error(traceback.format_exc())
                     stock_dict = {}
-                
+
                 # 处理最终结果
                 for s in ai_model_list:
                     code = s['code']
@@ -697,7 +697,8 @@ def updateRecommendPrice():
     global is_trade_day
     try:
         if is_trade_day:
-            recommend_stocks = Recommend.filter_condition(is_null_condition=['last_five_price']).all()
+            t = time.strftime("%Y-%m-%d") + " 09:00:00"
+            recommend_stocks = Recommend.filter_condition(less_equal_condition={'create_time': t}, is_null_condition=['last_five_price']).all()
             for r in recommend_stocks:
                 try:
                     stocks = Detail.query(code=r.code).order_by(desc(Detail.day)).limit(1).all()
