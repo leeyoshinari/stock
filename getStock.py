@@ -663,6 +663,7 @@ def calcStockMetric():
                 # 请求大模型
                 try:
                     stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+                    logger.info(f"AI-model: {stock_dict}")
                 except:
                     logger.error(traceback.format_exc())
                     stock_dict = {}
