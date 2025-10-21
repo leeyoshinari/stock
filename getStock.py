@@ -642,7 +642,7 @@ def calcStockMetric():
                     stockMetric = analyze_buy_signal(stockData, params)
                     day = stockMetric['day']
                     if stockMetric['buy']:
-                        logger.info(f"{s.code} - {s.name} : Day: {stockMetric['day']} - Score: {stockMetric['score']} - isBuy: {stockMetric['buy']}")
+                        logger.info(f"{s.code} - {s.name} : - : {stockMetric}")
                     if stockMetric['score'] > 2:
                         stock_metric.append(stockMetric)
                 except:
