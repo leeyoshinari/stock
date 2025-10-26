@@ -716,6 +716,7 @@ def updateRecommendPrice():
                         Recommend.update(r, last_four_price=price_pct, last_four_high=max_price_pct, last_four_low=min_price_pct)
                     elif r.last_five_price is None:
                         Recommend.update(r, last_five_price=price_pct, last_five_high=max_price_pct, last_five_low=min_price_pct)
+                    logger.info(f"update recommend stocks {r.code} - {r.name} price success!")
                 except:
                     sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, "更新推荐股票的价格报错，请抽时间核对")
                     logger.error(traceback.format_exc())
@@ -861,8 +862,9 @@ def clearStockData():
     stockInfos = Stock.query().all()
     for s in stockInfos:
         s_v = Volumn.query(code=s.code).order_by(asc(Volumn.create_time)).all()
-        if len(s_v) > 6:
-            Volumn.delete(s_v[0])
+        if len(s_v) > 175:  # 25 * 7 = 175
+            for i in range(25):
+                Volumn.delete(s_v[i])
             logger.info(f"delete stock volume data success,  {s.code} - {s.name}")
 
 
