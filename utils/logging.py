@@ -24,8 +24,8 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(threadName)s - %(
 logger.setLevel(level=log_level.get(LOGGER_LEVEL))
 
 file_handler = logging.handlers.TimedRotatingFileHandler(
-    os.path.join(log_path, 'run.log'), when='midnight', interval=1, backupCount=15)
-file_handler.suffix = '%Y-%m-%d.log'
+    os.path.join(log_path, 'run.log'), when='midnight', interval=1, backupCount=15, encoding='utf-8')
+file_handler.suffix = '%Y-%m-%d'
 # file_handler = logging.StreamHandler()
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)

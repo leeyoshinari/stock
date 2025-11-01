@@ -676,12 +676,12 @@ def calcStockMetric():
                             send_msg.append(f"{code} - {s['name']}, 当前价: {s['price']}")
                             recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
                             if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                                Recommend.create(code=code, name=s['name'], price=s['price'], source=1)
+                                Recommend.create(code=code, name=s['name'], price=0.01, source=1)
                     else:   # 如果大模型调用失败
                         send_msg.append(f"{code} - {s['name']}, 当前价 - {s['price']}")
                         recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                            Recommend.create(code=code, name=s['name'], price=s['price'], source=0)
+                            Recommend.create(code=code, name=s['name'], price=0.01, source=0)
             if len(send_msg) > 0:
                 msg = f"当前交易日: {day} \n {'\n'.join(send_msg)}"
                 sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
@@ -698,6 +698,17 @@ def updateRecommendPrice():
     global is_trade_day
     try:
         if is_trade_day:
+            # 更新最新收盘价
+            try:
+                tool = Tools.get_one("openDoor")
+                new_day = tool.value
+                new_stocks = Recommend.filter_condition(less_equal_condition={'price': 0.02}).all()
+                for r in new_stocks:
+                    s = Detail.get_one((r.code, new_day))
+                    Recommend.update(r, price=s.current_price)
+            except:
+                logger.error(traceback.format_exc())
+
             t = time.strftime("%Y-%m-%d") + " 09:00:00"
             recommend_stocks = Recommend.filter_condition(less_equal_condition={'create_time': t}, is_null_condition=['last_five_price']).all()
             for r in recommend_stocks:

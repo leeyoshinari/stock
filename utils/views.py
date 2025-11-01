@@ -198,6 +198,22 @@ async def queryStockMetric(code: str) -> Result:
     return result
 
 
+async def queryAllStockData(code: str) -> Result:
+    result = Result()
+    try:
+        code_list = code.split(',')
+        stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).all()
+        stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
+        stockData.reverse()
+        result.data = stockData
+        logger.info(f"query {code} successful")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.msg = e
+        result.success = False
+    return result
+
+
 async def query_tencent(query: RequestData) -> Result:
     result = Result()
     try:

@@ -60,6 +60,11 @@ class StockController(Controller):
         result = await views.query_sina(data)
         return result
 
+    @get('/query/stock/data')
+    async def stock_data(self, code: str) -> Result:
+        result = await views.queryAllStockData(code)
+        return result
+
     @get('/test')
     async def test(self, code: str) -> Result:
         result = await views.queryStockMetric(code)
