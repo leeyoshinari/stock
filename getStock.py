@@ -14,12 +14,13 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy import desc, asc
-from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, API_URL, AI_MODEL, AUTH_CODE, HTTP_HOST1, HTTP_HOST2
-from utils.model import StockModelDo, StockDataList
+from settings import BATCH_SIZE, THREAD_POOL_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, HTTP_HOST1, HTTP_HOST2
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE
+from utils.model import StockModelDo, StockDataList, AiModelStockList
 from utils.database import Database
 from utils.scheduler import scheduler
 from utils.send_email import sendEmail
-from utils.ai_model import queryGemini
+from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal
 from utils.database import Stock, Detail, Volumn, Tools, Recommend
 from utils.logging_getstock import logger
@@ -622,66 +623,53 @@ def checkTradeDay():
 def calcStockMetric():
     global is_trade_day
     try:
-        params = {
-            "qrr_strong": 1.25,
-            "diff_delta": 0.015,
-            "trix_delta_min": 0.002,
-            "down_price_pct": 0.97,
-            "too_hot": 0.045,
-            "min_score": 5.5
-        }
         if is_trade_day:
             stock_metric = []   # 非买入信号的策略选股
             day = ''
             stockInfos = Stock.query(running=1).all()
             for s in stockInfos:
                 try:
-                    stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(6).all()
+                    stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(5).all()
+                    up_percent = (stockList[0].current_price - stockList[0].last_price) / stockList[0].last_price * 100
+                    if (up_percent > 9.95 or up_percent < 2):
+                        continue
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
-                    stockMetric = analyze_buy_signal(stockData, params)
+                    stockMetric = analyze_buy_signal(stockData, None)
                     day = stockMetric['day']
                     if stockMetric['buy']:
                         logger.info(f"{s.code} - {s.name} : - : {stockMetric}")
-                    if stockMetric['score'] > 2:
+                    if stockMetric['score'] > 6:
                         stock_metric.append(stockMetric)
                 except:
                     logger.error(f"{s.code} - {s.name}")
                     logger.error(traceback.format_exc())
 
-            code_list = []
             send_msg = []
             stock_metric.sort(key=lambda x: -x['score'])
-            ai_model_list = stock_metric[: 5]
+            ai_model_list = stock_metric[: 10]
             for i in range(len(ai_model_list)):
                 logger.info(f"Select stocks: {ai_model_list[i]}")
-                code_list.append(ai_model_list[i]['code'])
-            if len(code_list) > 0:
-                stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).limit(len(code_list) * 6).all()
-                stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
+                stock_code_id = ai_model_list[i]['code']
+                stock_data_list = Detail.query(code=stock_code_id).order_by(desc(Detail.day)).limit(6).all()
+                stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
                 stockData.reverse()
                 # 请求大模型
                 try:
-                    stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+                    # stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+                    stock_dict = queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model: {stock_dict}")
+                    if stock_dict and stock_dict[0][stock_code_id]['buy']:
+                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": stock_code_id}, is_null_condition=['last_five_price']).all()
+                        if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
+                            Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, source=1)
+                            send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {s['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
+                    else:
+                        logger.error("大模型返回结果为空")
                 except:
                     logger.error(traceback.format_exc())
                     stock_dict = {}
 
-                # 处理最终结果
-                for s in ai_model_list:
-                    code = s['code']
-                    if code in stock_dict:      # 根据大模型来判断
-                        if stock_dict[code]['buy']:
-                            send_msg.append(f"{code} - {s['name']}, 当前价: {s['price']}")
-                            recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
-                            if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                                Recommend.create(code=code, name=s['name'], price=0.01, source=1)
-                    else:   # 如果大模型调用失败
-                        send_msg.append(f"{code} - {s['name']}, 当前价 - {s['price']}")
-                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": code}, is_null_condition=['last_five_price']).all()
-                        if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                            Recommend.create(code=code, name=s['name'], price=0.01, source=0)
             if len(send_msg) > 0:
                 msg = f"当前交易日: {day} \n {'\n'.join(send_msg)}"
                 sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)

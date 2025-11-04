@@ -7,7 +7,7 @@ import json
 import traceback
 import requests
 from sqlalchemy import desc, asc
-from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList, RecommendStockDataList
+from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList, RecommendStockDataList, AiModelStockList
 from utils.logging import logger
 from utils.results import Result
 from utils.metric import analyze_buy_signal
@@ -203,7 +203,7 @@ async def queryAllStockData(code: str) -> Result:
     try:
         code_list = code.split(',')
         stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).all()
-        stockData = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
+        stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
         stockData.reverse()
         result.data = stockData
         logger.info(f"query {code} successful")

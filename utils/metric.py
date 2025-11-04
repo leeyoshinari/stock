@@ -13,194 +13,149 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
     输出:
         包含买入信号、置信度、原始分数、各子信号分项及理由
     """
+    default_params = {
+        'min_days_for_trend': 4,  # 检查最近的最小天数，用于均线、价格趋势、MACD等持续性判断（场景2,4）
+        'qrr_threshold': 1.3,     # 量比阈值，大于此值视为成交量放大（场景3，经验值：1.5表示成交量是过去5日均量的1.5倍以上）
+        'min_total_rise_pct': 0.02,  # 最近几天总体涨幅最小值,5%作为强势上涨标准
+        'macd_gold_cross_days': 0,   # MACD金叉持续最小天数
+        'trix_upward_threshold': 0.0,      # TRIX > trma 视为金叉，>0视为向上（场景7）
+        'trix_slow_increase_pct': 0.05,    # TRIX缓慢上涨的百分比阈值（<5%增长视为慢，场景7）
+        'upper_shadow_ratio': 0.3,         # 上影线长度比率阈值
+        'min_score': 8,
+        'kdj_gold_cross_days': 1,          # KDJ金叉持续最小天数（K > D 持续天数，至少3天视为强势）
+        'kdj_strong_zone': 50.0,           # K, D, J > 此值视为强势区
+        'kdj_overbought_threshold': 80.0,  # J > 此值视为超买，可能涨势乏力（但初期允许，如果持续天数不多）
+        'kdj_overbought_max_days': 3       # 超买持续最大天数，超过则视为弱势
+    }
+
+    if params is None:
+        params = default_params
+    else:
+        tmp = default_params.copy()
+        tmp.update(params)
+        params = tmp
 
     # -------------------- 参数 --------------------
     eps = 1e-9
-    if not isinstance(stock_data_list, list) or len(stock_data_list) < 5:
+    score = 0
+    reasons = []
+    if not isinstance(stock_data_list, list) or len(stock_data_list) < params['min_days_for_trend']:
         return {"buy": False, "score": 0, "reason": "数据天数不足或格式错误"}
 
-    # -------------------- 最新数据 --------------------
-    d0, d1, d2, d3 = stock_data_list[-1], stock_data_list[-2], stock_data_list[-3], stock_data_list[-4]
+    # -------------------- 均线 --------------------
+    ma5_up = True
+    for i in range(1, params['min_days_for_trend']):
+        if stock_data_list[i]['ma_five'] <= stock_data_list[i - 1]['ma_five']:
+            ma5_up = False
+            break
+    ma5_up = ma5_up and stock_data_list[-1]['ma_five'] > stock_data_list[-1]['ma_ten']
+    if ma5_up:
+        score += 1
+        reasons.append('5日均线向上并且大于10日均线')
+    else:
+        score -= 1
+        reasons.append('5日均线未享向上')
+
+    # -----------价格-----------------
+    price_aboce_ma5 = stock_data_list[-1]['current_price'] > stock_data_list[-1]['ma_five']     # 当前价格必须站上5日均线
+    total_rise = (stock_data_list[-1]['current_price'] - stock_data_list[-3]['last_price']) / stock_data_list[-3]['last_price']
+    if price_aboce_ma5 and total_rise >= params['min_total_rise_pct']:
+        score += 1
+        reasons.append('当天上涨且最近3天总体涨幅满足条件')
+    else:
+        score -= 1
+        reasons.append('价格上涨趋势不足')
+
+    # -------------------- 成交量 --------------------
+    qrr_up = True
+    if stock_data_list[-1]['qrr'] < params['qrr_threshold']:
+        qrr_up = False
+    # if stock_data_list[-2]['qrr'] < 0.9:
+    #     qrr_up = False
+    if stock_data_list[-1]['qrr'] <= stock_data_list[-2]['qrr'] or stock_data_list[-2]['qrr'] <= stock_data_list[-3]['qrr']:
+        qrr_up = False
+    if qrr_up:
+        score += 1
+        reasons.append("成交量放大且持续递增")
+    else:
+        score -= 1
+        reasons.append("成交量未充分放大")
 
     # -------------------- MACD --------------------
-    diff0, diff1, diff2, diff3 = d0["diff"], d1["diff"], d2["diff"], d3["diff"]
-    dea0, dea1, dea2 = d0["dea"], d1["dea"], d2["dea"]
-    hist0, hist1, hist2 = diff0 - dea0, diff1 - dea1, diff2 - dea2
-    slope_diff1, slope_diff2 = diff0 - diff1, diff1 - diff2
-    slope_delta = slope_diff1 - slope_diff2
+    macd_bar = []
+    for day in stock_data_list:
+        macd_bar.append(day['diff'] - day['dea'])
 
-    # (3) 近3日、5日平均成交量
-    vol3 = sum([x["volume"] for x in stock_data_list[-3:]]) / 3.0
-    vol5 = sum([x["volume"] for x in stock_data_list[-5:]]) / 5.0
-
-    # -------------------- 均线 --------------------
-    ma5_0, ma5_1, ma5_2 = d0["ma_five"], d1["ma_five"], d2["ma_five"]
-    ma10_0 = d0["ma_ten"]
-
-    # -------------------- 价格 --------------------
-    price0, price1, price2 = d0["current_price"], d1["current_price"], d2["current_price"]
-    last0, high0, low0 = d0["last_price"], d0["max_price"], d0["min_price"]
-
-    # -------------------- 其他指标 --------------------
-    qrr0, qrr1 = d0["qrr"], d1["qrr"]
-    j0, j1, j2 = d0["j"], d1["j"], d2["j"]
-    k0, k1, _ = d0["k"], d1["k"], d2["k"]
-    trix0, trix1, trix2 = d0["trix"], d1["trix"], d2["trix"]
-    trma0, trma2 = d0["trma"], d2["trma"]
-
-    # -------------------- 构造子信号 --------------------
-    subs = {}
-    contribs = {}
-    score = 0
-
-    # ===== 均线趋势 =====
-    subs["ma5_up"] = (ma5_0 >= ma5_1) and (ma5_1 >= ma5_2)
-    subs["price_above_ma5"] = price0 > ma5_0
-    subs["price_vs_ma10_pct"] = (price0 - ma10_0) / (abs(ma10_0) + eps) > -0.01
-    if subs["ma5_up"] and subs["price_above_ma5"] and subs["price_vs_ma10_pct"]:
-        score += 2.0
-        contribs["ma5_up"] = 2.0
-    else:
-        score -= 2.0
-        contribs["ma5_up"] = -2.0
-
-    # ===== 成交量强度 =====
-    subs["vol3_vs_vol5_ratio"] = (vol3 / (vol5 + eps)) if vol5 > 0 else 1.0
-    subs["qrr_strong"] = (qrr0 >= params["qrr_strong"] and qrr0 <= 3.0) and (qrr1 >= 0.9)
-    # if subs["vol3_vs_vol5_ratio"] > params["qrr_strong"]:
-    #     score += 1.0
-    #     contribs["vol3_vs_vol5_ratio"] = 1.0
-    # else:
-    #     score -= 1.5
-    #     contribs["vol3_vs_vol5_ratio"] = -1.5
-    if subs["qrr_strong"]:
-        score += 1.0
-        contribs["qrr_strong"] = 1.0
-    else:
-        score -= 1.5
-        contribs["qrr_strong"] = -1.5
-
-    # ===== MACD =====
-    subs["hist_converging"] = (hist0 > hist1) and (hist1 > hist2)
-    subs["diff_up"] = (diff0 > diff1) and (diff1 > diff2)
-    subs["macd_cross_fresh"] = (diff1 <= dea1 + eps) and (diff0 >= dea0 - eps)  # 已经出现金叉
-    subs["macd_bullish_pre_cross"] = subs["hist_converging"] and subs["diff_up"] and (not subs["macd_cross_fresh"])  # 金叉前
-    # subs["diff_slope_delta"] = slope_delta
-
-    if subs["diff_up"] and subs["hist_converging"] and subs["macd_cross_fresh"]:
-        score += 2.0
-        contribs["macd_cross_fresh"] = 2.0
-
-    subs["diff_decreasing"] = (slope_diff1 < 0)     # 若 diff 开始向下，视为动能衰退 -> 硬拒绝买入
-    base_strength = 0
-    if subs["diff_up"] and subs["hist_converging"]:
-        if diff1 > 0 and slope_diff1 > 0 and slope_diff2 > 0:
-            base_strength = 2.0   # 正区间上升：强动能，给较高基础权重
+    # 计算金叉出现的天数
+    gold_cross_count = 0
+    for day in stock_data_list:
+        if day['diff'] > day['dea']:
+            gold_cross_count += 1
         else:
-            # 负区间上升：要求斜率正在加速才能给分，且权重较小
-            if slope_delta > 0 and slope_diff1 > params["diff_delta"] and slope_diff2 > params["diff_delta"]:
-                base_strength = 1.0  # 负区间回升但加速 -> 适度正分
-            else:
-                base_strength = 0.5   # 负区间但未加速 -> 更小的正分
+            gold_cross_count = 0
+    if gold_cross_count >= params['macd_gold_cross_days']:
+        score += 1
+        reasons.append('MACD金叉持续足够天数')
+    else:
+        score -= 1
+        reasons.append('MACD金叉未持续足够天数')
 
-        if subs["macd_cross_fresh"] or subs["macd_bullish_pre_cross"]:
-            score = score + base_strength
-            contribs["macd_diff"] = base_strength
+    # diff 必须大于0
+    diff_greater_zero = stock_data_list[-1]['diff'] > 0
+
+    # MACD柱不减小
+    macd_bar_increase = macd_bar[-1] > macd_bar[-2]
+
+    # MACD柱增大速度
+    bar_increase_speed = []
+    for i in range(1, len(macd_bar)):
+        bar_increase_speed.append(macd_bar[i] - macd_bar[i - 1])
+    macd_bar_up_speed = (bar_increase_speed[-1] - bar_increase_speed[-2]) > (bar_increase_speed[-2] - bar_increase_speed[-3])
+
+    if diff_greater_zero and macd_bar_increase and macd_bar_up_speed:
+        score += 2
+        reasons.append('MACD diff大于0且加速上涨')
+    else:
+        score -= 2
+        reasons.append('MACD 未加速上涨')
+
+    # --------- KDJ -------------
+    # 出现金叉的天数
+    kdj_gold_cross_count = 0
+    kdj_overbought_days = 0
+    for day in stock_data_list:
+        if day['k'] > day['d']:
+            kdj_gold_cross_count += 1
         else:
-            score -= 2.0
-            contribs["macd_diff"] = -2.0
+            kdj_gold_cross_count = 0
+        if day['j'] > params['kdj_overbought_threshold']:
+            kdj_overbought_days += 1
+    if (kdj_gold_cross_count >= params['kdj_gold_cross_days'] and kdj_overbought_days <= params['kdj_overbought_max_days'] and stock_data_list[-1]['k'] > params['kdj_strong_zone'] and stock_data_list[-1]['d'] > params['kdj_strong_zone'] and stock_data_list[-1]['j'] > params['kdj_strong_zone']):
+        score += 1
+        reasons.append('KDJ处于强势')
     else:
-        score -= 2.0
-        contribs["diff_up"] = -2.0
+        reasons.append('KDJ趋势不足')
+    if stock_data_list[-1]['j'] > 100:
+        score -= 2
+        reasons.append('KDJ处于严重超买')
 
-    # 连续上方天数
-    macd_above_days = 0
-    for i in range(1, min(5, len(stock_data_list)) + 1):
-        if stock_data_list[-i]["diff"] > stock_data_list[-i]["dea"]:
-            macd_above_days += 1
-        else:
-            break
-    if macd_above_days > 2:
-        score -= 2.0
-        contribs["macd_above_days"] = -2.0
-
-    # ===== KDJ =====
-    subs["j_low_rebound"] = (j1 < 30) and (j0 > j1)
-    subs["kdj_pre_bullish"] = (k0 > k1) and (j0 > j1) and subs["j_low_rebound"]
-    subs["j_high_value"] = (j0 > 70) or (j1 > 70) or (j2 > 60)     # 如果 J 值过高，拒绝买入
-    if subs["kdj_pre_bullish"]:
-        score += 1.0
-        contribs["kdj_pre_bullish"] = 1.0
+    # ------ 上影线 -------
+    candle_range = stock_data_list[-1]['max_price'] - stock_data_list[-1]['min_price']
+    upper_wick_pct = (stock_data_list[-1]['max_price'] - stock_data_list[-1]['current_price']) / (candle_range + eps)
+    if upper_wick_pct <= params['upper_shadow_ratio']:
+        score += 1
+        reasons.append('无长上影线')
     else:
-        score -= 1.0
-        contribs["kdj_pre_bullish"] = -1.0
+        reasons.append('出现长上影线')
 
-    # ===== TRIX =====
-    subs["trix_up"] = (trix0 > trix1) and (trix1 > trix2) and ((trix0 - trix1) > params["trix_delta_min"])
-    subs["trix_dead"] = (trix2 >= trma2) and (trix0 <= trma0)   # 出现死叉，拒绝买入
-    subs["trix_pre_bullish"] = subs["trix_up"] and (trix0 <= trma0 + eps)
-    if subs["trix_pre_bullish"]:
-        score += 1.0
-        contribs["trix_pre_bullish"] = 1.0
-    else:
-        score -= 1.0
-        contribs["trix_pre_bullish"] = -1.0
-
-    # ===== 风险信号 =====
-    candle_range = high0 - low0 if high0 != low0 else eps
-    upper_wick_pct = (high0 - price0) / (candle_range + eps)
-    subs["big_upper_wick"] = (upper_wick_pct > 0.4) and (d0["volume"] > d1["volume"])   # 上影线
-    subs["bear_volume_today"] = (price0 < last0 * params["down_price_pct"]) and (qrr0 > params["qrr_strong"])    # 放量下跌, 拒绝买入
-    subs["too_hot"] = ((price0 - price2) / (price2 + eps)) > params["too_hot"]         # 近2天上涨幅度, 拒绝买入
-    subs["high_position_volume"] = (price0 > ma10_0 * 1.05) and (subs["vol3_vs_vol5_ratio"] > params["qrr_strong"])    # 价格处于高位, 拒绝买入
-    subs["rebound_from_ma5"] = (price1 < ma5_1) and (price0 > ma5_0) and (qrr0 > 1.5)   # 超跌后回踩5日均线
-
-    if subs["big_upper_wick"]:
-        score -= 2.0
-        contribs["big_upper_wick"] = -2.0
-    # else:
-    #     score += 1.0
-    #     contribs["big_upper_wick"] = 1.0
-
-    if subs["rebound_from_ma5"]:    # 超跌后回踩5日均线, 不易出现的信号，不计入得分门槛
-        score += 3.0
-        contribs["rebound_from_ma5"] = 3.0
-
-    # 缩量下跌后的放量反弹
-    price3 = d3["current_price"]
-    qrr2, qrr3 = d2["qrr"], d3["qrr"]
-    subs["last_3_price"] = (price1 <= price2) and (price2 < price3) and (price0 > ma5_0)    # 价格逐日下跌
-    subs["last_3_diff"] = (diff0 > diff1) and (diff2 <= diff3) and (diff1 <= diff2) and (diff1 > 0) and (diff3 > 0) and (diff3 - diff1 < 0.03)  # 允许diff轻微下跌，但必须大于0 +2.0
-    subs["last_3_macd"] = hist0 > 0 and hist1 > 0 and hist2 > 0     # +2.0
-    subs["last_trix_delta"] = trix0 - trma0 > 0      # +1.0
-    subs["last_3_qrr"] = (qrr1 <= qrr2) and (qrr2 < qrr3) and (qrr1 < 0.6) and (qrr0 > 2 * qrr1)    # 先缩量下跌，再放量上涨 +1.5
-    if subs["ma5_up"] and subs["last_3_price"] and subs["last_3_diff"] and subs["last_3_macd"] and subs["last_trix_delta"] and subs["last_3_qrr"]:
-        score += 12.0
-        contribs["volume_decline_rise"] = 12.0
-
-    # -------------------- 硬拒绝条件 --------------------
-    hard_reject = subs["high_position_volume"] or subs["bear_volume_today"] or subs["diff_decreasing"] or subs["j_high_value"] or subs["too_hot"] or subs["trix_dead"]
-    if hard_reject:
-        score = -9
     buy = score >= params["min_score"]
 
-    # -------------------- 结果输出 --------------------
-    reasons = []
-    for k, v in contribs.items():
-        if v > 0:
-            reasons.append(f"{k}+{v:.2f}")
-        elif v < 0:
-            reasons.append(f"{k}{v:.2f}")
-
     return {
-        "code": d0["code"],
-        "name": d0["name"],
-        "day": d0["day"],
-        "price": price0,
+        "code": stock_data_list[-1]["code"],
+        "name": stock_data_list[-1]["name"],
+        "day": stock_data_list[-1]["day"],
+        "price": stock_data_list[-1]['current_price'],
         "buy": buy,
         "score": score,
-        "subsignals": subs,
-        "contribs": contribs,
-        "hard_reject": hard_reject,
         "reasons": "; ".join(reasons)
     }

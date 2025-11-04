@@ -17,25 +17,27 @@ Database.init_db()
 
 def backtest(params):
     results = []
-    lookback = 6
+    lookback = 5
     stockInfos = Stock.query(running=1).all()
     for s in stockInfos:
         try:
-            stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(35).all()
-            if len(stockList) < 23:
+            stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).all()
+            if len(stockList) < 5:
                 continue
             stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
             stock_data.reverse()
-            for i in range(lookback, len(stock_data) - 1):
-                sub = stock_data[: i + 1]
+            for i in range(1, len(stock_data) - lookback - 1):
+                sub = stock_data[i: i + lookback]
+                if ((sub[-1]['current_price'] - sub[-1]['last_price']) / sub[-1]['last_price'] * 100) > 9.95:
+                    continue
                 res = analyze_buy_signal(sub, params)
-                next_day_ret = (max(stock_data[i + 1]["current_price"], stock_data[i + 1]["max_price"]) / stock_data[i]["current_price"] - 1)
+                next_day_ret = (max(stock_data[i + lookback]["current_price"], stock_data[i + lookback]["max_price"]) / stock_data[i + lookback - 1]["current_price"] - 1)
                 res["next_day_return"] = next_day_ret
                 if res["buy"]: logger.info(f"{s.code} - {s.name} - {res['day']} - {res['buy']} - {res['score']} - {next_day_ret >= 0.01} - {res['reasons']}")
                 results.append(res)
         except:
             logger.error(f"{s.code} - {s.name}")
-            # logger.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
 
     buy_results = [r for r in results if r["buy"]]
 
@@ -60,12 +62,17 @@ def backtest(params):
 
 
 param_grid = {
-    "qrr_strong": [1.2, 1.3, 1.4],
-    "diff_delta": [0.01, 0.02, 0.015],
-    "trix_delta_min": [0.002],
-    "down_price_pct": [0.97],
-    "too_hot": [0.045, 0.04, 0.035],
-    "min_score": [5]
+    'min_days_for_trend': [4, 3],
+    'qrr_threshold': [1.5, 1.4, 1.3],
+    'min_total_rise_pct': [0.02],
+    'macd_gold_cross_days': [0],
+    'trix_upward_threshold': [0.0],
+    'trix_slow_increase_pct': [0.05],
+    'upper_shadow_ratio': [0.3],
+    'kdj_gold_cross_days': [0, 1],
+    'kdj_strong_zone': [50.0],
+    'kdj_overbought_threshold': [80.0],
+    'kdj_overbought_max_days': [3]
 }
 
 # 笛卡尔积生成所有参数组合
@@ -85,4 +92,4 @@ for idx, params in enumerate(param_combinations, 1):
 summary.sort(key=lambda x: x["hit_rate"], reverse=True)
 logger.info("\n===== 最优参数组合前10名 =====")
 for i, s in enumerate(summary[:10], 1):
-    logger.info(f"{i:02d}. 命中率 {s['hit_rate']:.2%}, 平均收益 {s['avg_return']:.2%}, 信号数 {s['signals']}, min_score={s['min_score']}, too_hot={s['too_hot']}, down_price_pct={s['down_price_pct']}, trix_delta_min={s['trix_delta_min']}, diff_delta={s['diff_delta']}, qrr_strong={s['qrr_strong']}")
+    logger.info(f"{i:02d}. 命中率 {s['hit_rate']:.2%}, 平均收益 {s['avg_return']:.2%}, 信号数 {s['signals']}, params: {json.dumps(s)}")
