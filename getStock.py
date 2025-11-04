@@ -631,7 +631,7 @@ def calcStockMetric():
                 try:
                     stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(5).all()
                     up_percent = (stockList[0].current_price - stockList[0].last_price) / stockList[0].last_price * 100
-                    if (up_percent > 9.95 or up_percent < 2):
+                    if (up_percent > 9.95 or up_percent < 1):
                         continue
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
@@ -663,7 +663,7 @@ def calcStockMetric():
                         recommend_stocks = Recommend.filter_condition(equal_condition={"code": stock_code_id}, is_null_condition=['last_five_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, source=1)
-                            send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {s['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
+                            send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
                     else:
                         logger.error("大模型返回结果为空")
                 except:
