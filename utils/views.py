@@ -205,6 +205,15 @@ async def queryAllStockData(code: str) -> Result:
         stock_data_list = Detail.filter_condition(in_condition={'code': code_list}).order_by(desc(Detail.day)).all()
         stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
         stockData.reverse()
+        fflow = {}
+        try:
+            fflow = getStockFundFlowFromDongCai(code)
+        except:
+            logger.error(traceback.format_exc())
+            fflow = {}
+        if fflow:
+            for i in range(len(stockData)):
+                stockData[i].update({"fund": fflow[stockData[i]['day']]})
         result.data = stockData
         logger.info(f"query {code} successful")
     except Exception as e:
@@ -379,3 +388,17 @@ async def test() -> Result:
     stock_volumn = [r[0] for r in stock_volumn_obj]
     result.data = stock_volumn
     return result
+
+
+def getStockFundFlowFromDongCai(stockCode: str) -> dict:
+    '''从东方财富获取资金流向，最近10日'''
+    fflow = {}
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegion(stockCode)}.{stockCode}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=10&ut=f057cbcbce2a86e2866ab8877db1d059&cb=cbrnd_F713A9A752FE43CA996C8E4BC0E854DB'
+    res = requests.get(url, headers=header)
+    res_json = json.loads(res.text.split('(')[1].split(')')[0])
+    klines = res_json['data']['klines']
+    for k in klines:
+        datas = k.split(',')
+        fflow.update({datas[0].replace('-', ''): round(float(datas[1]) / 10000, 2)})
+    return fflow

@@ -3,6 +3,7 @@
 # Author: leeyoshinari
 
 import os
+import re
 import json
 import time
 import queue
@@ -50,6 +51,15 @@ def getStockRegion(code: str) -> str:
         return ""
 
 
+def getStockRegionNum(code: str) -> str:
+    if code.startswith("60") or code.startswith("68"):
+        return "1"
+    elif code.startswith("00") or code.startswith("30"):
+        return "0"
+    else:
+        return ""
+
+
 def getStockType(code: str) -> int:
     if code.startswith("60"):
         return 1
@@ -85,6 +95,40 @@ def generateStockCode(data: dict) -> str:
 
 def calc_MA(data: List, window: int) -> float:
     return round(sum(data[:window]) / len(data[:window]), 2)
+
+
+def getStockFundFlowFromDongCai(stockCode: str) -> dict:
+    '''从东方财富获取资金流向，最近10日'''
+    fflow = {}
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegion(stockCode)}.{stockCode}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=10&ut=f057cbcbce2a86e2866ab8877db1d059&cb=cbrnd_F713A9A752FE43CA996C8E4BC0E854DB'
+    res = requests.get(url, headers=header)
+    res_json = json.loads(res.text.split('(')[1].split(')')[0])
+    klines = res_json['data']['klines']
+    for k in klines:
+        datas = k.split(',')
+        fflow.update({datas[0].replace('-', ''): round(float(datas[1]) / 10000, 2)})
+    return fflow
+
+
+def getStockFundFlowFromStockStar(stockCode: str) -> dict:
+    '''从证券之星获取资金流向，最近10日'''
+    fflow = {}
+    pattern = r'<tr>(.*?)</tr>'
+    url = f'https://stock.quote.stockstar.com/capital_{stockCode}.shtml'
+    header = {
+        'content-type': 'application/x-www-form-urlencoded',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+    }
+    data = {'code': stockCode}
+    res = requests.post(url, data=data, headers=header)
+    rows = re.findall(pattern, res.text, re.DOTALL)
+    for row in rows:
+        cells = re.findall(r'<td[^>]*>(.*?)</td>', row)
+        if cells and len(cells) == 9:
+            cleaned_cells = [cell.strip() for cell in cells]
+            fflow.update({cleaned_cells[0].replace('-', ''): round(float(cleaned_cells[1].replace('万', '')) + float(cleaned_cells[3].replace('万', '')), 2)})
+    return fflow
 
 
 def getStockFromTencent(a):
@@ -654,6 +698,22 @@ def calcStockMetric():
                 stock_data_list = Detail.query(code=stock_code_id).order_by(desc(Detail.day)).limit(6).all()
                 stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
                 stockData.reverse()
+                fflow = {}
+                try:
+                    fflow = getStockFundFlowFromDongCai(stock_code_id)
+                except:
+                    logger.error(traceback.format_exc())
+                    try:
+                        fflow = getStockFundFlowFromStockStar(stock_code_id)
+                    except:
+                        logger.error(traceback.format_exc())
+                        fflow = {}
+                if fflow:
+                    for i in range(len(stockData)):
+                        stockData[i].update({"fund": fflow[stockData[i]['day']]})
+                else:
+                    sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
+                    continue
                 # 请求大模型
                 try:
                     # stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
@@ -671,8 +731,8 @@ def calcStockMetric():
                     stock_dict = {}
 
             if len(send_msg) > 0:
-                msg = f"当前交易日: {day} \n {'\n'.join(send_msg)}"
-                sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, msg)
+                msg = '\n'.join(send_msg)
+                sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, f'{day} 股票推荐', msg)
                 logger.info('Email send success ~')
             else:
                 logger.info('No stock recommended.')

@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from email.utils import formataddr
 
 
-def sendEmail(sender, receiver, password, msg):
+def sendEmail(sender, receiver, password, subject, msg):
     """
      Send email
     :param msg: email content
@@ -20,7 +20,6 @@ def sendEmail(sender, receiver, password, msg):
     receiver_email = receiver.split(',')
     host = 'smtp.qq.com'
 
-    subject = '股票推荐'
     s = "{0}".format(msg)
 
     message = MIMEText(s, 'plain', 'utf-8')  # Chinese required 'utf-8'
