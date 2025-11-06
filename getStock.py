@@ -710,7 +710,8 @@ def calcStockMetric():
                         fflow = {}
                 if fflow:
                     for i in range(len(stockData)):
-                        stockData[i].update({"fund": fflow[stockData[i]['day']]})
+                        if stockData[i]['day'] in fflow:
+                            stockData[i].update({"fund": fflow[stockData[i]['day']]})
                 else:
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
                     continue
