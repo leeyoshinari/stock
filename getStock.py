@@ -726,7 +726,7 @@ def calcStockMetric():
                             Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, source=1)
                             send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
                     else:
-                        logger.error("大模型返回结果为空")
+                        logger.error(f"大模型返回结果为空 - {stock_dict}")
                 except:
                     logger.error(traceback.format_exc())
                     stock_dict = {}
