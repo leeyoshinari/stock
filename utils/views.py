@@ -225,6 +225,42 @@ async def queryAllStockData(code: str) -> Result:
     return result
 
 
+async def calc_stock_return() -> Result:
+    result = Result()
+    try:
+        init_fund = 10000
+        r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        stocks = Recommend.query().order_by(desc(Recommend.id)).all()
+        for s in stocks:
+            if s.last_one_price is not None:
+                r1 += round(init_fund * s.last_one_price / 100, 2)
+                r1h += round(init_fund * s.last_one_high / 100, 2)
+                r1l += round(init_fund * s.last_one_low / 100, 2)
+            if s.last_two_price is not None:
+                r2 += round(init_fund * s.last_two_price / 100, 2)
+                r2h += round(init_fund * s.last_two_high / 100, 2)
+                r2l += round(init_fund * s.last_two_low / 100, 2)
+            if s.last_three_price is not None:
+                r3 += round(init_fund * s.last_three_price / 100, 2)
+                r3h += round(init_fund * s.last_three_high / 100, 2)
+                r3l += round(init_fund * s.last_three_low / 100, 2)
+            if s.last_four_price is not None:
+                r4 += round(init_fund * s.last_four_price / 100, 2)
+                r4h += round(init_fund * s.last_four_high / 100, 2)
+                r4l += round(init_fund * s.last_four_low / 100, 2)
+            if s.last_five_price is not None:
+                r5 += round(init_fund * s.last_five_price / 100, 2)
+                r5h += round(init_fund * s.last_five_high / 100, 2)
+                r5l += round(init_fund * s.last_five_low / 100, 2)
+
+        result.data = {'r1': r1, 'r1h': r1h, 'r1l': r1l, 'r2': r2, 'r2h': r2h, 'r2l': r2l, 'r3': r3, 'r3h': r3h,
+                       'r3l': r3l, 'r4': r4, 'r4h': r4h, 'r4l': r4l, 'r5': r5, 'r5h': r5h, 'r5l': r5l}
+    except:
+        logger.error(traceback.format_exc())
+        result.success = False
+    return result
+
+
 async def query_tencent(query: RequestData) -> Result:
     result = Result()
     try:

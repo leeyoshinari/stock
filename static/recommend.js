@@ -1,13 +1,11 @@
 const pageSize = 20;
 let page = 1;
-document.getElementById("search").addEventListener("click", () => {
-    page = 1; getStockList();
-})
 
 document.getElementById("pre-page").addEventListener("click", () => {
     page -= 1;
     if (page <= 1) {
         document.getElementById("pre-page").disabled = 'true';
+        document.getElementById("next-page").disabled = '';
     }
     getStockList();
 })
@@ -40,5 +38,22 @@ function getStockList() {
         })
 }
 
+document.getElementById("stock-return").addEventListener('click', () => {
+    let url = prefix + '/query/stock/return';
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            let s = `<div class="header">每只股票买入一万元的收益</div><div><div class="return-table"><span>日期</span><span>第一天</span><span>第二天</span><span>第三天</span><span>第四天</span><span>第五天</span></div>
+                    <div class="return-table"><span>收盘时</span><span>${data.data.r1}</span><span>${data.data.r2}</span><span>${data.data.r3}</span><span>${data.data.r4}</span><span>${data.data.r5}</span></div>
+                    <div class="return-table"><span>最高时</span><span>${data.data.r1h}</span><span>${data.data.r2h}</span><span>${data.data.r3h}</span><span>${data.data.r4h}</span><span>${data.data.r5h}</span></div>
+                    <div class="return-table"><span>最低时</span><span>${data.data.r1l}</span><span>${data.data.r2l}</span><span>${data.data.r3l}</span><span>${data.data.r4l}</span><span>${data.data.r5l}</span></div></div>`
+            document.getElementById("data-tips").innerHTML = s;
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
+        })
+})
+const overlay_data = document.querySelector('.stock-data');
 document.getElementById("pre-page").disabled = 'true';
+overlay_data.addEventListener('click', function(event) {
+  if (event.target === overlay_data) {overlay_data.style.display = 'none';}
+});
 getStockList();

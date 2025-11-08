@@ -160,3 +160,16 @@
     text-align: justify;
     align-self: anchor-center;
 }
+
+.return-table {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+.return-table>span {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}

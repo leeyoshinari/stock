@@ -13,6 +13,7 @@ document.getElementById("pre-page").addEventListener("click", () => {
     page -= 1;
     if (page <= 1) {
         document.getElementById("pre-page").disabled = 'true';
+        document.getElementById("next-page").disabled = '';
     }
     getStockList();
 })
