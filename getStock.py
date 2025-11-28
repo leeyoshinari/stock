@@ -23,12 +23,13 @@ from utils.scheduler import scheduler
 from utils.send_email import sendEmail
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal
-from utils.database import Stock, Detail, Volumn, Tools, Recommend
+from utils.database import Stock, Detail, Volumn, Tools, Recommend, MinuteK
 from utils.logging_getstock import logger
 
 
 Database.init_db()
 queryTask = queue.Queue()   # FIFO queue
+recommendTask = queue.Queue()   # FIFO queue
 running_job_id = None
 is_trade_day = False
 headers = {
@@ -592,12 +593,7 @@ def setAllStock():
 
 def setAvailableStock():
     global is_trade_day
-    now = datetime.now().time()
-    start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
-    end_time = datetime.strptime("13:00:00", "%H:%M:%S").time()
-    if start_time <= now <= end_time:
-        logger.info("中午休市, 暂不执行...")
-    elif not is_trade_day:
+    if not is_trade_day:
         logger.info("不在交易时间...")
     else:
         try:
@@ -622,6 +618,192 @@ def setAvailableStock():
             logger.error(traceback.format_exc())
 
 
+def getStockFromTencentReal():
+    while True:
+        try:
+            minute = time.strftime("%H:%M")
+            datas = None
+            datas = recommendTask.get()
+            if datas == 'end': break
+            error_list = []
+            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
+            stockCode = generateStockCode(dataDict)
+            res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
+            if res.status_code == 200:
+                res_list = res.text.split(';')
+                for s in res_list:
+                    try:
+                        stockDo = StockModelDo()
+                        if len(s) < 30:
+                            continue
+                        stockInfo = s.split('~')
+                        stockDo.name = stockInfo[1]
+                        stockDo.code = stockInfo[2]
+                        stockDo.current_price = float(stockInfo[3])
+                        if int(stockInfo[6]) < 2:
+                            logger.info(f"Tencent(Real) - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                            continue
+                        stockDo.volumn = int(int(stockInfo[6]))
+                        # stockDo.turnover_rate = float(stockInfo[38])
+                        stockDo.day = stockInfo[30][:8]
+                        MinuteK.create(code=stockDo.code, day=stockDo.day, minute=minute, volume=stockDo.volumn, price=stockDo.current_price)
+                        logger.info(f"Tencent(Real): {stockDo}")
+                    except:
+                        logger.error(f"Tencent(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                        logger.error(traceback.format_exc())
+                        key_stock = f"{stockDo.code}count"
+                        if dataCount[key_stock] < 5:
+                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                if len(error_list) > 0:
+                    recommendTask.put(error_list)
+                    time.sleep(5)
+            else:
+                logger.error(f"Tencent(Real) - 请求未正常返回... {datas}")
+                recommendTask.put(datas)
+                time.sleep(5)
+            error_list = []
+        except:
+            logger.error(f"Tencent(Real) - 出现异常...... {datas}")
+            logger.error(traceback.format_exc())
+            if datas: recommendTask.put(datas)
+            time.sleep(5)
+        finally:
+            if datas: recommendTask.task_done()
+
+
+def getStockFromXueQiuReal():
+    while True:
+        try:
+            minute = time.strftime("%H:%M")
+            datas = None
+            datas = recommendTask.get()
+            if datas == 'end': break
+            error_list = []
+            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
+            stockCode = generateStockCode(dataDict)
+            res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
+            if res.status_code == 200:
+                res_json = json.loads(res.text)
+                if len(res_json['data']) > 0:
+                    for s in res_json['data']:
+                        try:
+                            stockDo = StockModelDo()
+                            code = s['symbol'][2:]
+                            stockDo.name = dataDict[code]
+                            stockDo.code = code
+                            stockDo.current_price = s['current']
+                            # stockDo.turnover_rate = s['turnover_rate']
+                            if not s['volume'] or s['volume'] < 2:
+                                logger.info(f"XueQiu(Real) - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                                continue
+                            stockDo.volumn = int(s['volume'] / 100)
+                            stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
+                            MinuteK.create(code=stockDo.code, day=stockDo.day, minute=minute, volume=stockDo.volumn, price=stockDo.current_price)
+                            logger.info(f"XueQiu(Real): {stockDo}")
+                        except:
+                            logger.error(f"XueQiu(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                            logger.error(traceback.format_exc())
+                            key_stock = f"{stockDo.code}count"
+                            if dataCount[key_stock] < 5:
+                                error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                else:
+                    logger.error(f"XueQiu(Real) - 请求未正常返回...响应值: {res_json}")
+                    recommendTask.put(datas)
+                    time.sleep(5)
+                if len(error_list) > 0:
+                    recommendTask.put(error_list)
+                    time.sleep(5)
+            else:
+                logger.error(f"XueQiu(Real) - 请求未正常返回... {datas}")
+                recommendTask.put(datas)
+                time.sleep(5)
+            error_list = []
+        except:
+            logger.error(f"XueQiu(Real) - 出现异常...... {datas}")
+            logger.error(traceback.format_exc())
+            if datas: recommendTask.put(datas)
+            time.sleep(5)
+        finally:
+            if datas: recommendTask.task_done()
+
+
+def getStockFromSinaReal():
+    while True:
+        try:
+            minute = time.strftime("%H:%M")
+            datas = None
+            datas = recommendTask.get()
+            if datas == 'end': break
+            error_list = []
+            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
+            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
+            stockCode = generateStockCode(dataDict)
+            h = {
+                'Referer': 'https://finance.sina.com.cn',
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+            }
+            res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
+            if res.status_code == 200:
+                res_list = res.text.split(';')
+                for s in res_list:
+                    try:
+                        stockDo = StockModelDo()
+                        if len(s) < 30:
+                            continue
+                        stockInfo = s.split(',')
+                        stockDo.name = stockInfo[0].split('"')[-1]
+                        stockDo.code = stockInfo[0].split('=')[0].split('_')[-1][2:]
+                        stockDo.current_price = float(stockInfo[3])
+                        if int(stockInfo[8]) < 2:
+                            logger.info(f"Sina(Real) - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                            continue
+                        stockDo.volumn = int(int(stockInfo[8]) / 100)
+                        stockDo.day = stockInfo[30].replace('-', '')
+                        MinuteK.create(code=stockDo.code, day=stockDo.day, minute=minute, volume=stockDo.volumn, price=stockDo.current_price)
+                        logger.info(f"Sina(Real): {stockDo}")
+                    except:
+                        logger.error(f"Sina(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                        logger.error(traceback.format_exc())
+                        key_stock = f"{stockDo.code}count"
+                        if dataCount[key_stock] < 5:
+                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                if len(error_list) > 0:
+                    recommendTask.put(error_list)
+                    time.sleep(5)
+            else:
+                logger.error(f"Sina(Real) - 请求未正常返回... {datas}")
+                recommendTask.put(datas)
+                time.sleep(5)
+            error_list = []
+        except:
+            logger.error(f"Sina(Real) - 出现异常...... {datas}")
+            logger.error(traceback.format_exc())
+            if datas: recommendTask.put(datas)
+            time.sleep(5)
+        finally:
+            if datas: recommendTask.task_done()
+
+
+def setRecommendStock():
+    global is_trade_day
+    if not is_trade_day:
+        logger.info("不在交易时间...")
+    else:
+        try:
+            stockList = []
+            stockInfo = Recommend.filter_condition(is_null_condition=['last_five_price']).all()
+            for s in stockInfo:
+                stockList.append({s.code: s.name, f'{s.code}count': 1})
+            random.shuffle(stockList)
+            half_num = int(len(stockList) / 2)
+            recommendTask.put(stockList[: half_num])
+            recommendTask.put(stockList[half_num:])
+        except:
+            logger.error(traceback.format_exc())
+
+
 def checkTradeDay():
     global running_job_id
     global is_trade_day
@@ -640,7 +822,7 @@ def checkTradeDay():
                     v2 = res_list[1].split('~')[6]
                     if int(v1) > 2 or int(v2) > 2:
                         is_trade_day = True
-                        job = scheduler.add_job(setAvailableStock, "interval", minutes=10, next_run_time=datetime.now() + timedelta(minutes=2))
+                        job = scheduler.add_job(setRecommendStock, "interval", minutes=1, next_run_time=datetime.now() + timedelta(seconds=5))
                         running_job_id = job.id
                         try:
                             tool = Tools.get_one("openDoor")
@@ -675,15 +857,14 @@ def calcStockMetric():
                 try:
                     stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(5).all()
                     up_percent = (stockList[0].current_price - stockList[0].last_price) / stockList[0].last_price * 100
-                    if (up_percent > 9.95 or up_percent < 1):
+                    if (up_percent > 9 or up_percent < 1 or stockList[0].qrr < 1.2):
                         continue
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
                     stockMetric = analyze_buy_signal(stockData, None)
                     day = stockMetric['day']
-                    if stockMetric['buy']:
-                        logger.info(f"{s.code} - {s.name} : - : {stockMetric}")
-                    if stockMetric['score'] > 6:
+                    logger.info(f"Auto Select Stock - {s.code} - {s.name} : - : {stockMetric}")
+                    if stockMetric['score'] > 5:
                         stock_metric.append(stockMetric)
                 except:
                     logger.error(f"{s.code} - {s.name}")
@@ -691,6 +872,7 @@ def calcStockMetric():
 
             send_msg = []
             stock_metric.sort(key=lambda x: -x['score'])
+            logger.info(f"select stocks: {stock_metric}")
             ai_model_list = stock_metric[: 10]
             for i in range(len(ai_model_list)):
                 logger.info(f"Select stocks: {ai_model_list[i]}")
@@ -929,13 +1111,15 @@ def clearStockData():
 
 
 if __name__ == '__main__':
-    scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=31, second=20)  # 启动任务
+    scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
-    scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 必须在15点后启动
+    scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=40, second=20)  # 中午更新数据
+    scheduler.add_job(setAvailableStock, 'cron', hour=14, minute=43, second=20)  # 下午收盘前更新数据
+    scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 收盘后更新数据
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
     scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=49, second=50)    # 计算推荐股票
-    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
+    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=45, second=50)    # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
     scheduler.start()
     time.sleep(2)

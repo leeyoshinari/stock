@@ -12,6 +12,7 @@
         <div class="header">
             <div>
                 <button id="stock-return">收益统计</button>
+                <button id="stock-return-line">收益趋势</button>
             </div>
             <div>
                 <button id="pre-page">上一页</button>
@@ -34,9 +35,11 @@
             </div>
             <div class="list"></div>
         </div>
-        <!-- <div class="stock-chart"><div id="figure"></div></div> -->
+        <div class="stock-chart"><div id="figure"></div></div>
         <div class="stock-data"><div id="data-tips"></div></div>
     </div>
 </body>
 <script src="{{ prefix }}/static/recommend.js"></script>
+<script src="{{ prefix }}/static/echarts.min.js"></script>
+<script src="{{ prefix }}/static/plot.js"></script>
 </html>

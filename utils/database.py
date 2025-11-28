@@ -323,12 +323,6 @@ class Volumn(Base, CRUDBase):
     price = Column(Float, nullable=False, comment="价格")
     create_time = Column(DateTime, default=datetime.now)
 
-    @property
-    def create_time_date(self):
-        if self.create_time:
-            return self.create_time.strftime('%Y-%m-%d')
-        return None
-
 
 class Recommend(Base, CRUDBase):
     __tablename__ = 'recommend'
@@ -361,25 +355,20 @@ class Recommend(Base, CRUDBase):
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
-# class RealVolumn(Base, CRUDBase):
-#     __tablename__ = 'volumn'
-#     __table_args__ = (
-#         Index('idx_code_date_create_time_desc', 'code', 'date', 'create_time'),
-#         {'sqlite_autoincrement': True}
-#     )
+class MinuteK(Base, CRUDBase):
+    __tablename__ = 'minutek'
+    __table_args__ = (
+        Index('idx_minutek_code', 'code'),
+        {'sqlite_autoincrement': True}
+    )
 
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     code = Column(String(8), ForeignKey('stock.code', ondelete="CASCADE"), nullable=False, comment="股票代码")
-#     date = Column(String(4), nullable=False, comment="时间")
-#     volumn = Column(Integer, nullable=False, comment="成交量（手）")
-#     price = Column(Float, nullable=False, comment="价格")
-#     create_time = Column(DateTime, default=datetime.now)
-
-#     @property
-#     def create_time_date(self):
-#         if self.create_time:
-#             return self.create_time.strftime('%Y-%m-%d')
-#         return None
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(8), ForeignKey('stock.code', ondelete="CASCADE"), nullable=False, comment="股票代码")
+    day = Column(String(8), nullable=False, comment="日期")
+    minute = Column(String(6), nullable=False, comment="分钟")
+    price = Column(Float, nullable=False, comment="价格")
+    volume = Column(Integer, nullable=False, comment="成交量（手）")
+    create_time = Column(DateTime, default=datetime.now)
 
 
 class Tools(Base, CRUDBase):

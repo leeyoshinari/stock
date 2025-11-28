@@ -230,31 +230,65 @@ async def calc_stock_return() -> Result:
     try:
         init_fund = 10000
         r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        stocks = Recommend.query().order_by(desc(Recommend.id)).all()
+        x = []
+        y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
+        stocks = Recommend.query().order_by(asc(Recommend.id)).all()
         for s in stocks:
-            if s.last_one_price is not None:
-                r1 += round(init_fund * s.last_one_price / 100, 2)
-                r1h += round(init_fund * s.last_one_high / 100, 2)
-                r1l += round(init_fund * s.last_one_low / 100, 2)
-            if s.last_two_price is not None:
-                r2 += round(init_fund * s.last_two_price / 100, 2)
-                r2h += round(init_fund * s.last_two_high / 100, 2)
-                r2l += round(init_fund * s.last_two_low / 100, 2)
-            if s.last_three_price is not None:
-                r3 += round(init_fund * s.last_three_price / 100, 2)
-                r3h += round(init_fund * s.last_three_high / 100, 2)
-                r3l += round(init_fund * s.last_three_low / 100, 2)
-            if s.last_four_price is not None:
-                r4 += round(init_fund * s.last_four_price / 100, 2)
-                r4h += round(init_fund * s.last_four_high / 100, 2)
-                r4l += round(init_fund * s.last_four_low / 100, 2)
-            if s.last_five_price is not None:
-                r5 += round(init_fund * s.last_five_price / 100, 2)
-                r5h += round(init_fund * s.last_five_high / 100, 2)
-                r5l += round(init_fund * s.last_five_low / 100, 2)
+            s_time = s.create_time.strftime("%Y-%m-%d")
+            if s_time in x:
+                index = x.index(s_time)
+                y1[index] = y1[index] + round(init_fund * (s.last_one_price or 0) / 100, 2)
+                y1h[index] = y1h[index] + round(init_fund * (s.last_one_high or 0) / 100, 2)
+                y1l[index] = y1l[index] + round(init_fund * (s.last_one_low or 0) / 100, 2)
+                y2[index] = y2[index] + round(init_fund * (s.last_two_price or 0) / 100, 2)
+                y2h[index] = y2h[index] + round(init_fund * (s.last_two_high or 0) / 100, 2)
+                y2l[index] = y2l[index] + round(init_fund * (s.last_two_low or 0) / 100, 2)
+                y3[index] = y3[index] + round(init_fund * (s.last_three_price or 0) / 100, 2)
+                y3h[index] = y3h[index] + round(init_fund * (s.last_three_high or 0) / 100, 2)
+                y3l[index] = y3l[index] + round(init_fund * (s.last_three_low or 0) / 100, 2)
+                y4[index] = y4[index] + round(init_fund * (s.last_four_price or 0) / 100, 2)
+                y4h[index] = y4h[index] + round(init_fund * (s.last_four_high or 0) / 100, 2)
+                y4l[index] = y4l[index] + round(init_fund * (s.last_four_low or 0) / 100, 2)
+                y5[index] = y5[index] + round(init_fund * (s.last_five_price or 0) / 100, 2)
+                y5h[index] = y5h[index] + round(init_fund * (s.last_five_high or 0) / 100, 2)
+                y5l[index] = y5l[index] + round(init_fund * (s.last_five_low or 0) / 100, 2)
+            else:
+                x.append(s_time)
+                y1.append(round(init_fund * (s.last_one_price or 0) / 100, 2))
+                y1h.append(round(init_fund * (s.last_one_high or 0) / 100, 2))
+                y1l.append(round(init_fund * (s.last_one_low or 0) / 100, 2))
+                y2.append(round(init_fund * (s.last_two_price or 0) / 100, 2))
+                y2h.append(round(init_fund * (s.last_two_high or 0) / 100, 2))
+                y2l.append(round(init_fund * (s.last_two_low or 0) / 100, 2))
+                y3.append(round(init_fund * (s.last_three_price or 0) / 100, 2))
+                y3h.append(round(init_fund * (s.last_three_high or 0) / 100, 2))
+                y3l.append(round(init_fund * (s.last_three_low or 0) / 100, 2))
+                y4.append(round(init_fund * (s.last_four_price or 0) / 100, 2))
+                y4h.append(round(init_fund * (s.last_four_high or 0) / 100, 2))
+                y4l.append(round(init_fund * (s.last_four_low or 0) / 100, 2))
+                y5.append(round(init_fund * (s.last_five_price or 0) / 100, 2))
+                y5h.append(round(init_fund * (s.last_five_high or 0) / 100, 2))
+                y5l.append(round(init_fund * (s.last_five_low or 0) / 100, 2))
+            r1 += round(init_fund * (s.last_one_price or 0) / 100, 2)
+            r1h += round(init_fund * (s.last_one_high or 0) / 100, 2)
+            r1l += round(init_fund * (s.last_one_low or 0) / 100, 2)
+            r2 += round(init_fund * (s.last_two_price or 0) / 100, 2)
+            r2h += round(init_fund * (s.last_two_high or 0) / 100, 2)
+            r2l += round(init_fund * (s.last_two_low or 0) / 100, 2)
+            r3 += round(init_fund * (s.last_three_price or 0) / 100, 2)
+            r3h += round(init_fund * (s.last_three_high or 0) / 100, 2)
+            r3l += round(init_fund * (s.last_three_low or 0) / 100, 2)
+            r4 += round(init_fund * (s.last_four_price or 0) / 100, 2)
+            r4h += round(init_fund * (s.last_four_high or 0) / 100, 2)
+            r4l += round(init_fund * (s.last_four_low or 0) / 100, 2)
+            r5 += round(init_fund * (s.last_five_price or 0) / 100, 2)
+            r5h += round(init_fund * (s.last_five_high or 0) / 100, 2)
+            r5l += round(init_fund * (s.last_five_low or 0) / 100, 2)
 
         result.data = {'r1': r1, 'r1h': r1h, 'r1l': r1l, 'r2': r2, 'r2h': r2h, 'r2l': r2l, 'r3': r3, 'r3h': r3h,
-                       'r3l': r3l, 'r4': r4, 'r4h': r4h, 'r4l': r4l, 'r5': r5, 'r5h': r5h, 'r5l': r5l}
+                       'r3l': r3l, 'r4': r4, 'r4h': r4h, 'r4l': r4l, 'r5': r5, 'r5h': r5h, 'r5l': r5l, 'x': x,
+                       'y1': y1, 'y1h': y1h, 'y1l': y1l, 'y2': y2, 'y2h': y2h, 'y2l': y2l, 'y3': y3, 'y3h': y3h,
+                       'y3l': y3l, 'y4': y4, 'y4h': y4h, 'y4l': y4l, 'y5': y5, 'y5h': y5h, 'y5l': y5l}
     except:
         logger.error(traceback.format_exc())
         result.success = False

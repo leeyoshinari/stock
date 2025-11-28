@@ -51,9 +51,30 @@ document.getElementById("stock-return").addEventListener('click', () => {
             document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
 })
+
+document.getElementById("stock-return-line").addEventListener('click', () => {
+    fetch(prefix + '/query/stock/return')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                let figure = document.getElementById("figure");
+                figure.removeAttribute("_echarts_instance_")
+                figure.innerHTML = '';
+                let stockChart = echarts.init(figure);
+                plot_trend(stockChart, data.data.x, data.data.y1, data.data.y1h, data.data.y1l, data.data.y2, data.data.y2h, data.data.y2l,
+                    data.data.y3, data.data.y3h, data.data.y3l, data.data.y4, data.data.y4h, data.data.y4l, data.data.y5, data.data.y5h, data.data.y5l
+                );
+                document.getElementsByClassName("stock-chart")[0].style.display = "flex";
+            }
+        })
+})
 const overlay_data = document.querySelector('.stock-data');
+const overlay_chart = document.querySelector('.stock-chart');
 document.getElementById("pre-page").disabled = 'true';
 overlay_data.addEventListener('click', function(event) {
   if (event.target === overlay_data) {overlay_data.style.display = 'none';}
+});
+overlay_chart.addEventListener('click', function(event) {
+  if (event.target === overlay_chart) {overlay_chart.style.display = 'none';}
 });
 getStockList();

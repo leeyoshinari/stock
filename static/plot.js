@@ -318,10 +318,10 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
   option && myChart.setOption(option);
 };
 
-function plot_trend(myChart, title, x, y1, y3, y5, price1, price3, price5) {
+function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l) {
   option = {
     title: {
-      text: title,
+      text: '每只股票买入一万元的收益',
       left: 'center',
       top: 10,
       textStyle: {
@@ -333,7 +333,7 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1, price3, price5) {
       {
         left: '5%',
         right: '5%',
-        top: 100,
+        top: 150,
         height: 350
       }
     ],
@@ -343,10 +343,9 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1, price3, price5) {
         type: 'cross'
       }
     },
-    color: ['red', 'orange', 'green', 'blue', 'purple', 'gray'],
     legend: [
       {
-        data: ['实时成交量', '最近3天成交量', '最近5天成交量', '实时价格', '3日均线价格', '5日均线价格'],
+        data: ['第一天收盘价', '第一天最高价', '第一天最低价', '第二天收盘价', '第二天最高价', '第二天最低价', '第三天收盘价', '第三天最高价', '第三天最低价', '第四天收盘价', '第四天最高价', '第四天最低价', '第五天收盘价', '第五天最高价', '第五天最低价'],
         x: 'center',
         y: 40
       }
@@ -358,7 +357,7 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1, price3, price5) {
         end: 100
       },
       {
-        show: false,
+        show: true,
         xAxisIndex: [0],
         type: 'slider',
         start: 0,
@@ -384,67 +383,131 @@ function plot_trend(myChart, title, x, y1, y3, y5, price1, price3, price5) {
     yAxis: [
       {
         gridIndex: 0,
-        name: '成交量',
+        name: '收益',
         type: 'value',
-        max: findMax([...y1, ...y3, ...y5])
-      },
-      {
-        gridIndex: 0,
-        name: '价格',
-        type: 'value',
-        min: (findMin([...price1, ...price3, ...price5]) - 0.1).toFixed(2),
-        max: (findMax([...price1, ...price3, ...price5]) + 0.1).toFixed(2)
       }
     ],
     series: [
       {
-        name: '实时成交量',
+        name: '第一天收盘价',
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
         showSymbol: false,
-        lineStyle: {width: 1, color: 'red'},
+        lineStyle: {width: 1},
         data: y1
       },{
-        name: '最近3天成交量',
+        name: '第一天最高价',
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
         showSymbol: false,
-        lineStyle: {width: 1, color: 'orange'},
+        lineStyle: {width: 1},
+        data: y1h
+      },{
+        name: '第一天最低价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: y1l
+      },{
+        name: '第二天收盘价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: y2
+      },{
+        name: '第二天最高价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: y2h
+      },{
+        name: '第二天最低价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: y2l
+      },{
+        name: '第三天收盘价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
         data: y3
       },{
-        name: '最近5天成交量',
+        name: '第三天最高价',
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
         showSymbol: false,
-        lineStyle: {width: 1, color: 'green'},
+        lineStyle: {width: 1},
+        data: y3h
+      },{
+        name: '第三天最低价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: y3l
+      },{
+        name: '第四天收盘价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: y4
+      },{
+        name: '第四天最高价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: y4h
+      },{
+        name: '第四天最低价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: y4l
+      },{
+        name: '第五天收盘价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
         data: y5
       },{
-        name: '实时价格',
+        name: '第五天最高价',
         type: 'line',
         xAxisIndex: 0,
-        yAxisIndex: 1,
+        yAxisIndex: 0,
         showSymbol: false,
-        lineStyle: {width: 1, color: 'blue'},
-        data: price1
+        lineStyle: {width: 1},
+        data: y5h
       },{
-        name: '3日均线价格',
+        name: '第五天最低价',
         type: 'line',
         xAxisIndex: 0,
-        yAxisIndex: 1,
+        yAxisIndex: 0,
         showSymbol: false,
-        lineStyle: {width: 1, color: 'purple'},
-        data: price3
-      },{
-        name: '5日均线价格',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 1,
-        showSymbol: false,
-        lineStyle: {width: 1, color: 'gray'},
-        data: price5
+        lineStyle: {width: 1},
+        data: y5l
       }
     ]
   };
