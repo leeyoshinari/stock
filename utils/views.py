@@ -11,8 +11,7 @@ from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataLi
 from utils.logging import logger
 from utils.results import Result
 from utils.metric import analyze_buy_signal
-from utils.database import Detail, Volumn, Tools, Recommend
-from utils.recommend import calc_price_average, calc_volume_average, calc_volume_realtime_average
+from utils.database import Detail, Tools, Recommend
 
 
 headers = {
@@ -149,27 +148,6 @@ async def queryRecommendStockList(page: int = 1) -> Result:
         logger.error(traceback.format_exc())
         result.success = False
         result.msg = e
-    return result
-
-
-async def calcStockPriceMeanAngle(code: str, start_date: str, end_date: str) -> Result:
-    result = Result()
-    try:
-        stock_date = Volumn.query_fields(columns=['date'], code=code).order_by(desc(Volumn.create_time)).limit(1).all()
-        date = stock_date[0][0]
-        if start_date and end_date:
-            stockList = Detail.filter_condition(equal_condition={'code': code}, greater_equal_condition={'day': start_date}, less_equal_condition={'day': end_date}).order_by(desc(Detail.day)).limit(20).all()
-        else:
-            stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(20).all()
-        realTimeStockList = Volumn.query(code=code, date=date).order_by(desc(Volumn.create_time)).limit(20).all()
-        stockList.reverse()
-        realTimeStockList.reverse()
-        res = {"price": calc_price_average(stockList), "volume": calc_volume_average(stockList), "real_volume": calc_volume_realtime_average(realTimeStockList)}
-        result.data = res
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.msg = e
-        result.success = False
     return result
 
 

@@ -788,7 +788,12 @@ def getStockFromSinaReal(a):
 
 def setRecommendStock():
     global is_trade_day
-    if not is_trade_day:
+    now = datetime.now().time()
+    start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
+    end_time = datetime.strptime("13:00:00", "%H:%M:%S").time()
+    if start_time <= now <= end_time:
+        logger.info("中午休市, 暂不执行...")
+    elif not is_trade_day:
         logger.info("不在交易时间...")
     else:
         try:
@@ -1114,7 +1119,7 @@ if __name__ == '__main__':
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)  # 启动任务
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=40, second=20)  # 中午更新数据
-    scheduler.add_job(setAvailableStock, 'cron', hour=14, minute=43, second=20)  # 下午收盘前更新数据
+    scheduler.add_job(setAvailableStock, 'cron', hour=14, minute=44, second=20)  # 下午收盘前更新数据
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=30, second=20)  # 收盘后更新数据
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
