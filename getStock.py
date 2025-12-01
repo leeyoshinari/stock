@@ -657,17 +657,17 @@ def getStockFromTencentReal(a):
                             error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
                 if len(error_list) > 0:
                     recommendTask.put(error_list)
-                    time.sleep(5)
+                    time.sleep(2)
             else:
                 logger.error(f"Tencent(Real) - 请求未正常返回... {datas}")
                 recommendTask.put(datas)
-                time.sleep(5)
+                time.sleep(2)
             error_list = []
         except:
             logger.error(f"Tencent(Real) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: recommendTask.put(datas)
-            time.sleep(5)
+            time.sleep(2)
         finally:
             if datas: recommendTask.task_done()
 
@@ -711,20 +711,20 @@ def getStockFromXueQiuReal(a):
                 else:
                     logger.error(f"XueQiu(Real) - 请求未正常返回...响应值: {res_json}")
                     recommendTask.put(datas)
-                    time.sleep(5)
+                    time.sleep(2)
                 if len(error_list) > 0:
                     recommendTask.put(error_list)
-                    time.sleep(5)
+                    time.sleep(2)
             else:
                 logger.error(f"XueQiu(Real) - 请求未正常返回... {datas}")
                 recommendTask.put(datas)
-                time.sleep(5)
+                time.sleep(2)
             error_list = []
         except:
-            logger.error(f"XueQiu(Real) - 出现异常...... {datas}")
+            logger.error(f"XueQiu(Real) - 出现异常...... {res.text}")
             logger.error(traceback.format_exc())
             if datas: recommendTask.put(datas)
-            time.sleep(5)
+            time.sleep(2)
         finally:
             if datas: recommendTask.task_done()
 
@@ -771,17 +771,17 @@ def getStockFromSinaReal(a):
                             error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
                 if len(error_list) > 0:
                     recommendTask.put(error_list)
-                    time.sleep(5)
+                    time.sleep(2)
             else:
                 logger.error(f"Sina(Real) - 请求未正常返回... {datas}")
                 recommendTask.put(datas)
-                time.sleep(5)
+                time.sleep(2)
             error_list = []
         except:
             logger.error(f"Sina(Real) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: recommendTask.put(datas)
-            time.sleep(5)
+            time.sleep(2)
         finally:
             if datas: recommendTask.task_done()
 
@@ -822,7 +822,7 @@ def checkTradeDay():
                     v2 = res_list[1].split('~')[6]
                     if int(v1) > 2 or int(v2) > 2:
                         is_trade_day = True
-                        job = scheduler.add_job(setRecommendStock, "interval", minutes=1, next_run_time=datetime.now() + timedelta(seconds=5))
+                        job = scheduler.add_job(setRecommendStock, "interval", minutes=1, next_run_time=datetime.now() + timedelta(seconds=8))
                         running_job_id = job.id
                         try:
                             tool = Tools.get_one("openDoor")
