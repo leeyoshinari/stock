@@ -618,7 +618,7 @@ def setAvailableStock():
             logger.error(traceback.format_exc())
 
 
-def getStockFromTencentReal():
+def getStockFromTencentReal(a):
     while True:
         try:
             minute = time.strftime("%H:%M")
@@ -672,7 +672,7 @@ def getStockFromTencentReal():
             if datas: recommendTask.task_done()
 
 
-def getStockFromXueQiuReal():
+def getStockFromXueQiuReal(a):
     while True:
         try:
             minute = time.strftime("%H:%M")
@@ -729,7 +729,7 @@ def getStockFromXueQiuReal():
             if datas: recommendTask.task_done()
 
 
-def getStockFromSinaReal():
+def getStockFromSinaReal(a):
     while True:
         try:
             minute = time.strftime("%H:%M")
@@ -1126,8 +1126,8 @@ if __name__ == '__main__':
     PID = os.getpid()
     with open('pid', 'w', encoding='utf-8') as f:
         f.write(str(PID))
-    funcList = [getStockFromTencent, getStockFromSina, queryStockTencentFromHttp, queryStockXueQiuFromHttp, queryStockSinaFromHttp, getStockFromTencent, getStockFromSina, getStockFromXueQiu]
-    paramList = ['base', 'base', HTTP_HOST1, HTTP_HOST1, HTTP_HOST1, 'proxy', 'proxy', 'proxy']
+    funcList = [getStockFromTencent, getStockFromSina, queryStockTencentFromHttp, queryStockXueQiuFromHttp, queryStockSinaFromHttp, getStockFromTencent, getStockFromSina, getStockFromXueQiu, getStockFromTencentReal, getStockFromSinaReal, getStockFromXueQiuReal]
+    paramList = ['base', 'base', HTTP_HOST1, HTTP_HOST1, HTTP_HOST1, 'proxy', 'proxy', 'proxy', 'base', 'base', 'base']
     with ThreadPoolExecutor(max_workers=THREAD_POOL_SIZE) as executor:
         futures = [executor.submit(func, param) for func, param in zip(funcList, paramList)]
         wait(futures)
