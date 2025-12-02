@@ -303,6 +303,7 @@ def queryStockTencentFromHttp(host: str):
                             stockDo.volumn = stockInfo['volumn']
                             stockDo.max_price = stockInfo['max_price']
                             stockDo.min_price = stockInfo['min_price']
+                            stockDo.turnover_rate = stockInfo['turnover_rate']
                             stockDo.day = stockInfo['day']
                             saveStockInfo(stockDo)
                             logger.info(f"Tencent - Http: {stockDo}")
@@ -347,6 +348,7 @@ def queryStockXueQiuFromHttp(host: str):
                             stockDo.volumn = stockInfo['volumn']
                             stockDo.max_price = stockInfo['max_price']
                             stockDo.min_price = stockInfo['min_price']
+                            stockDo.turnover_rate = stockInfo['turnover_rate']
                             stockDo.day = stockInfo['day']
                             saveStockInfo(stockDo)
                             logger.info(f"XueQiu - Http: {stockDo}")
