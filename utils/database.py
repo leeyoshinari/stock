@@ -306,6 +306,7 @@ class Detail(Base, CRUDBase):
     trix_ema_three = Column(Float, nullable=True, comment="TRIX ema3")
     trix = Column(Float, nullable=True, comment="TRIX")
     trma = Column(Float, nullable=True, comment="MA_TRIX")
+    turnover_rate = Column(Float, nullable=True, comment="换手率")
     create_time = Column(DateTime, default=datetime.now)
 
 

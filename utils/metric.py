@@ -159,3 +159,97 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
         "score": score,
         "reasons": "; ".join(reasons)
     }
+
+
+def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]], params: dict = None) -> Dict[str, Any]:
+    """
+    改进版买入信号分析器
+    输入:
+        stock_data_list: 按时间升序的行情数据列表，最后一项为最新日
+    输出:
+        包含买入信号、置信度、原始分数、各子信号分项及理由
+    """
+    default_params = {
+        'min_days_for_trend': 4,  # 检查最近的最小天数，用于均线、价格趋势、MACD等持续性判断（场景2,4）
+        'qrr_threshold': 1.2,     # 量比阈值，大于此值视为成交量放大（场景3，经验值：1.5表示成交量是过去5日均量的1.5倍以上）
+        'min_score': 4,
+    }
+
+    if params is None:
+        params = default_params
+    else:
+        tmp = default_params.copy()
+        tmp.update(params)
+        params = tmp
+
+    # -------------------- 参数 --------------------
+    score = 0
+    reasons = []
+    if not isinstance(stock_data_list, list) or len(stock_data_list) < params['min_days_for_trend']:
+        return {"buy": False, "score": 0, "reason": "数据天数不足或格式错误"}
+
+    # -------------------- 均线 --------------------
+    ma5_up = True
+    for i in range(1, params['min_days_for_trend']):
+        if stock_data_list[i]['ma_five'] <= stock_data_list[i - 1]['ma_five']:
+            ma5_up = False
+            break
+    ma5_up = ma5_up and stock_data_list[-1]['ma_five'] > stock_data_list[-1]['ma_ten']
+    if ma5_up:
+        score += 1
+        reasons.append('5日均线向上并且大于10日均线')
+    else:
+        score -= 1
+        reasons.append('5日均线未享向上')
+
+    # -----------价格-----------------
+    price_aboce_ma5 = stock_data_list[-1]['current_price'] > stock_data_list[-1]['ma_five']     # 当前价格必须站上5日均线
+    if price_aboce_ma5:
+        score += 1
+        reasons.append('当天上涨且最近3天总体涨幅满足条件')
+    else:
+        score -= 1
+        reasons.append('价格上涨趋势不足')
+
+    # -------------------- 成交量 --------------------
+    qrr_up = True
+    if stock_data_list[-1]['qrr'] < params['qrr_threshold']:
+        qrr_up = False
+    if stock_data_list[-1]['volume'] <= stock_data_list[-2]['volume']:
+        qrr_up = False
+    if qrr_up:
+        score += 1
+        reasons.append("成交量放大且持续递增")
+    else:
+        score -= 1
+        reasons.append("成交量未充分放大")
+
+    # -------------------- MACD --------------------
+    macd_bar = []
+    for day in stock_data_list:
+        macd_bar.append(day['diff'] - day['dea'])
+
+    # diff 必须大于0
+    diff_greater_zero = stock_data_list[-1]['diff'] > 0
+
+    # MACD柱不减小
+    macd_bar_increase = macd_bar[-1] > macd_bar[-2]
+
+    if diff_greater_zero and macd_bar_increase:
+        score += 1
+        reasons.append('MACD diff大于0且加速上涨')
+    else:
+        score -= 1
+        reasons.append('MACD 未加速上涨')
+
+    buy = score >= params["min_score"]
+
+    return {
+        "code": stock_data_list[-1]["code"],
+        "name": stock_data_list[-1]["name"],
+        "day": stock_data_list[-1]["day"],
+        "price": stock_data_list[-1]['current_price'],
+        "buy": buy,
+        "score": score,
+        "reasons": "; ".join(reasons)
+    }
