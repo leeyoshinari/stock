@@ -24,7 +24,7 @@ from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
 from utils.selectStock import getStockFundFlowFromDongCai, getStockFundFlowFromStockStar
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromSina
-from utils.database import Stock, Detail, Volumn, Tools, Recommend, MinuteK
+from utils.database import Stock, Detail, Tools, Recommend, MinuteK
 from utils.logging_getstock import logger
 
 
