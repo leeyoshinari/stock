@@ -310,21 +310,6 @@ class Detail(Base, CRUDBase):
     create_time = Column(DateTime, default=datetime.now)
 
 
-class Volumn(Base, CRUDBase):
-    __tablename__ = 'volumn'
-    __table_args__ = (
-        Index('idx_code_date_create_time_desc', 'code', 'date', 'create_time'),
-        {'sqlite_autoincrement': True}
-    )
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    code = Column(String(8), ForeignKey('stock.code', ondelete="CASCADE"), nullable=False, comment="股票代码")
-    date = Column(String(4), nullable=False, comment="时间")
-    volumn = Column(Integer, nullable=False, comment="成交量（手）")
-    price = Column(Float, nullable=False, comment="价格")
-    create_time = Column(DateTime, default=datetime.now)
-
-
 class Recommend(Base, CRUDBase):
     __tablename__ = 'recommend'
     __table_args__ = (

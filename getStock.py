@@ -454,7 +454,7 @@ def saveStockInfo(stockDo: StockModelDo):
         high_price[0] = stockDo.max_price
         low_price[0] = stockDo.min_price
         trix_list[0] = 0
-        volume_list = [r.volumn for r in stock_price_obj[-6: -1]]
+        volume_list = [r.volumn for r in stock_price_obj[1: 6]]
         volume_len = min(max(len(volume_list), 1), 5)
         if len(stock_price_obj) > 1:
             emas = stock_price_obj[1].emas
@@ -489,7 +489,7 @@ def saveStockInfo(stockDo: StockModelDo):
         high_price.insert(0, stockDo.max_price)
         low_price.insert(0, stockDo.min_price)
         trix_list.insert(0, 0)
-        volume_list = [r.volumn for r in stock_price_obj[-5:]]
+        volume_list = [r.volumn for r in stock_price_obj[: 5]]
         volume_len = min(max(len(volume_list), 1), 5)
         emas = stock_price_obj[0].emas if len(stock_price_obj) > 0 else stockDo.current_price
         emal = stock_price_obj[0].emal if len(stock_price_obj) > 0 else stockDo.current_price
@@ -1163,15 +1163,15 @@ def stopTask():
         logger.info("查询任务不存在或已结束...")
 
 
-def clearStockData():
-    # 清理 volumn 表数据
-    stockInfos = Stock.query().all()
-    for s in stockInfos:
-        s_v = Volumn.query(code=s.code).order_by(asc(Volumn.create_time)).all()
-        if len(s_v) > 125:
-            for i in range(25):
-                Volumn.delete(s_v[i])
-            logger.info(f"delete stock volume data success,  {s.code} - {s.name}")
+# def clearStockData():
+#     # 清理 volumn 表数据
+#     stockInfos = Stock.query().all()
+#     for s in stockInfos:
+#         s_v = Volumn.query(code=s.code).order_by(asc(Volumn.create_time)).all()
+#         if len(s_v) > 125:
+#             for i in range(25):
+#                 Volumn.delete(s_v[i])
+#             logger.info(f"delete stock volume data success,  {s.code} - {s.name}")
 
 
 if __name__ == '__main__':
@@ -1186,7 +1186,7 @@ if __name__ == '__main__':
     scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
     scheduler.add_job(selectStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=45, second=50)    # 更新推荐股票的价格
-    scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
+    # scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()
