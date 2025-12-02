@@ -161,7 +161,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
     }
 
 
-def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]], params: dict = None) -> Dict[str, Any]:
+def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     改进版买入信号分析器
     输入:
@@ -174,13 +174,7 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]], params: dict =
         'qrr_threshold': 1.2,     # 量比阈值，大于此值视为成交量放大（场景3，经验值：1.5表示成交量是过去5日均量的1.5倍以上）
         'min_score': 4,
     }
-
-    if params is None:
-        params = default_params
-    else:
-        tmp = default_params.copy()
-        tmp.update(params)
-        params = tmp
+    params = default_params
 
     # -------------------- 参数 --------------------
     score = 0
@@ -249,6 +243,7 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]], params: dict =
         "name": stock_data_list[-1]["name"],
         "day": stock_data_list[-1]["day"],
         "price": stock_data_list[-1]['current_price'],
+        "turnover_rate": stock_data_list[-1]['turnover_rate'],
         "buy": buy,
         "score": score,
         "reasons": "; ".join(reasons)

@@ -776,7 +776,14 @@ def startSelectStock():
             except:
                 logger.error(traceback.format_exc())
                 stockInfos = getStockOrderByFundFromSina()
-            stockList = [{s['code']: s['name'], f'{s['code']}count': 1} for s in stockInfos]
+            stockList = []
+            for s in stockInfos:
+                try:
+                    s_info = Stock.get_one(s['code'])
+                    if s_info.running == 1:
+                        stockList.append({s['code']: s['name'], f'{s['code']}count': 1})
+                except:
+                    logger.error(traceback.format_exc())
             index = 0
             one_batch_size = int(BATCH_SIZE / THREAD_POOL_SIZE - 2)
             for i in range(0, len(stockList), one_batch_size):
@@ -927,7 +934,7 @@ def selectStockMetric():
                         continue
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
-                    stockMetric = analyze_buy_signal(stockData, None)
+                    stockMetric = analyze_buy_signal_new(stockData)
                     day = stockMetric['day']
                     logger.info(f"Auto Select Stock - {s.code} - {s.name} : - : {stockMetric}")
                     if stockMetric['buy']:
@@ -937,9 +944,10 @@ def selectStockMetric():
                     logger.error(traceback.format_exc())
 
             send_msg = []
-            stock_metric.sort(key=lambda x: -x['score'])
+            stock_metric.sort(key=lambda x: -x['turnover_rate'])
             logger.info(f"select stocks: {stock_metric}")
-            ai_model_list = stock_metric[: 10]
+            ai_model_list = stock_metric[: 100]
+            has_index = 0
             for i in range(len(ai_model_list)):
                 logger.info(f"Select stocks: {ai_model_list[i]}")
                 stock_code_id = ai_model_list[i]['code']
@@ -971,13 +979,19 @@ def selectStockMetric():
                     if stock_dict and stock_dict[0][stock_code_id]['buy']:
                         recommend_stocks = Recommend.filter_condition(equal_condition={"code": stock_code_id}, is_null_condition=['last_five_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
+                            has_index += 1
                             Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, source=1)
                             send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
+                            if has_index > 9:
+                                break
                     else:
                         logger.error(f"大模型返回结果为空 - {stock_dict}")
                 except:
                     logger.error(traceback.format_exc())
                     stock_dict = {}
+
+                if has_index > 9:
+                    break
 
             if len(send_msg) > 0:
                 msg = '\n'.join(send_msg)
