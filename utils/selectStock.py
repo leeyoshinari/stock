@@ -73,13 +73,13 @@ def getStockOrderByFundFromDongCai() -> dict:
         res_json = json.loads(res.text.split('(')[1].split(')')[0])
         diffs = res_json['data']['diff']
         for k in diffs:
-            if 1 <= k['f3'] <= 6 and getStockType(k['f12']) and k['f2'] < 51:
+            if 1 <= k['f3'] <= 7 and getStockType(k['f12']) and k['f2'] < 51:
                 fflow.append({'code': k['f12'], 'name': k['f14'], 'pcnt': k['f3'], 'fund': round(k['f62'] / 10000, 2), 'ratio': k['f184']})
         time.sleep(1)
     return fflow
 
 
-def getStockOrderByFundFromSina() -> dict:
+def getStockOrderByFundFromSinaBackUp() -> dict:
     '''从新浪财经获取股票资金净流入排序'''
     fflow = []
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
@@ -89,7 +89,25 @@ def getStockOrderByFundFromSina() -> dict:
         res_json = json.loads(res.text)
         for k in res_json:
             change_ratio = round(float(k['changeratio']) * 100, 2)
-            if 1 <= change_ratio <= 6 and getStockType(k['symbol'][2:]) and float(k['trade']) < 51:
+            if 1 <= change_ratio <= 7 and getStockType(k['symbol'][2:]) and float(k['trade']) < 51:
                 fflow.append({'code': k['symbol'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': round(float(k['r0_net']) / 10000, 2), 'ratio': round(float(k['r0_ratio']) * 100, 2)})
+        time.sleep(1)
+    return fflow
+
+
+def getStockOrderByFundFromSina() -> dict:
+    '''从新浪财经获取股票资金净流入排序'''
+    fflow = []
+    current_time = int(time.time())
+    header = {'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1'}
+    for p in range(10):
+        url = f'https://cnrank.finance.sina.cn/getSymRankByNode?sort=rp_net&num=50&hnew=0&hcnew=0&asc=0&node=hs&page={p + 1}&callback=hqccall{current_time}'
+        res = requests.get(url, headers=header)
+        res_json = json.loads(res.text.split('(')[1].split(')')[0])
+        diffs = res_json['data']
+        for k in diffs:
+            change_ratio = round(float(k['percent']), 2)
+            if 1 <= change_ratio <= 7 and getStockType(k['symbol'][2:]) and float(k['price']) < 51:
+                fflow.append({'code': k['symbol'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': round(float(k['rp_net']) / 10000, 2), 'ratio': 0})
         time.sleep(1)
     return fflow

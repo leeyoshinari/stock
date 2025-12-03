@@ -172,7 +172,8 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
     default_params = {
         'min_days_for_trend': 4,  # 检查最近的最小天数，用于均线、价格趋势、MACD等持续性判断（场景2,4）
         'qrr_threshold': 1.2,     # 量比阈值，大于此值视为成交量放大（场景3，经验值：1.5表示成交量是过去5日均量的1.5倍以上）
-        'min_score': 4,
+        'upper_shadow_ratio': 0.3,         # 上影线长度比率阈值
+        'min_score': 5
     }
     params = default_params
 
@@ -235,6 +236,16 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
     else:
         score -= 1
         reasons.append('MACD 未加速上涨')
+
+    # ------ 上影线 -------
+    candle_range = stock_data_list[-1]['max_price'] - stock_data_list[-1]['min_price']
+    upper_wick_pct = (stock_data_list[-1]['max_price'] - stock_data_list[-1]['current_price']) / (candle_range + 0.000001)
+    if upper_wick_pct <= params['upper_shadow_ratio']:
+        score += 1
+        reasons.append('无长上影线')
+    else:
+        score -= 1
+        reasons.append('出现长上影线')
 
     buy = score >= params["min_score"]
 

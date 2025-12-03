@@ -930,7 +930,7 @@ def selectStockMetric():
             for s in stockInfos:
                 try:
                     stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(5).all()
-                    if (stockList[0].qrr < 1.2 or stockList[0].qrr > 5):
+                    if (stockList[0].qrr < 1.2 or stockList[0].qrr > 6):
                         continue
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
@@ -1199,9 +1199,9 @@ if __name__ == '__main__':
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=49, second=1)  # 开始选股
-    scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
+    # scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
     scheduler.add_job(selectStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
-    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=45, second=50)    # 更新推荐股票的价格
+    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
     # scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
     scheduler.start()
     time.sleep(2)
