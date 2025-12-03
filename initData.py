@@ -306,3 +306,4 @@ if __name__ == '__main__':
     # fixMacdEma()
     # getStocks()
     # getAllStockData('002316')
+    update_turnover_rate()
