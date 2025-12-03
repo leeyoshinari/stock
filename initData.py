@@ -258,41 +258,33 @@ def initMetricsData():
         logger.error(traceback.format_exc())
 
 
-def getStocks():
+def update_turnover_rate():
     try:
-        t = int(time.time() * 1000)
-        page = 1
-        headers.update({'host': 'query.sse.com.cn', 'referer': 'https://www.sse.com.cn/'})
-        res = requests.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={page}&pageHelp.pageSize=50&pageHelp.pageNo={page}&pageHelp.endPage={page}&_={t}", headers=headers)
-        if res.status_code == 200:
-            res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
-            res_json = json.loads('{' + res_text + '}')
-            total_page = res_json['pageHelp']['pageCount']
-            for p in range(total_page):
-                t = int(time.time() * 1000)
-                res = requests.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={p + 1}&pageHelp.pageSize=50&pageHelp.pageNo={p + 1}&pageHelp.endPage={p + 1}&_={t}", headers=headers)
-                if res.status_code == 200:
-                    res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
-                    res_json = json.loads('{' + res_text + '}')
-                    stock_list = res_json['pageHelp']['data']
-                    for s in stock_list:
-                        logger.info(f"{s['A_STOCK_CODE']} - {s['COMPANY_ABBR']}")
-                time.sleep(5)
-
-        headers.update({'host': 'www.szse.cn', 'referer': 'https://www.szse.cn/market/product/stock/list/index.html', 'content-type': 'application/json'})
-        res = requests.get(f"https://www.szse.cn/api/report/ShowReport/data?SHOWTYPE=JSON&CATALOGID=1110&TABKEY=tab1&PAGENO={page}&random=0.574{t}", headers=headers)
-        if res.status_code == 200:
-            res_json = json.loads(res.text)[0]
-            total_page = res_json['metadata']['pagecount']
-            for p in range(total_page):
-                t = int(time.time() * 1000)
-                res = requests.get(f"https://www.szse.cn/api/report/ShowReport/data?SHOWTYPE=JSON&CATALOGID=1110&TABKEY=tab1&PAGENO={p + 1}&random=0.574{t}", headers=headers)
-                if res.status_code == 200:
-                    res_json = json.loads(res.text)[0]
-                    stock_list = res_json['data']
-                    for s in stock_list:
-                        logger.info(f"{s['agdm']} - {s['agjc'].split('<u>')[-1].split('</u>')[0]}")
-                time.sleep(5)
+        stockInfo = Stock.query(running=1).all()
+        for s in stockInfo:
+            res = requests.get(f"https://q.stock.sohu.com/hisHq?code=cn_{s.code}&start=20250901&end=20251205", headers=headers)
+            if res.status_code == 200:
+                res_json = json.loads(res.text)
+                if len(res_json) < 1:
+                    logger.error(f"turnover_rate_error: {s.code} no data")
+                    continue
+                datas = res_json[0]['hq']
+                if len(datas) < 1:
+                    logger.error(f"turnover_rate_error: {s.code} no data in hq")
+                    continue
+                for k in datas:
+                    day = k[0].replace('-', '')
+                    try:
+                        stock = Detail.get_one((s.code, day))
+                        tr = float(k[9].replace('%', ''))
+                        Detail.update(stock, turnover_rate=tr)
+                    except:
+                        logger.error(f"turnover_rate_error: {s.code} - {day} is not in table")
+                logger.info(f"turnover_rate: {s.code}")
+            else:
+                logger.error(f"turnover_rate_error: {s.code} request error")
+            time.sleep(8)
+        logger.info("completed!!!!")
     except:
         logger.error(traceback.format_exc())
 
