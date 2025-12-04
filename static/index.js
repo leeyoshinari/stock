@@ -61,9 +61,8 @@ function getStockList() {
                 } else {
                     neng = '';
                 }
-                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div>${item.name}</div><div>${item.code}</div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
-                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${neng}</div><div><button onclick="get_stock_figure('${item.code}', '${item.name}');">K线</button>
-                      </div></div>`;
+                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a></div><div>${item.code}</div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
+                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${item.turnover_rate}%</div><div>${neng}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
