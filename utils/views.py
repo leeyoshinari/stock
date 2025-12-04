@@ -53,13 +53,14 @@ async def queryByCode(code: str) -> Result:
     result = Result()
     try:
         stockInfo = Detail.query(code=code).order_by(asc(Detail.create_time)).all()
-        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr', 'emas', 'emal', 'dea']] for row in stockInfo]
+        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate']] for row in stockInfo]
         x = []
         volumn = []
         qrr = []
         ma_five = []
         ma_ten = []
         ma_twenty = []
+        turnover_rate = []
         diff = []
         dea = []
         macd = []
@@ -75,6 +76,7 @@ async def queryByCode(code: str) -> Result:
             ma_five.append(stockInfo[index].ma_five)
             ma_ten.append(stockInfo[index].ma_ten)
             ma_twenty.append(stockInfo[index].ma_twenty)
+            turnover_rate.append(d[9])
             diff_x = d[6] - d[7]
             macd_x = (diff_x - d[8]) * 2
             diff.append(round(diff_x, 3))
@@ -87,7 +89,7 @@ async def queryByCode(code: str) -> Result:
             trma.append(round(stockInfo[index].trma, 3))
         result.data = {
             'x': x,
-            'price': data, 'volumn': volumn, 'qrr': qrr,
+            'price': data, 'volumn': volumn, 'qrr': qrr, 'turnover_rate': turnover_rate,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty,
             'diff': diff, 'dea': dea, 'macd': macd,
             'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma

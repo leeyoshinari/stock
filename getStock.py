@@ -898,7 +898,7 @@ def calcStockMetric():
                     if stock_dict and stock_dict[0][stock_code_id]['buy']:
                         recommend_stocks = Recommend.filter_condition(equal_condition={"code": stock_code_id}, is_null_condition=['last_five_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                            Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, source=1)
+                            Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01)
                             send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
                     else:
                         logger.error(f"大模型返回结果为空 - {stock_dict}")
@@ -973,15 +973,20 @@ def selectStockMetric():
                     continue
                 # 请求大模型
                 try:
-                    # stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+                    reason = ''
                     stock_dict = queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
-                    logger.info(f"AI-model: {stock_dict}")
+                    logger.info(f"AI-model-OpenAI: {stock_dict}")
                     if stock_dict and stock_dict[0][stock_code_id]['buy']:
                         recommend_stocks = Recommend.filter_condition(equal_condition={"code": stock_code_id}, is_null_condition=['last_five_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
-                            Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, source=1)
-                            send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
+                            reason = reason + f"ChatGPT: {stock_dict[0][stock_code_id]['reason']}"
+                            stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+                            logger.info(f"AI-model-Gemini: {stock_dict}")
+                            reason = reason + f"\nGemini: {stock_dict[0][stock_code_id]['reason']}"
+                            if stock_dict and stock_dict[0][stock_code_id]['buy']:
+                                Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, content=reason)
+                                send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {reason}")
                             if has_index > 9:
                                 break
                     else:

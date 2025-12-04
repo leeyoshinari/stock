@@ -78,7 +78,7 @@ class AiModelStockList(BaseModel):
     max_price: float = None
     min_price: float = None
     volume: int = None
-    turnover_rate: float = None
+    turnover_rate: str = None
     ma_five: float = None
     ma_ten: float = None
     ma_twenty: float = None
@@ -97,7 +97,7 @@ class AiModelStockList(BaseModel):
     @classmethod
     def from_orm_format(cls, obj):
         return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price,
-                   open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, turnover_rate=obj.turnover_rate,
+                   open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, turnover_rate=f"{obj.turnover_rate}%",
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=round(obj.emas - obj.emal, 4),
                    dea=round(obj.dea, 4), k=round(obj.kdjk, 4), d=round(obj.kdjd, 4), j=round(obj.kdjj, 4), trix=round(obj.trix, 4), trma=round(obj.trma, 4))
 
@@ -105,7 +105,6 @@ class AiModelStockList(BaseModel):
 class RecommendStockDataList(BaseModel):
     code: str = None
     name: str = None
-    source: int = None
     price: float = None
     last_one_price: Optional[float] = None
     last_one_high: Optional[float] = None
@@ -122,6 +121,7 @@ class RecommendStockDataList(BaseModel):
     last_five_price: Optional[float] = None
     last_five_high: Optional[float] = None
     last_five_low: Optional[float] = None
+    content: Optional[str] = None
     create_time: str = None
 
     class Config:
@@ -130,7 +130,7 @@ class RecommendStockDataList(BaseModel):
     @classmethod
     def from_orm_format(cls, obj):
         c = obj.create_time.strftime("%Y-%m-%d")
-        return cls(code=obj.code, name=obj.name, source=obj.source, price=obj.price, last_one_price=obj.last_one_price,
+        return cls(code=obj.code, name=obj.name, price=obj.price, last_one_price=obj.last_one_price, content=obj.content,
                    last_one_high=obj.last_one_high, last_one_low=obj.last_one_low, last_two_price=obj.last_two_price, last_two_high=obj.last_two_high,
                    last_two_low=obj.last_two_low, last_three_price=obj.last_three_price, last_three_high=obj.last_three_high, last_three_low=obj.last_three_low, last_four_price=obj.last_four_price,
                    last_four_high=obj.last_four_high, last_four_low=obj.last_four_low, last_five_price=obj.last_five_price, last_five_high=obj.last_five_high, last_five_low=obj.last_five_low, create_time=c)

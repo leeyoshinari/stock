@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
-from sqlalchemy import create_engine, Column, BigInteger, Integer, Float, String, ForeignKey, DateTime, Index, PrimaryKeyConstraint
+from sqlalchemy import create_engine, Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship, scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import text, desc, func
@@ -335,7 +335,7 @@ class Recommend(Base, CRUDBase):
     last_five_price = Column(Float, nullable=True, comment="5天后的收盘价")
     last_five_high = Column(Float, nullable=True, comment="5天后的最高")
     last_five_low = Column(Float, nullable=True, comment="5天后的最低")
-    source = Column(Integer, default=0, comment="来源 0-自动, 1-大模型, 2-手动")
+    content = Column(Text, nullable=True, comment="推荐 reason")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
