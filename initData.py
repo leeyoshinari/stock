@@ -289,11 +289,37 @@ def update_turnover_rate():
         logger.error(traceback.format_exc())
 
 
+def update_stock_turnover_rate(code):
+    try:
+        res = requests.get(f"https://q.stock.sohu.com/hisHq?code=cn_{code}&start=20250901&end=20251205", headers=headers)
+        if res.status_code == 200:
+            res_json = json.loads(res.text)
+            if len(res_json) < 1:
+                logger.error(f"turnover_rate_error: {code} no data")
+            datas = res_json[0]['hq']
+            if len(datas) < 1:
+                logger.error(f"turnover_rate_error: {code} no data in hq")
+            for k in datas:
+                day = k[0].replace('-', '')
+                try:
+                    stock = Detail.get_one((code, day))
+                    tr = float(k[9].replace('%', ''))
+                    Detail.update(stock, turnover_rate=tr)
+                except:
+                    logger.error(f"turnover_rate_error: {code} - {day} is not in table")
+            logger.info(f"turnover_rate: {code}")
+        else:
+            logger.error(f"turnover_rate_error: {code} request error")
+        logger.info("completed!!!!")
+    except:
+        logger.error(traceback.format_exc())
+
+
 if __name__ == '__main__':
     s_list = [{'600831': '广电网络'}, {'600603': '广汇物流'}, {'301584': '建发致新'}, {'301656': '联合动力'}]
-    executor.submit(getStockFromSohu)
-    queryTask.put(s_list)
-    queryTask.put("end")
+    # executor.submit(getStockFromSohu)
+    # queryTask.put(s_list)
+    # queryTask.put("end")
     # s = executor.submit(fixQrrLastDay)
     # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     # time.sleep(2)
@@ -306,4 +332,5 @@ if __name__ == '__main__':
     # fixMacdEma()
     # getStocks()
     # getAllStockData('002316')
+    update_stock_turnover_rate('600831')
     # update_turnover_rate()
