@@ -793,6 +793,12 @@ def startSelectStock():
                 if index % (THREAD_POOL_SIZE - 2) == 0:
                     logger.info(f"正在更新选股的数据，当前是第 {index} 批，总数 {len(stockList)} 个")
                     time.sleep(10)
+            current_day = time.strftime("%Y%m%d")
+            try:
+                tool = Tools.get_one("openDoor2")
+                Tools.update(tool, value=current_day)
+            except NoResultFound:
+                Tools.create(key="openDoor2", value=current_day)
         except:
             logger.error(traceback.format_exc())
 

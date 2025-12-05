@@ -108,11 +108,17 @@ async def queryStockList(query: SearchStockParam) -> Result:
     try:
         tool = Tools.get_one("openDoor")
         day = tool.value
+        tool = Tools.get_one("openDoor2")
+        day2 = tool.value
         if query.code:
             stockInfo = Detail.get_one((query.code, day))
+            if len(stockInfo) < 1:
+                stockInfo = Detail.get_one((query.code, day2))
             stockList = [StockModelDo.model_validate(stockInfo).model_dump()]
         elif query.name:
             stockInfo = Detail.filter_condition(equal_condition={"day": day}, like_condition={"name": query.name}).all()
+            if len(stockInfo) < 1:
+                stockInfo = Detail.filter_condition(equal_condition={"day": day2}, like_condition={"name": query.name}).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
         else:
             logger.info(query)
@@ -125,6 +131,9 @@ async def queryStockList(query: SearchStockParam) -> Result:
             offset = (query.page - 1) * query.pageSize
             total_num = Detail.query(day=day).count()
             stockInfo = Detail.query(day=day).order_by(detail_sort).offset(offset).limit(query.pageSize).all()
+            if total_num < 1:
+                total_num = Detail.query(day=day2).count()
+                stockInfo = Detail.query(day=day2).order_by(detail_sort).offset(offset).limit(query.pageSize).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList
