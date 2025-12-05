@@ -46,7 +46,7 @@ def calc_macd(current_price, pre_ema_12, pre_ema_26, pre_dea) -> List[float]:
 
 
 def getStockFromSohu():
-    start_time = datetime.now() - timedelta(days=60)
+    start_time = datetime.now() - timedelta(days=360)
     start_date = start_time.strftime("%Y%m%d")
     current_day = time.strftime("%Y%m%d")
     while True:
@@ -290,10 +290,10 @@ def update_turnover_rate():
 
 
 if __name__ == '__main__':
-    s_list = [{'002316': '亚联发展'}]
-    # executor.submit(getStockFromSohu)
-    # queryTask.put(s_list)
-    # queryTask.put("end")
+    s_list = [{'600831': '广电网络'}, {'600603': '广汇物流'}, {'301584': '建发致新'}, {'301656': '联合动力'}]
+    executor.submit(getStockFromSohu)
+    queryTask.put(s_list)
+    queryTask.put("end")
     # s = executor.submit(fixQrrLastDay)
     # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
     # time.sleep(2)
@@ -306,4 +306,4 @@ if __name__ == '__main__':
     # fixMacdEma()
     # getStocks()
     # getAllStockData('002316')
-    update_turnover_rate()
+    # update_turnover_rate()

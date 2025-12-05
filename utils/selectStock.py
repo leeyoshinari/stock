@@ -79,6 +79,24 @@ def getStockOrderByFundFromDongCai() -> dict:
     return fflow
 
 
+def getStockOrderByFundFromTencent() -> dict:
+    '''从腾讯获取股票资金净流入排序'''
+    '''网页：https://stockapp.finance.qq.com/mstats/#mod=list&id=hs_hsj&module=hs&type=hsj&sort=6&page=1&max=20'''
+    fflow = []
+    page_size = 50
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    for p in range(10):
+        url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset={page_size * p}&count={page_size}'
+        res = requests.get(url, headers=header)
+        res_json = json.loads(res.text)
+        for k in res_json['data']['rank_list']:
+            change_ratio = float(k['zdf'])
+            if 1 <= change_ratio <= 7 and getStockType(k['code'][2:]) and float(k['zxj']) < 51:
+                fflow.append({'code': k['code'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': float(k['zljlr']), 'ratio': 0})
+        time.sleep(1)
+    return fflow
+
+
 def getStockOrderByFundFromSinaBackUp() -> dict:
     '''从新浪财经获取股票资金净流入排序'''
     fflow = []

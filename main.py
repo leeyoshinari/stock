@@ -65,7 +65,7 @@ class StockController(Controller):
         result = await views.queryAllStockData(code)
         return result
 
-    @get('/query/stock/return')
+    @get('/query/stock/return', summary="查询选出来的股票的收益")
     async def stock_return(self) -> Result:
         result = await views.calc_stock_return()
         return result
