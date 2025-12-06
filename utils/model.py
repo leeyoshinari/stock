@@ -25,6 +25,7 @@ class StockModelDo(BaseModel):
     min_price: float = None
     volumn: int = None
     turnover_rate: float = None
+    fund: float = None
     ma_five: float = None
     ma_ten: float = None
     ma_twenty: float = None

@@ -353,6 +353,29 @@ def getStockFundFlowFromDongCai():
         logger.error(traceback.format_exc())
 
 
+def getStockFundFlow(code):
+    '''从东方财富获取资金流向，最近10日'''
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    try:
+        url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery1123016147749948325607_{int(time.time() * 1000)}'
+        res = requests.get(url, headers=header)
+        res_json = json.loads(res.text.split('(')[1].split(')')[0])
+        klines = res_json['data']['klines']
+        for k in klines:
+            datas = k.split(',')
+            day = datas[0].replace('-', '')
+            if day < '20250831':
+                continue
+            money = round(float(datas[1]) / 10000, 2)
+            try:
+                ss = Detail.get_one((code, day))
+                Detail.update(ss, fund=money)
+            except:
+                logger.error(f"Error fund - {code}")
+    except:
+        logger.error(traceback.format_exc())
+
+
 if __name__ == '__main__':
     s_list = [{'600831': '广电网络'}, {'600603': '广汇物流'}, {'301584': '建发致新'}, {'301656': '联合动力'}]
     # executor.submit(getStockFromSohu)
@@ -372,4 +395,5 @@ if __name__ == '__main__':
     # getAllStockData('002316')
     # update_stock_turnover_rate('600831')
     # update_turnover_rate()
-    getStockFundFlowFromDongCai()
+    # getStockFundFlowFromDongCai()
+    getStockFundFlow('002602')
