@@ -93,7 +93,7 @@ async def queryByCode(code: str) -> Result:
             'x': x,
             'price': data, 'volumn': volumn, 'qrr': qrr, 'turnover_rate': turnover_rate,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty,
-            'diff': diff, 'dea': dea, 'macd': macd,
+            'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund,
             'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma
         }
         result.total = len(result.data)
@@ -113,8 +113,8 @@ async def queryStockList(query: SearchStockParam) -> Result:
         tool = Tools.get_one("openDoor2")
         day2 = tool.value
         if query.code:
-            stockInfo = Detail.get_one((query.code, day))
-            if len(stockInfo) < 1:
+            stockInfo = Detail.get((query.code, day))
+            if stockInfo:
                 stockInfo = Detail.get_one((query.code, day2))
             stockList = [StockModelDo.model_validate(stockInfo).model_dump()]
         elif query.name:
@@ -124,8 +124,8 @@ async def queryStockList(query: SearchStockParam) -> Result:
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
         else:
             logger.info(query)
-            sort_key = query.sortField.split('_')[0]
-            sort_type = query.sortField.split('_')[1]
+            sort_key = query.sortField.split('-')[0]
+            sort_type = query.sortField.split('-')[1]
             if sort_type == 'desc':
                 detail_sort = desc(getattr(Detail, sort_key))
             else:

@@ -513,40 +513,6 @@ def saveStockInfo(stockDo: StockModelDo):
                       trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate)
 
 
-def setAllStock():
-    today = datetime.today()
-    if today.weekday() < 5:
-        try:
-            res = requests.get("https://api.mairui.club/hslt/list/b997d4403688d5e66a", headers=headers, timeout=30)
-            if res.status_code == 200:
-                res_json = json.loads(res.text)
-                for r in res_json:
-                    code = r['dm'].split('.')[0]
-                    name = r['mc']
-                    try:
-                        s = Stock.get_one(code)
-                        if 'ST' in name.upper() or '退' in name:
-                            Stock.update(s, running=0)
-                            logger.info(f"股票 {s.name} - {s.code} 处于退市状态, 忽略掉...")
-                        if 'ST' in s.name.upper() and 'ST' not in name.upper():
-                            Stock.update(s, running=1)
-                            logger.info(f"股票 {s.name} - {s.code} 重新上市, 继续处理...")
-                    except NoResultFound:
-                        is_running = getStockType(code)
-                        if 'ST' in name.upper() or '退' in name:
-                            is_running = 0
-                        if is_running == 1:
-                            Stock.create(code=code, name=name, running=is_running)
-                            logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
-                    except:
-                        logger.error(traceback.format_exc())
-            else:
-                logger.error('数据更新异常')
-        except:
-            logger.error(traceback.format_exc())
-            logger.error("数据更新异常...")
-
-
 def setAvailableStock():
     global is_trade_day
     if not is_trade_day:
@@ -1016,6 +982,17 @@ def selectStockMetric():
         logger.error(traceback.format_exc())
 
 
+def updateStockFund():
+    global is_trade_day
+    try:
+        if is_trade_day:
+            pass
+        else:
+            logger.info("不在交易时间。。。")
+    except:
+        logger.error(traceback.format_exc())
+
+
 def updateRecommendPrice():
     global is_trade_day
     try:
@@ -1099,9 +1076,11 @@ def setAllSHStock():
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 处于退市状态, 忽略掉...")
                                         continue
                                     if 'ST' in s.name.upper() and 'ST' not in name.upper():
-                                        Stock.update(s, running=1, name=name)
+                                        is_running = min(getStockType(code), 1)
+                                        Stock.update(s, running=is_running, name=name)
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 重新上市, 继续处理...")
                                         continue
+                                    Stock.update(s, name=name)
                                 except NoResultFound:
                                     is_running = getStockType(code)
                                     if 'ST' in name.upper() or '退' in name:
@@ -1158,6 +1137,7 @@ def setAllSZStock():
                                         Stock.update(s, running=1, name=name)
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 重新上市, 继续处理...")
                                         continue
+                                    Stock.update(s, name=name)
                                 except NoResultFound:
                                     is_running = getStockType(code)
                                     if 'ST' in name.upper() or '退' in name:
@@ -1203,15 +1183,13 @@ def stopTask():
 
 if __name__ == '__main__':
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)  # 启动任务
-    scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
-    # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=40, second=20)  # 中午更新数据
-    # scheduler.add_job(setAvailableStock, 'cron', hour=14, minute=44, second=20)  # 下午收盘前更新数据
-    scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)  # 收盘后更新数据
-    scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 更新股票信息
-    scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 更新股票信息
+    scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 中午更新股票信息
+    scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 中午更新股票信息
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=49, second=1)  # 开始选股
     # scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
     scheduler.add_job(selectStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
+    scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
+    scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)  # 收盘后更新数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
     # scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
     scheduler.start()

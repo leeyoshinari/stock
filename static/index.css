@@ -73,6 +73,12 @@
     min-width: 133px;
 }
 
+.list>div>div>img {
+    cursor: pointer;
+    width: 13px;
+    margin-left: 2px;
+}
+
 .list>div>div>button {
     border: unset;
     background-color: unset;
@@ -95,7 +101,7 @@
 
 #figure {
     width: 720px;
-    height: 590px;
+    height: 650px;
     margin: 0 auto;
     background-color: white;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);

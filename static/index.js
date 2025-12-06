@@ -45,29 +45,20 @@ function getStockList() {
                 let zhang = (item.current_price - item.last_price) / item.last_price * 100;
                 let zhen = (item.max_price - item.min_price) / item.last_price * 100;
                 let color = zhang >= 0 ? zhang > 0 ? 'red' : 'black' : 'green';
-                let neng;
-                if (zhang >= 1 && item.qrr >= 1.5) {
-                    neng = '放量上涨';
-                } else if (zhang >= 1 && item.qrr <= 0.6) {
-                    neng = '缩量上涨';
-                } else if (zhang <= -1 && zhang >= -3.5 && item.qrr >= 1.5) {
-                    neng = '放量下跌';
-                } else if (zhang < -3.5 && item.qrr >= 1.5) {
-                    neng = '放量大跌';
-                } else if (zhang <= -1 && zhang >= -3.5 && item.qrr <= 0.6) {
-                    neng = '缩量下跌';
-                } else if (zhang < -3.5 && item.qrr <= 0.6) {
-                    neng = '缩量大跌';
-                } else {
-                    neng = '';
-                }
-                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a></div><div>${item.code}</div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
-                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${item.turnover_rate}%</div><div>${neng}</div></div>`;
+                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a></div><div>${item.code}<img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
+                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${item.turnover_rate}%</div><div>${item.fund.toFixed(0)}万</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
                 document.getElementById("next-page").disabled = 'true';
             }
+            document.querySelectorAll('[id*="copy-"]').forEach( item => {
+                item.addEventListener('click', (event) => {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(event.target.id.split('-')[1]);
+                    }
+                })
+            })
         })
 }
 
@@ -82,7 +73,7 @@ function get_stock_figure(code, name) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma);
+                plot_k_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })

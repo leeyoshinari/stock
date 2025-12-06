@@ -25,7 +25,7 @@ function getStockList() {
         .then(data => {
             let s = ""
             data.data.forEach(item => {
-                s += `<div id="${item.code}" class="item-list" style="height:90px;"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="show_reason('${item.code}');">${item.code}</a></div><div>${item.price}</div><div>${item.create_time}</div><div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
+                s += `<div id="${item.code}" class="item-list" style="height:90px;"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="show_reason('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.price}</div><div>${item.create_time}</div><div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_two_price>0 ? "red" : item.last_two_price<0 ? "green" : "black"};">收:${item.last_two_price}%</span><span style="color:${item.last_two_high>0 ? "red" : item.last_two_high<0 ? "green" : "black"};">高:${item.last_two_high}%</span><span style="color:${item.last_two_low>0 ? "red" : item.last_two_low<0 ? "green" : "black"};">低:${item.last_two_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_three_price>0 ? "red" : item.last_three_price<0 ? "green" : "black"};">收:${item.last_three_price}%</span><span style="color:${item.last_three_high>0 ? "red" : item.last_three_high<0 ? "green" : "black"};">高:${item.last_three_high}%</span><span style="color:${item.last_three_low>0 ? "red" : item.last_three_low<0 ? "green" : "black"};">低:${item.last_three_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_four_price>0 ? "red" : item.last_four_price<0 ? "green" : "black"};">收:${item.last_four_price}%</span><span style="color:${item.last_four_high>0 ? "red" : item.last_four_high<0 ? "green" : "black"};">高:${item.last_four_high}%</span><span style="color:${item.last_four_low>0 ? "red" : item.last_four_low<0 ? "green" : "black"};">低:${item.last_four_low}%</span></div>
@@ -35,6 +35,13 @@ function getStockList() {
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
                 document.getElementById("next-page").disabled = 'true';
             }
+            document.querySelectorAll('[id*="copy-"]').forEach( item => {
+                item.addEventListener('click', (event) => {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(event.target.id.split('-')[1]);
+                    }
+                })
+            })
         })
 }
 
@@ -47,7 +54,7 @@ function get_stock_figure(code, name) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma);
+                plot_k_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })

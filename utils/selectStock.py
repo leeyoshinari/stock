@@ -65,6 +65,7 @@ def getStockFundFlowFromStockStar(stockCode: str) -> dict:
 
 def getStockOrderByFundFromDongCai() -> dict:
     '''从东方财富获取股票资金净流入排序'''
+    '''https://data.eastmoney.com/zjlx/detail.html'''
     fflow = []
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     current_time = int(time.time() * 1000)

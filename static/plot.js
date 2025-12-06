@@ -1,4 +1,4 @@
-function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma) {
+function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
   let option;
@@ -59,6 +59,11 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           right: '30px',
           top: '520px',
           height: '40px'
+        },{
+          left: '30px',
+          right: '30px',
+          top: '570px',
+          height: '40px'
         }
       ],
       xAxis: [{
@@ -114,6 +119,17 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           axisLabel: { show: false },
           min: 'dataMin',
           max: 'dataMax'
+        },{
+          type: 'category',
+          gridIndex: 5,
+          data: x,
+          boundaryGap: false,
+          axisLine: { onZero: true },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { show: false },
+          min: 'dataMin',
+          max: 'dataMax'
         }
       ],
       yAxis: [{
@@ -142,12 +158,23 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           gridIndex: 2,
           splitNumber: 2,
           axisLabel: { show: false },
-          axisLine: { show: true, onZero: true },
+          axisLine: { show: false },
           axisTick: { show: false },
-          splitLine: { show: false }
+          splitLine: { show: false },
+          position: 'left'
+        },{
+          scale: true,
+          gridIndex: 2,
+          splitNumber: 2,
+          axisLabel: { show: false },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          position: 'right'
         },{
           scale: true,
           gridIndex: 3,
+          splitNumber: 3,
           axisLabel: { show: false },
           axisLine: { show: true, onZero: true },
           axisTick: { show: false },
@@ -159,17 +186,24 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           axisLine: { show: true, onZero: true },
           axisTick: { show: false },
           splitLine: { show: false }
+        },{
+          scale: true,
+          gridIndex: 5,
+          axisLabel: { show: false },
+          axisLine: { show: true, onZero: true },
+          axisTick: { show: false },
+          splitLine: { show: false }
         }
       ],
       dataZoom: [{
           type: 'inside',
-          xAxisIndex: [0, 1, 2, 3, 4],
+          xAxisIndex: [0, 1, 2, 3, 4, 5],
           start: 0,
           end: 100
         },
         {
           show: false,
-          xAxisIndex: [0, 1, 2, 3, 4],
+          xAxisIndex: [0, 1, 2, 3, 4, 5],
           type: 'slider',
           start: 0,
           end: 100
@@ -230,10 +264,31 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           lineStyle: {color: 'blue', opacity: 0.5},
           itemStyle: { color: 'blue' }
         },{
-          name: 'MACD',
+          name: 'Fund',
           type: 'bar',
           xAxisIndex: 2,
           yAxisIndex: 3,
+          data: fund,
+          itemStyle: {
+            color: function(params) {
+              return params.value >= 0 ? upColor : downColor;
+            }
+          }
+        },{
+          name: 'Turnover',
+          type: 'line',
+          xAxisIndex: 2,
+          yAxisIndex: 4,
+          data: turnover_rate,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {color: 'blue', opacity: 0.5},
+          itemStyle: { color: 'blue' }
+        },{
+          name: 'MACD',
+          type: 'bar',
+          xAxisIndex: 3,
+          yAxisIndex: 5,
           data: macd,
           itemStyle: {
             color: function(params) {
@@ -243,8 +298,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         },{
           name: 'DIFF',
           type: 'line',
-          xAxisIndex: 2,
-          yAxisIndex: 3,
+          xAxisIndex: 3,
+          yAxisIndex: 5,
           data: diff,
           smooth: true,
           showSymbol: false,
@@ -253,8 +308,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         },{
           name: 'DEA',
           type: 'line',
-          xAxisIndex: 2,
-          yAxisIndex: 3,
+          xAxisIndex: 3,
+          yAxisIndex: 5,
           data: dea,
           smooth: true,
           showSymbol: false,
@@ -263,8 +318,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         },{
           name: 'K',
           type: 'line',
-          xAxisIndex: 3,
-          yAxisIndex: 4,
+          xAxisIndex: 4,
+          yAxisIndex: 6,
           data: kdjk,
           smooth: true,
           showSymbol: false,
@@ -273,8 +328,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         },{
           name: 'D',
           type: 'line',
-          xAxisIndex: 3,
-          yAxisIndex: 4,
+          xAxisIndex: 4,
+          yAxisIndex: 6,
           data: kdjd,
           smooth: true,
           showSymbol: false,
@@ -283,8 +338,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         },{
           name: 'J',
           type: 'line',
-          xAxisIndex: 3,
-          yAxisIndex: 4,
+          xAxisIndex: 4,
+          yAxisIndex: 6,
           data: kdjj,
           smooth: true,
           showSymbol: false,
@@ -293,8 +348,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         },{
           name: 'TRIX',
           type: 'line',
-          xAxisIndex: 4,
-          yAxisIndex: 5,
+          xAxisIndex: 5,
+          yAxisIndex: 7,
           data: trix,
           smooth: true,
           showSymbol: false,
@@ -303,8 +358,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         },{
           name: 'MATRIX',
           type: 'line',
-          xAxisIndex: 4,
-          yAxisIndex: 5,
+          xAxisIndex: 5,
+          yAxisIndex: 7,
           data: trma,
           smooth: true,
           showSymbol: false,
