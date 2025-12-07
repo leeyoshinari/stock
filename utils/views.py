@@ -350,8 +350,8 @@ async def query_ai_stock(code: str) -> Result:
             stockDo.update({'trma': trix['trma']})
             stock_data.insert(0, stockDo)
         stock_data.reverse()
-        # stock_dict = queryGemini(json.dumps(stock_data, ensure_ascii=False), API_URL, AI_MODEL, AUTH_CODE)
-        stock_dict = queryOpenAi(json.dumps(stock_data), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
+        stock_dict = queryGemini(json.dumps(stock_data, ensure_ascii=False), API_URL, AI_MODEL, AUTH_CODE)
+        # stock_dict = queryOpenAi(json.dumps(stock_data), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
         # logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
         result.data = stock_dict['reason']
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
