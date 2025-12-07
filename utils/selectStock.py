@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
-import re
 import time
 import json
 import requests
@@ -28,6 +27,42 @@ def getStockType(code: str) -> int:
         return 0
 
 
+def getStockRegion(code: str) -> str:
+    if code.startswith("60") or code.startswith("68"):
+        return "sh"
+    elif code.startswith("00") or code.startswith("30"):
+        return "sz"
+    else:
+        return ""
+
+
+def getStockZhuLiFundFromDongCai(code: str) -> float:
+    '''获取东方财富当前股票的主力净流入'''
+    '''https://data.eastmoney.com/stockdata/000045.html'''
+    current_time = int(time.time() * 1000)
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={getStockRegionNum(code)}.{code}&fields=f469,f137,f193,f140,f194,f143,f195,f146,f196,f149,f197,f470,f434,f454,f435,f455,f436,f456,f437,f457,f438,f458,f471,f459,f460,f461,f462,f463,f464,f465,f466,f467,f468,f170,f119,f291&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery112303607637191727675_{current_time}&_={current_time + 1}'
+    res = requests.get(url, headers=header)
+    res_json = json.loads(res.text.split('(')[1].split(')')[0])
+    return round(res_json['data']['f137'] / 10000, 2)
+
+
+def getStockZhuLiFundFromTencent(code: str) -> float:
+    '''获取腾讯财经当前股票的主力净流入'''
+    '''https://gu.qq.com/sz300274/gp'''
+    current_day = time.strftime("%Y-%m-%d")
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    url = f'https://proxy.finance.qq.com/cgi/cgi-bin/fundflow/hsfundtab?code={getStockRegion(code)}{code}&type=fiveDayFundFlow,todayFundFlow&klineNeedDay=20'
+    res = requests.get(url, headers=header)
+    res_json = json.loads(res.text)
+    if 'todayFundFlow' in res_json['data'] and 'mainNetIn' in res_json['data']['todayFundFlow']:
+        fund = round(float(res_json['data']['todayFundFlow']['mainNetIn']) / 10000, 2)
+    else:
+        day_list = res_json['data']['fiveDayFundFlow']['DayMainNetInList']
+        fund = next((round(float(item['mainNetIn']) / 10000, 2) for item in day_list if item['date'] == current_day), 0)
+    return fund
+
+
 def getStockFundFlowFromDongCai(stockCode: str) -> dict:
     '''从东方财富获取资金流向，最近10日'''
     '''https://data.eastmoney.com/zjlx/600067.html'''
@@ -40,26 +75,6 @@ def getStockFundFlowFromDongCai(stockCode: str) -> dict:
     for k in klines:
         datas = k.split(',')
         fflow.update({datas[0].replace('-', ''): round(float(datas[1]) / 10000, 2)})
-    return fflow
-
-
-def getStockFundFlowFromStockStar(stockCode: str) -> dict:
-    '''从证券之星获取资金流向，最近10日'''
-    fflow = {}
-    pattern = r'<tr>(.*?)</tr>'
-    url = f'https://stock.quote.stockstar.com/capital_{stockCode}.shtml'
-    header = {
-        'content-type': 'application/x-www-form-urlencoded',
-        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
-    }
-    data = {'code': stockCode}
-    res = requests.post(url, data=data, headers=header)
-    rows = re.findall(pattern, res.text, re.DOTALL)
-    for row in rows:
-        cells = re.findall(r'<td[^>]*>(.*?)</td>', row)
-        if cells and len(cells) == 9:
-            cleaned_cells = [cell.strip() for cell in cells]
-            fflow.update({cleaned_cells[0].replace('-', ''): round(float(cleaned_cells[1].replace('万', '')) + float(cleaned_cells[3].replace('万', '')), 2)})
     return fflow
 
 

@@ -46,6 +46,7 @@ class StockDataList(BaseModel):
     min_price: float = None
     volume: int = None
     turnover_rate: float = None
+    fund: float = None
     ma_five: float = None
     ma_ten: float = None
     ma_twenty: float = None
@@ -64,7 +65,7 @@ class StockDataList(BaseModel):
     @classmethod
     def from_orm_format(cls, obj):
         return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price,
-                   open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn,
+                   open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, fund=obj.fund,
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=obj.emas - obj.emal,
                    dea=obj.dea, k=obj.kdjk, d=obj.kdjd, j=obj.kdjj, trix=obj.trix, trma=obj.trma, turnover_rate=obj.turnover_rate)
 
@@ -80,6 +81,7 @@ class AiModelStockList(BaseModel):
     min_price: float = None
     volume: int = None
     turnover_rate: str = None
+    fund: float = None
     ma_five: float = None
     ma_ten: float = None
     ma_twenty: float = None
@@ -97,7 +99,7 @@ class AiModelStockList(BaseModel):
 
     @classmethod
     def from_orm_format(cls, obj):
-        return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price,
+        return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price, fund=obj.fund,
                    open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, turnover_rate=f"{obj.turnover_rate}%",
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=round(obj.emas - obj.emal, 4),
                    dea=round(obj.dea, 4), k=round(obj.kdjk, 4), d=round(obj.kdjd, 4), j=round(obj.kdjj, 4), trix=round(obj.trix, 4), trma=round(obj.trma, 4))

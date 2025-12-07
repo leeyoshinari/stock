@@ -22,8 +22,9 @@ from utils.scheduler import scheduler
 from utils.send_email import sendEmail
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
-from utils.selectStock import getStockFundFlowFromDongCai, getStockFundFlowFromStockStar
-from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromSina
+from utils.selectStock import getStockFundFlowFromDongCai
+from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent
+from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
 from utils.database import Stock, Detail, Tools, Recommend, MinuteK
 from utils.logging_getstock import logger
 
@@ -484,7 +485,7 @@ def saveStockInfo(stockDo: StockModelDo):
         Detail.update(stockObj, current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
                       max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_five=calc_MA(stock_price, 5),
                       ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2), emas=macd['emas'],
-                      emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'],
+                      emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'], fund=0.0,
                       trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate)
     except NoResultFound:
         stock_price.insert(0, stockDo.current_price)
@@ -507,7 +508,7 @@ def saveStockInfo(stockDo: StockModelDo):
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=stockDo.last_price,
+                      max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=stockDo.last_price, fund=0.0,
                       ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2),
                       emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'],
                       trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate)
@@ -741,7 +742,7 @@ def startSelectStock():
                 stockInfos = getStockOrderByFundFromDongCai()
             except:
                 logger.error(traceback.format_exc())
-                stockInfos = getStockOrderByFundFromSina()
+                stockInfos = getStockOrderByFundFromTencent()
             stockList = []
             for s in stockInfos:
                 try:
@@ -845,23 +846,17 @@ def calcStockMetric():
                 stock_data_list = Detail.query(code=stock_code_id).order_by(desc(Detail.day)).limit(6).all()
                 stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
                 stockData.reverse()
-                fflow = {}
                 try:
-                    fflow = getStockFundFlowFromDongCai(stock_code_id)
+                    fflow = getStockZhuLiFundFromDongCai(stock_code_id)
                 except:
                     logger.error(traceback.format_exc())
                     try:
-                        fflow = getStockFundFlowFromStockStar(stock_code_id)
+                        fflow = getStockZhuLiFundFromTencent(stock_code_id)
                     except:
                         logger.error(traceback.format_exc())
-                        fflow = {}
-                if fflow:
-                    for j in range(len(stockData)):
-                        if stockData[j]['day'] in fflow:
-                            stockData[j].update({"fund": fflow[stockData[j]['day']]})
-                else:
-                    sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
-                    continue
+                        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
+                        fflow = 0.0
+                stockData[-1]['fund'] = fflow
                 # 请求大模型
                 try:
                     # stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
@@ -926,37 +921,31 @@ def selectStockMetric():
                 stock_data_list = Detail.query(code=stock_code_id).order_by(desc(Detail.day)).limit(6).all()
                 stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
                 stockData.reverse()
-                fflow = {}
                 try:
-                    fflow = getStockFundFlowFromDongCai(stock_code_id)
+                    fflow = getStockZhuLiFundFromDongCai(stock_code_id)
                 except:
                     logger.error(traceback.format_exc())
                     try:
-                        fflow = getStockFundFlowFromStockStar(stock_code_id)
+                        fflow = getStockZhuLiFundFromTencent(stock_code_id)
                     except:
                         logger.error(traceback.format_exc())
-                        fflow = {}
-                if fflow:
-                    for j in range(len(stockData)):
-                        if stockData[j]['day'] in fflow:
-                            stockData[j].update({"fund": fflow[stockData[j]['day']]})
-                else:
-                    sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
-                    continue
+                        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
+                        fflow = 0.0
+                stockData[-1]['fund'] = fflow
                 # 请求大模型
                 try:
                     reason = ''
                     stock_dict = queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
-                    if stock_dict and stock_dict[0][stock_code_id]['buy']:
+                    if stock_dict and stock_dict['buy']:
                         recommend_stocks = Recommend.filter_condition(equal_condition={"code": stock_code_id}, is_null_condition=['last_five_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
-                            reason = reason + f"ChatGPT: {stock_dict[0][stock_code_id]['reason']}"
+                            reason = reason + f"ChatGPT: {stock_dict['reason']}"
                             stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
                             logger.info(f"AI-model-Gemini: {stock_dict}")
-                            reason = reason + f"\nGemini: {stock_dict[0][stock_code_id]['reason']}"
-                            if stock_dict and stock_dict[0][stock_code_id]['buy']:
+                            reason = reason + f"\nGemini: {stock_dict['reason']}"
+                            if stock_dict and stock_dict['buy']:
                                 Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, content=reason)
                                 send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {reason}")
                             if has_index > 9:
@@ -982,13 +971,90 @@ def selectStockMetric():
         logger.error(traceback.format_exc())
 
 
-def updateStockFund():
+def saveStockFund(day: str, code: str, fund: float):
+    s = Detail.get((code, day))
+    if s:
+        Detail.update(s, fund=fund)
+        logger.info(f"Update Stock Fund: {code} - {fund}")
+
+
+def updateStockFund(a=1):
     global is_trade_day
     try:
+        h = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
         if is_trade_day:
-            pass
+            total_page = 100
+            tool = Tools.get_one("openDoor")
+            day = tool.value
+            if a == 1:
+                try:
+                    current_time = int(time.time() * 1000)
+                    url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery1123022029913423580905_{current_time}&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+                    res = requests.get(url, headers=h)
+                    res_json = json.loads(res.text.split('(')[1].split(')')[0])
+                    total_page = int((res_json['data']['total'] + 49) / 50)
+                    for k in res_json['data']['diff']:
+                        code = k['12']
+                        fund = round(k['f62'] / 10000, 2)
+                        saveStockFund(day, code, fund)
+                    for p in range(1, total_page):
+                        if p % 5 == 0:
+                            current_time = int(time.time() * 1000)
+                        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery1123022029913423580905_{current_time}&fid=f62&po=1&pz=50&pn={p + 1}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+                        res = requests.get(url, headers=h)
+                        res_json = json.loads(res.text.split('(')[1].split(')')[0])
+                        for k in res_json['data']['diff']:
+                            code = k['12']
+                            fund = round(k['f62'] / 10000, 2)
+                            saveStockFund(day, code, fund)
+                        time.sleep(5)
+                except:
+                    logger.error(traceback.format_exc())
+                    updateStockFund(2)
+            else:
+                try:
+                    page_size = 50
+                    url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset=0&count={page_size}'
+                    res = requests.get(url, headers=h)
+                    res_json = json.loads(res.text)
+                    total_page = int((res_json['data']['total'] + 49) / 50)
+                    for k in res_json['data']['rank_list']:
+                        code = k['code'][2:]
+                        fund = float(k['zljlr'])
+                        saveStockFund(day, code, fund)
+                    for p in range(1, total_page):
+                        url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset={page_size * p}&count={page_size}'
+                        res = requests.get(url, headers=h)
+                        res_json = json.loads(res.text)
+                        for k in res_json['data']['rank_list']:
+                            code = k['code'][2:]
+                            fund = float(k['zljlr'])
+                            saveStockFund(day, code, fund)
+                        time.sleep(5)
+                except:
+                    logger.error(traceback.format_exc())
+                    sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, "获取所有股票的主力资金净流入数据失败")
+            time.sleep(5)
+            checkUpdateStockFund()  # 更新漏网数据，如果有
         else:
             logger.info("不在交易时间。。。")
+    except:
+        logger.error(traceback.format_exc())
+
+
+def checkUpdateStockFund():
+    try:
+        tool = Tools.get_one("openDoor")
+        day = tool.value
+        stocks = Detail.filter_condition(equal_condition={'day': day}, less_equal_condition={'fund': 0.01}, greater_equal_condition={'fund': -0.01}).all()
+        for s in stocks:
+            try:
+                fund = getStockZhuLiFundFromDongCai(s.code)
+            except:
+                fund = getStockZhuLiFundFromTencent(s.code)
+            Detail.update(s, fund)
+            logger.info(f"ReUpdate Stock Fund: {s.code} - {fund}")
+            time.sleep(5)
     except:
         logger.error(traceback.format_exc())
 
@@ -1190,6 +1256,7 @@ if __name__ == '__main__':
     scheduler.add_job(selectStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
     scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)  # 收盘后更新数据
+    scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1])    # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
     # scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
     scheduler.start()
