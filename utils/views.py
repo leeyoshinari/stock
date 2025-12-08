@@ -143,7 +143,7 @@ async def queryByCode(code: str) -> Result:
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
-        result.msg = e
+        result.msg = str(e)
     return result
 
 
@@ -185,7 +185,7 @@ async def queryStockList(query: SearchStockParam) -> Result:
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
-        result.msg = e
+        result.msg = str(e)
     return result
 
 
@@ -203,7 +203,7 @@ async def queryRecommendStockList(page: int = 1) -> Result:
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
-        result.msg = e
+        result.msg = str(e)
     return result
 
 
@@ -227,7 +227,7 @@ async def queryStockMetric(code: str) -> Result:
         logger.info(f"query {code} successful")
     except Exception as e:
         logger.error(traceback.format_exc())
-        result.msg = e
+        result.msg = str(e)
         result.success = False
     return result
 
@@ -235,7 +235,7 @@ async def queryStockMetric(code: str) -> Result:
 async def calc_stock_return() -> Result:
     result = Result()
     try:
-        init_fund = 10000
+        init_fund = 5000
         r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         x = []
         y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
@@ -355,9 +355,10 @@ async def query_ai_stock(code: str) -> Result:
         # logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
         result.data = stock_dict['reason']
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
-    except:
+    except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
+        result.msg = str(e)
     return result
 
 

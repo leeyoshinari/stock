@@ -376,7 +376,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
 function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l) {
   option = {
     title: {
-      text: '每只股票买入一万元的收益',
+      text: '每只股票买入5000元的收益',
       left: 'center',
       top: 10,
       textStyle: {

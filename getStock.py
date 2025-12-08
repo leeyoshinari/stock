@@ -944,7 +944,7 @@ def selectStockMetric():
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
                             stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
                             logger.info(f"AI-model-Gemini: {stock_dict}")
-                            reason = reason + f"\nGemini: {stock_dict['reason']}"
+                            reason = reason + f"\n\nGemini: {stock_dict['reason']}"
                             if stock_dict and stock_dict['buy']:
                                 Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, content=reason)
                                 send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {reason}")
@@ -1078,21 +1078,22 @@ def updateRecommendPrice():
             recommend_stocks = Recommend.filter_condition(less_equal_condition={'create_time': t}, is_null_condition=['last_five_price']).all()
             for r in recommend_stocks:
                 try:
-                    stocks = Detail.query(code=r.code).order_by(desc(Detail.day)).limit(1).all()
-                    price_pct = round((stocks[0].current_price - r.price) / r.price * 100, 2)
-                    max_price_pct = round((stocks[0].max_price - r.price) / r.price * 100, 2)
-                    min_price_pct = round((stocks[0].min_price - r.price) / r.price * 100, 2)
-                    if r.last_one_price is None:
-                        Recommend.update(r, last_one_price=price_pct, last_one_high=max_price_pct, last_one_low=min_price_pct)
-                    elif r.last_two_price is None:
-                        Recommend.update(r, last_two_price=price_pct, last_two_high=max_price_pct, last_two_low=min_price_pct)
-                    elif r.last_three_price is None:
-                        Recommend.update(r, last_three_price=price_pct, last_three_high=max_price_pct, last_three_low=min_price_pct)
-                    elif r.last_four_price is None:
-                        Recommend.update(r, last_four_price=price_pct, last_four_high=max_price_pct, last_four_low=min_price_pct)
-                    elif r.last_five_price is None:
-                        Recommend.update(r, last_five_price=price_pct, last_five_high=max_price_pct, last_five_low=min_price_pct)
-                    logger.info(f"update recommend stocks {r.code} - {r.name} price success!")
+                    stockInfo = Detail.get((r.code, new_day))
+                    if stockInfo:
+                        price_pct = round((stockInfo.current_price - r.price) / r.price * 100, 2)
+                        max_price_pct = round((stockInfo.max_price - r.price) / r.price * 100, 2)
+                        min_price_pct = round((stockInfo.min_price - r.price) / r.price * 100, 2)
+                        if r.last_one_price is None:
+                            Recommend.update(r, last_one_price=price_pct, last_one_high=max_price_pct, last_one_low=min_price_pct)
+                        elif r.last_two_price is None:
+                            Recommend.update(r, last_two_price=price_pct, last_two_high=max_price_pct, last_two_low=min_price_pct)
+                        elif r.last_three_price is None:
+                            Recommend.update(r, last_three_price=price_pct, last_three_high=max_price_pct, last_three_low=min_price_pct)
+                        elif r.last_four_price is None:
+                            Recommend.update(r, last_four_price=price_pct, last_four_high=max_price_pct, last_four_low=min_price_pct)
+                        elif r.last_five_price is None:
+                            Recommend.update(r, last_five_price=price_pct, last_five_high=max_price_pct, last_five_low=min_price_pct)
+                        logger.info(f"update recommend stocks {r.code} - {r.name} price success!")
                 except:
                     sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, "更新推荐股票的价格报错，请抽时间核对")
                     logger.error(traceback.format_exc())
