@@ -78,7 +78,7 @@ def getStockFundFlowFromDongCai(stockCode: str) -> dict:
     return fflow
 
 
-def getStockOrderByFundFromDongCai() -> dict:
+def getStockOrderByFundFromDongCai():
     '''从东方财富获取股票资金净流入排序'''
     '''https://data.eastmoney.com/zjlx/detail.html'''
     fflow = []
@@ -96,7 +96,7 @@ def getStockOrderByFundFromDongCai() -> dict:
     return fflow
 
 
-def getStockOrderByFundFromTencent() -> dict:
+def getStockOrderByFundFromTencent():
     '''从腾讯获取股票资金净流入排序'''
     '''网页：https://stockapp.finance.qq.com/mstats/#mod=list&id=hs_hsj&module=hs&type=hsj&sort=6&page=1&max=20'''
     fflow = []
@@ -114,7 +114,7 @@ def getStockOrderByFundFromTencent() -> dict:
     return fflow
 
 
-def getStockOrderByFundFromSinaBackUp() -> dict:
+def getStockOrderByFundFromSinaBackUp():
     '''从新浪财经获取股票资金净流入排序'''
     fflow = []
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
@@ -130,7 +130,7 @@ def getStockOrderByFundFromSinaBackUp() -> dict:
     return fflow
 
 
-def getStockOrderByFundFromSina() -> dict:
+def getStockOrderByFundFromSina():
     '''从新浪财经获取股票资金净流入排序'''
     fflow = []
     current_time = int(time.time())
@@ -146,3 +146,43 @@ def getStockOrderByFundFromSina() -> dict:
                 fflow.append({'code': k['symbol'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': round(float(k['rp_net']) / 10000, 2), 'ratio': 0})
         time.sleep(1)
     return fflow
+
+
+def getStockDaDanFromTencent(code: str) -> dict:
+    '''获取买卖盘占比：https://gu.qq.com/sz300959/gp/dadan'''
+    res = {}
+    try:
+        header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
+        url = f'https://stock.gtimg.cn/data/index.php?appn=dadan&action=summary&c={getStockRegion(code)}{code}'
+        res = requests.get(url, headers=header)
+        res_json = res.text.split('],[')
+        da_dan = res_json[9].split(',')
+        total_num = float(da_dan[2].strip())
+        buy_num = float(da_dan[4].strip())
+        sale_num = float(da_dan[5].strip())
+        m_num = float(da_dan[6].strip())
+        res = {'b': round(buy_num / total_num * 100, 2), 's': round(sale_num / total_num * 100, 2), 'm': round(m_num / total_num * 100, 2)}
+    except Exception as e:
+        res = {'msg': type(e).__name__}
+    return res
+
+
+def getStockDaDanFromSina(code: str) -> dict:
+    '''从新浪获取买卖盘占比：https://vip.stock.finance.sina.com.cn/quotes_service/view/cn_bill.php?symbol=sz000534'''
+    res = {}
+    try:
+        current_day = time.strftime("%Y-%m-%d")
+        header = {'referer': 'https://vip.stock.finance.sina.com.cn/quotes_service/view/cn_bill.php', 'content-type': 'application/x-www-form-urlencoded',
+                  "sec-ch-ua-mobile": "?0", "sec-fetch-dest": "empty", "sec-fetch-site": "same-origin",
+                  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
+        url = f'https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_Bill.GetBillSum?symbol={getStockRegion(code)}{code}&num=60&sort=ticktime&asc=0&volume=40000&amount=0&type=0&day={current_day}'
+        res = requests.get(url, headers=header)
+        res_json = json.loads(res.text)
+        total_num = float(res_json[0]['totalvol'])
+        buy_num = float(res_json[0]['kuvolume'])
+        sale_num = float(res_json[0]['kdvolume'])
+        m_num = float(res_json[0]['kevolume'])
+        res = {'b': round(buy_num / total_num * 100, 2), 's': round(sale_num / total_num * 100, 2), 'm': round(m_num / total_num * 100, 2)}
+    except Exception as e:
+        res = {'msg': type(e).__name__}
+    return res

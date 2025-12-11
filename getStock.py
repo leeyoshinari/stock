@@ -22,7 +22,7 @@ from utils.scheduler import scheduler
 from utils.send_email import sendEmail
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
-from utils.selectStock import getStockFundFlowFromDongCai
+from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent
 from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
 from utils.database import Stock, Detail, Tools, Recommend, MinuteK
@@ -911,13 +911,29 @@ def selectStockMetric():
                     logger.error(traceback.format_exc())
 
             send_msg = []
-            stock_metric.sort(key=lambda x: -x['turnover_rate'])
+            # stock_metric.sort(key=lambda x: -x['turnover_rate'])
             logger.info(f"select stocks: {stock_metric}")
-            ai_model_list = stock_metric[: 100]
+            ai_model_list = stock_metric[: 500]
             has_index = 0
             for i in range(len(ai_model_list)):
                 logger.info(f"Select stocks: {ai_model_list[i]}")
                 stock_code_id = ai_model_list[i]['code']
+                da_dan = getStockDaDanFromTencent(stock_code_id)
+                if 'msg' in da_dan:
+                    logger.error(da_dan['msg'])
+                    da_dan = getStockDaDanFromSina(stock_code_id)
+                    if 'msg' in da_dan:
+                        logger.error(da_dan['msg'])
+                        time.sleep(2)
+                        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取买卖盘面异常', f"获取 {stock_code_id} 的买卖盘面数据异常～")
+                        continue
+                if 'msg' not in da_dan:
+                    if da_dan['b'] > 59 and da_dan['s'] < 30 and da_dan['m'] < 10:
+                        pass
+                    else:
+                        logger.error(f"DaDan Stock - {stock_code_id} - no meet 60% / 30% / 10% 这样的数值, - {da_dan}")
+                        time.sleep(2)
+                        continue
                 stock_data_list = Detail.query(code=stock_code_id).order_by(desc(Detail.day)).limit(6).all()
                 stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
                 stockData.reverse()
@@ -934,7 +950,7 @@ def selectStockMetric():
                 stockData[-1]['fund'] = fflow
                 # 请求大模型
                 try:
-                    reason = ''
+                    reason = f"主动性买盘: {da_dan['b']}%, 主动性卖盘: {da_dan['s']}%, 中性盘: {da_dan['m']}%\n\n"
                     stock_dict = queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
                     if stock_dict and stock_dict['buy']:
@@ -947,7 +963,7 @@ def selectStockMetric():
                             reason = reason + f"\n\nGemini: {stock_dict['reason']}"
                             if stock_dict and stock_dict['buy']:
                                 Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, content=reason)
-                                send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {reason}")
+                                send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}")
                             if has_index > 9:
                                 break
                     else:
