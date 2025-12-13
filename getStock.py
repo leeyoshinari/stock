@@ -22,7 +22,7 @@ from utils.scheduler import scheduler
 from utils.send_email import sendEmail
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
-from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina
+from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent
 from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
 from utils.database import Stock, Detail, Tools, Recommend, MinuteK
@@ -966,6 +966,8 @@ def selectStockMetric():
                                 send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}")
                             if has_index > 9:
                                 break
+                        else:
+                            logger.info(f"Has been recommended stock - {stock_code_id} - {ai_model_list[i]['name']}")
                     else:
                         logger.error(f"大模型返回结果为空 - {stock_dict}")
                 except:
@@ -1068,7 +1070,7 @@ def checkUpdateStockFund():
                 fund = getStockZhuLiFundFromDongCai(s.code)
             except:
                 fund = getStockZhuLiFundFromTencent(s.code)
-            Detail.update(s, fund)
+            Detail.update(s, fund=fund)
             logger.info(f"ReUpdate Stock Fund: {s.code} - {fund}")
             time.sleep(5)
     except:
@@ -1121,6 +1123,21 @@ def updateRecommendPrice():
                 is_trade_day = False
         else:
             logger.info("不在交易时间。。。")
+    except:
+        logger.error(traceback.format_exc())
+
+
+def updateStockBanKuai():
+    try:
+        stockInfo = Stock.query(running=1).all()
+        for s in stockInfo:
+            res = getStockBanKuaiFromDOngCai(s.code)
+            if 'msg' in res:
+                time.sleep(5)
+                continue
+            Stock.update(s, region=res['region'], industry=res['industry'], concept=res['concept'])
+            logger.info(f"Update stock BanKuai {s.code} - {s.name} - {res}")
+            time.sleep(5)
     except:
         logger.error(traceback.format_exc())
 
@@ -1275,6 +1292,8 @@ if __name__ == '__main__':
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)  # 收盘后更新数据
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1])    # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
+    scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
+    scheduler.add_job(updateStockBanKuai, 'cron', hour=11, minute=12, second=50)
     # scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
     scheduler.start()
     time.sleep(2)

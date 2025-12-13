@@ -186,3 +186,31 @@ def getStockDaDanFromSina(code: str) -> dict:
     except Exception as e:
         res = {'msg': type(e).__name__}
     return res
+
+
+def getStockBanKuaiFromDOngCai(code: str) -> dict:
+    '''从东方财富获取股票的板块、概念信息'''
+    '''https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=SH600693&color=b'''
+    res = {}
+    try:
+        header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
+        url = f'https://datacenter.eastmoney.com/securities/api/data/get?type=RPT_F10_CORETHEME_BOARDTYPE&sty=ALL&filter=(SECUCODE%3D%22{code}.{getStockRegion(code).upper()}%22)&p=1&ps=&sr=1&st=BOARD_RANK&source=HSF10&client=PC&v=02238{int(time.time() * 1000)}'
+        res = requests.get(url, headers=header)
+        res_json = json.loads(res.text)
+        data_list = res_json['result']['data']
+        region = ''
+        industry = ''
+        concept = []
+        for d in data_list:
+            if d['BOARD_TYPE'] == '行业':
+                industry = d['BOARD_NAME']
+            elif d['BOARD_TYPE']:
+                region = d['BOARD_NAME']
+            else:
+                if ('连板' in d['BOARD_NAME'] or '涨停' in d['BOARD_NAME'] or '预增' in d['BOARD_NAME']):
+                    continue
+                concept.append(d['BOARD_NAME'])
+        res = {'region': region, 'industry': industry, 'concept': ','.join(concept)}
+    except Exception as e:
+        res = {'msg': type(e).__name__}
+    return res

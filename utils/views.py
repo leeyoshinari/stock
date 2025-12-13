@@ -156,7 +156,7 @@ async def queryStockList(query: SearchStockParam) -> Result:
         day2 = tool.value
         if query.code:
             stockInfo = Detail.get((query.code, day))
-            if stockInfo:
+            if not stockInfo:
                 stockInfo = Detail.get_one((query.code, day2))
             stockList = [StockModelDo.model_validate(stockInfo).model_dump()]
         elif query.name:
