@@ -207,10 +207,40 @@ def getStockBanKuaiFromDOngCai(code: str) -> dict:
             elif d['BOARD_TYPE']:
                 region = d['BOARD_NAME']
             else:
-                if ('连板' in d['BOARD_NAME'] or '涨停' in d['BOARD_NAME'] or '预增' in d['BOARD_NAME']):
+                if ('连板' in d['BOARD_NAME'] or '涨停' in d['BOARD_NAME'] or '预增' in d['BOARD_NAME'] or '预减' in d['BOARD_NAME'] or '扭亏' in d['BOARD_NAME']):
                     continue
-                concept.append(d['BOARD_NAME'])
+                concept.append(d['BOARD_NAME'].rstrip('_'))
         res = {'region': region, 'industry': industry, 'concept': ','.join(concept)}
     except Exception as e:
         res = {'msg': type(e).__name__}
     return res
+
+
+def getBanKuaiKlineFromDongCai(code: str) -> dict:
+    '''从东方财富获取板块的日K数据'''
+    '''https://quote.eastmoney.com/bk/90.BK0908.html'''
+    res = {}
+    try:
+        header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
+        url = f'https://datacenter.eastmoney.com/securities/api/data/get?type=RPT_F10_CORETHEME_BOARDTYPE&sty=ALL&filter=(SECUCODE%3D%22{code}.{getStockRegion(code).upper()}%22)&p=1&ps=&sr=1&st=BOARD_RANK&source=HSF10&client=PC&v=02238{int(time.time() * 1000)}'
+        res = requests.get(url, headers=header)
+        _ = json.loads(res.text)
+    except Exception as e:
+        res = {'msg': type(e).__name__}
+    return res
+
+
+def getBanKuaiFundFlowFromDongCai(ban: str, page: int = 1) -> dict:
+    '''从东方财富获取板块的资金流入数据'''
+    '''https://quote.eastmoney.com/bk/90.BK0908.html'''
+    current_time = str(int(time.time() * 1000))
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
+    if ban == 'concept':
+        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery1123030598726898456863_{current_time}&fid=f62&po=1&pz=50&pn={page}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A3&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+    elif ban == 'industry':
+        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery112303362322416527074_{current_time}&fid=f62&po=1&pz=50&pn={page}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+    else:
+        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery112303362322416527074_{current_time}&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A1&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+    res = requests.get(url, headers=header)
+    res_json = json.loads(res.text.split(current_time + '(')[1][: -2])
+    return res_json['data']['diff']

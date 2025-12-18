@@ -23,9 +23,9 @@ from utils.send_email import sendEmail
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai
-from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent
+from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
 from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
-from utils.database import Stock, Detail, Tools, Recommend, MinuteK
+from utils.database import Stock, Detail, Tools, Recommend, MinuteK, Concept, Sector
 from utils.logging_getstock import logger
 
 
@@ -514,6 +514,30 @@ def saveStockInfo(stockDo: StockModelDo):
                       trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate)
 
 
+def saveBanKuaiInfo(stockDo: dict):
+    stock_price_obj = Sector.query(code=stockDo['code']).order_by(desc(Sector.day)).limit(21).all()
+    stock_price = [r.current_price for r in stock_price_obj]
+    try:
+        stockObj = Sector.get_one((stockDo['code'], stockDo['day']))
+        stock_price[0] = stockDo['current_price']
+        volume_list = [r.volumn for r in stock_price_obj[1: 6]]
+        volume_len = min(max(len(volume_list), 1), 5)
+        average_volumn = sum(volume_list) / volume_len
+        average_volumn = average_volumn if average_volumn > 0 else stockDo['volumn']
+        Sector.update(stockObj, current_price=stockDo['current_price'], open_price=stockDo['open_price'], turnover_rate=stockDo['turnover_rate'],
+                      max_price=stockDo['max_price'], min_price=stockDo['min_price'], volumn=stockDo['volumn'], ma_five=calc_MA(stock_price, 5),
+                      ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo['volumn'] / average_volumn, 2))
+    except NoResultFound:
+        stock_price.insert(0, stockDo['current_price'])
+        volume_list = [r.volumn for r in stock_price_obj[: 5]]
+        volume_len = min(max(len(volume_list), 1), 5)
+        average_volumn = sum(volume_list) / volume_len
+        average_volumn = average_volumn if average_volumn > 0 else stockDo['volumn']
+        Detail.create(code=stockDo['code'], day=stockDo['day'], name=stockDo['name'], current_price=stockDo['current_price'], open_price=stockDo['open_price'],
+                      max_price=stockDo['max_price'], min_price=stockDo['min_price'], volumn=stockDo['volumn'], fund=0.0, turnover_rate=stockDo['turnover_rate'],
+                      ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo['volumn'] / average_volumn, 2))
+
+
 def setAvailableStock():
     global is_trade_day
     if not is_trade_day:
@@ -928,7 +952,7 @@ def selectStockMetric():
                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取买卖盘面异常', f"获取 {stock_code_id} 的买卖盘面数据异常～")
                         continue
                 if 'msg' not in da_dan:
-                    if da_dan['b'] > 59 and da_dan['s'] < 30 and da_dan['m'] < 10:
+                    if da_dan['b'] > 49 and da_dan['s'] < 30:   # and da_dan['m'] < 10:
                         pass
                     else:
                         logger.error(f"DaDan Stock - {stock_code_id} - no meet 60% / 30% / 10% 这样的数值, - {da_dan}")
@@ -994,6 +1018,16 @@ def saveStockFund(day: str, code: str, fund: float):
     if s:
         Detail.update(s, fund=fund)
         logger.info(f"Update Stock Fund: {code} - {fund}")
+
+
+def saveBanKuaiFund(stockDo: dict):
+    s = Sector.get((stockDo['code'], stockDo['day']))
+    if s:
+        Sector.update(s, fund=stockDo['fund'])
+        logger.info(f"Update BanKuai Fund: {stockDo['code']} - {stockDo['fund']}")
+    bankuai = Concept.get(code=stockDo['code'])
+    if not bankuai:
+        Concept.create(code=stockDo['code'], name=stockDo['name'], type=stockDo['type'])
 
 
 def updateStockFund(a=1):
@@ -1138,6 +1172,39 @@ def updateStockBanKuai():
             Stock.update(s, region=res['region'], industry=res['industry'], concept=res['concept'])
             logger.info(f"Update stock BanKuai {s.code} - {s.name} - {res}")
             time.sleep(5)
+    except:
+        logger.error(traceback.format_exc())
+
+
+def updateBanKuaiData():
+    try:
+        tool = Tools.get_one("openDoor")
+        day = tool.value
+        page = 1
+        while True:
+            res = getBanKuaiFundFlowFromDongCai('industry', page)
+            for r in res:
+                d = {'type': 'industry', 'day': day, 'code': r['f12'], 'name': r['f14'], 'fund': round(r['f62'] / 10000, 2)}
+                saveBanKuaiFund(d)
+            if len(res) < 50:
+                break
+            time.sleep(3)
+            page += 1
+        page = 1
+        while True:
+            res = getBanKuaiFundFlowFromDongCai('concept', page)
+            for r in res:
+                d = {'type': 'industry', 'day': day, 'code': r['f12'], 'name': r['f14'], 'fund': round(r['f62'] / 10000, 2)}
+                saveBanKuaiFund(d)
+            if len(res) < 50:
+                break
+            time.sleep(3)
+            page += 1
+
+        res = getBanKuaiFundFlowFromDongCai('region', 1)
+        for r in res:
+            d = {'type': 'industry', 'day': day, 'code': r['f12'], 'name': r['f14'], 'fund': round(r['f62'] / 10000, 2)}
+            saveBanKuaiFund(d)
     except:
         logger.error(traceback.format_exc())
 
@@ -1293,7 +1360,6 @@ if __name__ == '__main__':
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1])    # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
-    scheduler.add_job(updateStockBanKuai, 'cron', hour=11, minute=12, second=50)
     # scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
     scheduler.start()
     time.sleep(2)

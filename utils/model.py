@@ -141,3 +141,24 @@ class RecommendStockDataList(BaseModel):
 
 class RequestData(BaseModel):
     data: List
+
+
+class StockInfoList(BaseModel):
+    code: str
+    name: str
+    running: int
+    region: str = None
+    industry: str = None
+    concept: str = None
+    create_time: str
+    update_time: str
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_format(cls, obj):
+        c = obj.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        m = obj.update_time.strftime("%Y-%m-%d %H:%M:%S")
+        return cls(code=obj.code, name=obj.name, running=obj.running, region=obj.region, industry=obj.industry, concept=obj.concept,
+                   create_time=c, update_time=m)

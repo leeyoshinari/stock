@@ -8,13 +8,13 @@ import traceback
 import requests
 from typing import List
 from sqlalchemy import desc, asc
-from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList, RecommendStockDataList, AiModelStockList
+from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList, RecommendStockDataList, StockInfoList
 from utils.selectStock import getStockZhuLiFundFromDongCai
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.logging import logger
 from utils.results import Result
 from utils.metric import analyze_buy_signal
-from utils.database import Detail, Tools, Recommend
+from utils.database import Detail, Tools, Recommend, Stock
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE
 
 
@@ -570,7 +570,14 @@ def query_stock_from_tencent(code: str, name: str) -> Result:
 
 async def test() -> Result:
     result = Result()
-    stock_volumn_obj = Detail.query_fields(columns=['volumn'], code='688045').order_by(desc(Detail.day)).all()
-    stock_volumn = [r[0] for r in stock_volumn_obj]
-    result.data = stock_volumn
+    try:
+        stock_volumn_obj = Stock.query(running=1).limit(10).all()
+        stock_volumn = [StockInfoList.from_orm_format(r).model_dump() for r in stock_volumn_obj]
+        stockInfo = Detail.query(code='000010').order_by(asc(Detail.create_time)).all()
+        for s in stockInfo:
+            cd = s.current_price
+            print(s)
+        result.data = stock_volumn
+    except:
+        logger.error(traceback.format_exc())
     return result
