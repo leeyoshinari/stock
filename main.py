@@ -115,7 +115,12 @@ async def stock_list() -> Template:
     return Template("stock.html", context={'prefix': PREFIX})
 
 
-route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[index, recommend, stock_list])]
+@get("/home")
+async def home() -> Template:
+    return Template("home.html", context={'prefix': PREFIX})
+
+
+route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[home, index, recommend, stock_list])]
 
 
 @asynccontextmanager
