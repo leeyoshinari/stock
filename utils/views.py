@@ -8,13 +8,14 @@ import traceback
 import requests
 from typing import List
 from sqlalchemy import desc, asc
-from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList, RecommendStockDataList, StockInfoList
+from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList
+from utils.model import StockRealDo, StockInfoList, RecommendStockDataList
 from utils.selectStock import getStockZhuLiFundFromDongCai
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.logging import logger
 from utils.results import Result
 from utils.metric import analyze_buy_signal
-from utils.database import Detail, Tools, Recommend, Stock
+from utils.database import Detail, Tools, Recommend, Stock, MinuteK
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE
 
 
@@ -355,6 +356,31 @@ async def query_ai_stock(code: str) -> Result:
         # logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
         result.data = stock_dict['reason']
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def calc_stock_real(code: str) -> Result:
+    result = Result()
+    try:
+        x = []
+        price = []
+        volume = []
+        pre_volume = 0
+        res = MinuteK.query(code=code).order_by(asc(MinuteK.create_time)).all()
+        for r in res:
+            if r.minute == "09:30":
+                pre_volume = 0
+            x.append(f"{r.day} {r.minute}")
+            price.append(r.price)
+            volume.append(r.volume - pre_volume)
+            pre_volume = r.volume
+        volume[0] = 0
+        result.data = {'x': x, 'price': price, 'volume': volume}
+        logger.info(f"query Recommend stock minute real data success - {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

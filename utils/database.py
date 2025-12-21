@@ -382,8 +382,8 @@ class Sector(Base, CRUDBase):
     __tablename__ = 'sector'
     __table_args__ = (
         PrimaryKeyConstraint('code', 'day'),
-        Index('idx_code', 'code'),
-        Index('idx_day', 'day')
+        Index('sector_idx_code', 'code'),
+        Index('sector_idx_day', 'day')
     )
 
     code = Column(String(8), nullable=False, comment="板块代码")

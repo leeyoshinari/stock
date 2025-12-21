@@ -70,6 +70,11 @@ class StockController(Controller):
         result = await views.calc_stock_return()
         return result
 
+    @get('/query/recommend/real', summary="查询选出来的股票的分钟级走势")
+    async def stock_real(self, code: str) -> Result:
+        result = await views.calc_stock_real(code)
+        return result
+
     @get('/test')
     async def test(self) -> Result:
         result = await views.test()

@@ -568,7 +568,6 @@ def setAvailableStock():
 def getStockFromTencentReal(a):
     while True:
         try:
-            minute = time.strftime("%H:%M")
             datas = None
             datas = recommendTask.get()
             if datas == 'end': break
@@ -579,6 +578,7 @@ def getStockFromTencentReal(a):
             res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
             if res.status_code == 200:
                 res_list = res.text.split(';')
+                minute = time.strftime("%H:%M")
                 for s in res_list:
                     try:
                         stockDo = StockModelDo()
@@ -622,7 +622,6 @@ def getStockFromTencentReal(a):
 def getStockFromXueQiuReal(a):
     while True:
         try:
-            minute = time.strftime("%H:%M")
             datas = None
             datas = recommendTask.get()
             if datas == 'end': break
@@ -633,6 +632,7 @@ def getStockFromXueQiuReal(a):
             res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
             if res.status_code == 200:
                 res_json = json.loads(res.text)
+                minute = time.strftime("%H:%M")
                 if len(res_json['data']) > 0:
                     for s in res_json['data']:
                         try:
@@ -679,7 +679,6 @@ def getStockFromXueQiuReal(a):
 def getStockFromSinaReal(a):
     while True:
         try:
-            minute = time.strftime("%H:%M")
             datas = None
             datas = recommendTask.get()
             if datas == 'end': break
@@ -694,6 +693,7 @@ def getStockFromSinaReal(a):
             res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
             if res.status_code == 200:
                 res_list = res.text.split(';')
+                minute = time.strftime("%H:%M")
                 for s in res_list:
                     try:
                         stockDo = StockModelDo()

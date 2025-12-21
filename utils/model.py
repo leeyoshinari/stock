@@ -162,3 +162,14 @@ class StockInfoList(BaseModel):
         m = obj.update_time.strftime("%Y-%m-%d %H:%M:%S")
         return cls(code=obj.code, name=obj.name, running=obj.running, region=obj.region, industry=obj.industry, concept=obj.concept,
                    create_time=c, update_time=m)
+
+
+class StockRealDo(BaseModel):
+    code: str = None
+    day: str = None
+    minute: str = None
+    price: float = None
+    volume: int = None
+
+    class Config:
+        from_attributes = True

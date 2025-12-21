@@ -571,6 +571,112 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
   myChart.setOption(option);
 }
 
+function plot_minute_line(myChart, title, x, price, volume) {
+  const totalDataPoints = x.length;
+  let startValue = 0;
+  
+  if (totalDataPoints > 250) {
+    startValue = ((totalDataPoints - 250) / totalDataPoints) * 100;
+  }
+  let option;
+  myChart.clear();
+  myChart.setOption(
+    (option = {
+      animation: false,
+      title: {
+        text: title,
+        left: 'center',
+        top: 0,
+        textStyle: {
+          fontSize: 13,
+          fontWeight: 'bold'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'cross'
+        }
+      },
+      axisPointer: {
+        link: [{xAxisIndex: 'all'}],
+        label: {backgroundColor: '#777'}
+      },
+      grid: [
+        {
+          left: '10px',
+          right: '30px',
+          top: '20px',
+          height: '300px'
+        },{
+          left: '30px',
+          right: '30px',
+          top: '350px',
+          height: '60px'
+        }
+      ],
+      xAxis: [{
+          type: 'category',
+          data: x,
+          min: 'dataMin',
+          max: 'dataMax'
+        },{
+          type: 'category',
+          gridIndex: 1,
+          data: x,
+          axisLabel: { show: false },
+          min: 'dataMin',
+          max: 'dataMax'
+        }
+      ],
+      yAxis: [{
+          scale: true,
+          gridIndex: 0
+        },{
+          scale: true,
+          gridIndex: 1,
+          axisLabel: { show: false },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false }
+        }
+      ],
+      dataZoom: [{
+          type: 'inside',
+          xAxisIndex: [0, 1],
+          start: startValue,
+          end: 100
+        },
+        {
+          show: true,
+          xAxisIndex: [0, 1],
+          type: 'slider',
+          start: startValue,
+          end: 100
+        }
+      ],
+      series: [
+        {
+          name: 'Price',
+          type: 'line',
+          data: price,
+          smooth: false,
+          showSymbol: false,
+          lineStyle: { color: 'blue', opacity: 0.5 }
+        },{
+          name: 'Volume',
+          type: 'bar',
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          data: volume
+        }
+      ]
+    }),
+    true
+  );
+  option && myChart.setOption(option);
+};
+
 function findMax(arr) {
   let len = arr.length;
   let max = arr[0];
