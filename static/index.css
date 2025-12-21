@@ -27,6 +27,7 @@
 .header-filter>div>select {
     height: 34px;
     width: 150px;
+    appearance: none;
 }
 
 .header>div>input {
