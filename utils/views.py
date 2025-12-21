@@ -608,8 +608,8 @@ async def all_stock_info(query: SearchStockParam) -> Result:
         else:
             logger.info(query)
             offset = (query.page - 1) * query.pageSize
-            total_num = Stock.all().count()
-            stockInfo = Stock.all().order_by(desc(Stock.create_time)).offset(offset).limit(query.pageSize).all()
+            total_num = Stock.query(running=1).count()
+            stockInfo = Stock.query(running=1).order_by(desc(Stock.create_time)).offset(offset).limit(query.pageSize).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList
