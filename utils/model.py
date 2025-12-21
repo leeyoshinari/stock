@@ -9,6 +9,10 @@ from pydantic import BaseModel
 class SearchStockParam(BaseModel):
     code: Optional[str] = None
     name: Optional[str] = None
+    region: Optional[str] = None
+    industry: Optional[str] = None
+    concept: Optional[str] = None
+    filter: Optional[str] = None
     pageSize: int = 20
     page: int = 1
     sortField: str = 'qrr'

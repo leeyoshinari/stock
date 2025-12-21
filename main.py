@@ -75,6 +75,25 @@ class StockController(Controller):
         result = await views.calc_stock_real(code)
         return result
 
+    @get('/stock/list', summary="查询股票信息")
+    async def all_stock_list(self, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", page: int = 1, pageSize: int = 20) -> Result:
+        query = model.SearchStockParam()
+        query.code = code if code else ""
+        query.name = name if name else ""
+        query.region = region if region else ""
+        query.industry = industry if industry else ""
+        query.concept = concept if concept else ""
+        query.filter = filter if filter else ""
+        query.page = page
+        query.pageSize = pageSize
+        result = await views.all_stock_info(query)
+        return result
+
+    @get('/stock/setFilter', summary="设置股票标签")
+    async def set_stock_filter(self, code: str, filter: str, operate: int) -> Result:
+        result = await views.set_stock_filter(code, filter, operate)
+        return result
+
     @get('/test')
     async def test(self) -> Result:
         result = await views.test()
@@ -91,7 +110,12 @@ async def recommend() -> Template:
     return Template("index.html", context={'prefix': PREFIX})
 
 
-route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[index, recommend])]
+@get("/stock")
+async def stock_list() -> Template:
+    return Template("stock.html", context={'prefix': PREFIX})
+
+
+route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[index, recommend, stock_list])]
 
 
 @asynccontextmanager

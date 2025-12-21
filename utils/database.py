@@ -269,6 +269,7 @@ class Stock(Base, CRUDBase):
     code = Column(String(8), primary_key=True, comment="股票代码")
     name = Column(String(8), nullable=False, comment="股票名称")
     running = Column(Integer, default=1, nullable=False, comment="0-不获取数据，1-获取数据")
+    filter = Column(String(16), nullable=True, comment="标签")
     region = Column(String(16), nullable=True, comment="地域")
     industry = Column(String(32), nullable=True, comment="行业")
     concept = Column(String(255), nullable=True, comment="概念")

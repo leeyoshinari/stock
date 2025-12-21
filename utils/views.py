@@ -594,6 +594,52 @@ def query_stock_from_tencent(code: str, name: str) -> Result:
     return result
 
 
+async def all_stock_info(query: SearchStockParam) -> Result:
+    result = Result()
+    try:
+        if query.code:
+            stockInfo = Stock.get(query.code)
+            stockList = [StockInfoList.from_orm_format(stockInfo).model_dump()]
+        elif query.name or query.region or query.industry or query.concept or query.filter:
+            filter_dict = {"name": query.name, "region": query.region, "industry": query.industry, "concept": query.concept, "filter": query.filter}
+            like_condition = {k: v for k, v in filter_dict.items() if v != ""}
+            stockInfo = Stock.filter_condition(like_condition=like_condition).all()
+            stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
+        else:
+            logger.info(query)
+            offset = (query.page - 1) * query.pageSize
+            total_num = Stock.all().count()
+            stockInfo = Stock.all().order_by(desc(Stock.create_time)).offset(offset).limit(query.pageSize).all()
+            stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
+            result.total = total_num
+        result.data = stockList
+        logger.info(f"查询股票列表成功, 查询参数: {query}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def set_stock_filter(code: str, filter: str, operate: int) -> Result:
+    result = Result()
+    try:
+        stock = Stock.get_one(code)
+        if operate == 1:
+            Stock.update(stock, filter=f"{stock.filter},{filter}")
+            logger.info(f"设置股票标签成功 - {code} - {filter}")
+        else:
+            filter_list = stock.filter.split(',')
+            res_list = [r for r in filter_list if r != filter]
+            Stock.update(stock, filter=",".join(res_list))
+            logger.info(f"删除股票标签成功 - {code} - {filter}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
 async def test() -> Result:
     result = Result()
     try:

@@ -10,11 +10,41 @@
     gap: 30px;
 }
 
+.header-filter {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: 30px;
+    row-gap: 8px;
+}
+
+.header-filter>div>input {
+    height: 28px;
+    width: 145px;
+}
+.header-filter>div>select {
+    height: 34px;
+    width: 150px;
+}
+
 .header>div>input {
     height: 28px;
 }
 
 .header>div>button {
+    height: 30px;
+    width: 88px;
+    cursor: pointer;
+}
+
+.header-actions {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+}
+.header-actions>div>button {
     height: 30px;
     width: 88px;
     cursor: pointer;
@@ -38,9 +68,8 @@
     text-align: center;
 }
 
-.item-header>div:last-child {
-    flex: 0 0 133px;
-    min-width: 133px;
+.item-headers>div:last-child {
+    flex: 0 0 600px;
 }
 
 .list {
@@ -56,6 +85,13 @@
     height: 36px;
 }
 
+.lists>div > :last-child {
+    flex: 0 0 600px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .list>div:hover {
     background-color: #ffeaa7 !important;
     transform: scale(1.01);
@@ -66,11 +102,6 @@
     flex: 1;
     min-width: 0;
     text-align: center;
-}
-
-.list>div>div:last-child {
-    flex: 0 0 133px;
-    min-width: 133px;
 }
 
 .list>div>div>img {
