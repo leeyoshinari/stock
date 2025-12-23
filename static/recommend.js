@@ -18,6 +18,14 @@ document.getElementById("next-page").addEventListener("click", () => {
     getStockList();
 })
 
+function getStockRegion(code) {
+    if (code.startsWith("60") || code.startsWith("68")) {
+        return "sh"
+    } else {
+        return "sz"
+    }
+}
+
 function getStockList() {
     let url = prefix + `/getRecommend?page=${page}`;
     fetch(url)
@@ -25,7 +33,8 @@ function getStockList() {
         .then(data => {
             let s = ""
             data.data.forEach(item => {
-                s += `<div id="${item.code}" class="item-list" style="height:90px;"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="show_reason('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div><a style="cursor:pointer;" onclick="get_stock_real_figure('${item.code}', '${item.name}');">${item.price}</a></div><div>${item.create_time}</div><div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
+                let region = getStockRegion(`'${item.code}'`);
+                s += `<div id="${item.code}" class="item-list" style="height:90px;"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="show_reason('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div><a style="cursor:pointer;" onclick="get_stock_real_figure('${item.code}', '${item.name}');">${item.price}</a></div><div class="three-price"><span>${item.create_time}</span><span><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">筹码分布</a></span></div><div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_two_price>0 ? "red" : item.last_two_price<0 ? "green" : "black"};">收:${item.last_two_price}%</span><span style="color:${item.last_two_high>0 ? "red" : item.last_two_high<0 ? "green" : "black"};">高:${item.last_two_high}%</span><span style="color:${item.last_two_low>0 ? "red" : item.last_two_low<0 ? "green" : "black"};">低:${item.last_two_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_three_price>0 ? "red" : item.last_three_price<0 ? "green" : "black"};">收:${item.last_three_price}%</span><span style="color:${item.last_three_high>0 ? "red" : item.last_three_high<0 ? "green" : "black"};">高:${item.last_three_high}%</span><span style="color:${item.last_three_low>0 ? "red" : item.last_three_low<0 ? "green" : "black"};">低:${item.last_three_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_four_price>0 ? "red" : item.last_four_price<0 ? "green" : "black"};">收:${item.last_four_price}%</span><span style="color:${item.last_four_high>0 ? "red" : item.last_four_high<0 ? "green" : "black"};">高:${item.last_four_high}%</span><span style="color:${item.last_four_low>0 ? "red" : item.last_four_low<0 ? "green" : "black"};">低:${item.last_four_low}%</span></div>
@@ -77,14 +86,20 @@ function get_stock_real_figure(code, name) {
 }
 
 function show_reason(code) {
-    let codeEle = document.getElementById(code + '-reason');
-    document.getElementById("data-tips").innerText = code + '\n' + codeEle.innerText;
-    document.getElementsByClassName("stock-data")[0].style.display = "flex";
+    fetch(prefix + `/stock/info?code=${code}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                let info = `\n\n地区: ${data.data[0].region} \n\n 行业: ${data.data[0].industry} \n\n 概念: ${data.data[0].concept}`;
+                let codeEle = document.getElementById(code + '-reason');
+                document.getElementById("data-tips").innerText = code + '\n' + codeEle.innerText + info;
+                document.getElementsByClassName("stock-data")[0].style.display = "flex";
+            }
+        })
 }
 
 document.getElementById("stock-return").addEventListener('click', () => {
-    let url = prefix + '/query/stock/return';
-    fetch(url)
+    fetch(prefix + '/query/stock/return')
         .then(res => res.json())
         .then(data => {
             let s = `<div class="header">每只股票买入5000元的收益</div><div><div class="return-table" style="font-weight:bold;"><span>时间</span><span>第一天</span><span>第二天</span><span>第三天</span><span>第四天</span><span>第五天</span></div>

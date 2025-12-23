@@ -952,7 +952,7 @@ def selectStockMetric():
                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取买卖盘面异常', f"获取 {stock_code_id} 的买卖盘面数据异常～")
                         continue
                 if 'msg' not in da_dan:
-                    if da_dan['b'] > 49 and da_dan['s'] < 30:   # and da_dan['m'] < 10:
+                    if da_dan['b'] > da_dan['s'] and da_dan['m'] < da_dan['s']:
                         pass
                     else:
                         logger.error(f"DaDan Stock - {stock_code_id} - no meet 60% / 30% / 10% 这样的数值, - {da_dan}")

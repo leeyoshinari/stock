@@ -59,7 +59,7 @@ function getStockList() {
             let s = ""
             data.data.forEach(item => {
                 s += `<div id="${item.code}" class="item-list"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a><img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" style="display:none;" /></div><div>${item.code}<img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.region}</div><div>${item.industry}</div>
-                      <div title="${item.concept}">${item.concept}</div></div>`;
+                      <div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -101,6 +101,12 @@ function get_stock_figure(code, name) {
 function show_stock_filter(code) {
     let s = `<div class="header">${code}</div><div><div class="title"><label>标签：</label><input type="text" id="filter-values" placeholder=""></div><div><button onclick="set_stock_filter('${code}', 1);">设置</button><button onclick="set_stock_filter('${code}', 0);">删除</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
+    document.getElementsByClassName("stock-data")[0].style.display = "flex";
+}
+
+function show_concept(code) {
+    let codeEle = document.getElementById('concept-' + code);
+    document.getElementById("data-tips").innerText = code + '\n' + codeEle.innerText;
     document.getElementsByClassName("stock-data")[0].style.display = "flex";
 }
 

@@ -69,8 +69,12 @@
     text-align: center;
 }
 
-.item-headers>div:last-child {
-    flex: 0 0 600px;
+.item-headers {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1.5fr 3fr;
+    height: 36px;
+    align-items: center;
+    font-weight: bold;
 }
 
 .list {
@@ -86,8 +90,13 @@
     height: 36px;
 }
 
+.lists>div {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1.5fr 3fr;
+    align-items: center;
+    height: 36px;
+}
 .lists>div > :last-child {
-    flex: 0 0 600px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -198,6 +207,11 @@
     width: 10ch;
     text-align: justify;
     align-self: anchor-center;
+}
+
+.three-price a {
+    text-decoration: none;
+    color: blue;
 }
 
 .return-table {

@@ -605,6 +605,7 @@ async def all_stock_info(query: SearchStockParam) -> Result:
             like_condition = {k: v for k, v in filter_dict.items() if v != ""}
             stockInfo = Stock.filter_condition(like_condition=like_condition).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
+            result.total = len(stockList)
         else:
             logger.info(query)
             offset = (query.page - 1) * query.pageSize
@@ -640,6 +641,26 @@ async def set_stock_filter(code: str, filter: str, operate: int) -> Result:
     return result
 
 
+async def get_stock_info(code: str) -> Result:
+    result = Result()
+    try:
+        code_list = code.split(',')
+        if len(code_list) == 1:
+            stock = Stock.get_one(code_list[0])
+            stockList = [StockInfoList.from_orm_format(stock).model_dump()]
+        else:
+            stocks = Stock.filter_condition(in_condition={"code": code_list})
+            stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stocks]
+        result.data = stockList
+        result.total = len(stockList)
+        logger.info(f"查询股票信息成功 - {code}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
 async def test() -> Result:
     result = Result()
     try:
@@ -647,7 +668,7 @@ async def test() -> Result:
         stock_volumn = [StockInfoList.from_orm_format(r).model_dump() for r in stock_volumn_obj]
         stockInfo = Detail.query(code='000010').order_by(asc(Detail.create_time)).all()
         for s in stockInfo:
-            cd = s.current_price
+            _ = s.current_price
             print(s)
         result.data = stock_volumn
     except:

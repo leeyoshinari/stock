@@ -89,6 +89,11 @@ class StockController(Controller):
         result = await views.all_stock_info(query)
         return result
 
+    @get('/stock/info', summary="查询股票板块、概念等信息")
+    async def get_stock_info(self, code: str) -> Result:
+        result = await views.get_stock_info(code)
+        return result
+
     @get('/stock/setFilter', summary="设置股票标签")
     async def set_stock_filter(self, code: str, filter: str, operate: int) -> Result:
         result = await views.set_stock_filter(code, filter, operate)
