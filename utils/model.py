@@ -151,6 +151,7 @@ class StockInfoList(BaseModel):
     code: str
     name: str
     running: int
+    filter: str = None
     region: str = None
     industry: str = None
     concept: str = None
@@ -164,8 +165,9 @@ class StockInfoList(BaseModel):
     def from_orm_format(cls, obj):
         c = obj.create_time.strftime("%Y-%m-%d %H:%M:%S")
         m = obj.update_time.strftime("%Y-%m-%d %H:%M:%S")
+        filter = obj.filter if obj.filter is not None else ""
         return cls(code=obj.code, name=obj.name, running=obj.running, region=obj.region, industry=obj.industry, concept=obj.concept,
-                   create_time=c, update_time=m)
+                   create_time=c, update_time=m, filter=filter)
 
 
 class StockRealDo(BaseModel):

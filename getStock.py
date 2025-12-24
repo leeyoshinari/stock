@@ -745,8 +745,15 @@ def queryRecommendStockData():
     else:
         try:
             stockList = []
+            hasList = []
             stockInfo = Recommend.filter_condition(is_null_condition=['last_five_price']).all()
+            myStock = Stock.filter_condition(like_condition={"filter": "myself"}).all()
             for s in stockInfo:
+                hasList.append(s.code)
+                stockList.append({s.code: s.name, f'{s.code}count': 1})
+            for s in myStock:
+                if s.code in hasList:
+                    continue
                 stockList.append({s.code: s.name, f'{s.code}count': 1})
             random.shuffle(stockList)
             half_num = int(len(stockList) / 2)

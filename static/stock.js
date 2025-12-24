@@ -26,6 +26,14 @@ document.getElementById("next-page").addEventListener("click", () => {
     getStockList();
 })
 
+function getStockRegion(code) {
+    if (code.startsWith("60") || code.startsWith("68")) {
+        return "sh"
+    } else {
+        return "sz"
+    }
+}
+
 function getStockList() {
     let filter = document.getElementById("filter-by").value;
     let region = document.getElementById("stock-region").value;
@@ -58,7 +66,7 @@ function getStockList() {
         .then(data => {
             let s = ""
             data.data.forEach(item => {
-                s += `<div id="${item.code}" class="item-list"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a><img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" style="display:none;" /></div><div>${item.code}<img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.region}</div><div>${item.industry}</div>
+                s += `<div id="${item.code}" class="item-list"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a><img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" style="display:none;" /></div><div><a style="cursor:pointer;" onclick="click_stock_code('${item.code}', '${item.filter}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.region}</div><div>${item.industry}</div>
                       <div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
@@ -90,6 +98,7 @@ function get_stock_figure(code) {
             if (data.success) {
                 let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
+                figure.style.height = '';
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
@@ -97,6 +106,28 @@ function get_stock_figure(code) {
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
+}
+
+function click_stock_code(code, flag) {
+    if (flag.indexOf("myself") < 0) {
+        let scode = getStockRegion(code) + code;
+        window.open("https://quote.eastmoney.com/concept/" + scode + ".html#chart-k-cyq");
+    } else {
+        fetch(prefix + `/query/recommend/real?code=${code}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
+                let figure = document.getElementById("figure");
+                figure.style.height = '500px';
+                figure.removeAttribute("_echarts_instance_")
+                figure.innerHTML = '';
+                let stockChart = echarts.init(figure);
+                plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.volume);
+                document.getElementsByClassName("stock-chart")[0].style.display = "flex";
+            }
+        })
+    }
 }
 
 function show_stock_filter(code) {

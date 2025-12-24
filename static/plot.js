@@ -1,6 +1,11 @@
 function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
+  const totalDataPoints = x.length;
+  let startValue = 0;
+  if (totalDataPoints > 80) {
+    startValue = ((totalDataPoints - 80) / totalDataPoints) * 100;
+  }
   let option;
   myChart.clear();
   myChart.setOption(
