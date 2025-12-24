@@ -978,7 +978,7 @@ def selectStockMetric():
                     stock_dict = queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
                     if stock_dict and stock_dict['buy']:
-                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": stock_code_id}, is_null_condition=['last_five_price']).all()
+                        recommend_stocks = Recommend.filter_condition(equal_condition={"code": stock_code_id}, is_null_condition=['last_three_price']).all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
@@ -1161,9 +1161,12 @@ def updateRecommendPrice():
         logger.error(traceback.format_exc())
 
 
-def updateStockBanKuai():
+def updateStockBanKuai(ban=0):
     try:
-        stockInfo = Stock.query(running=1).all()
+        if ban == 0:
+            stockInfo = Stock.query(running=1).all()
+        else:
+            stockInfo = Stock.query(running=1, region=None).all()
         for s in stockInfo:
             res = getStockBanKuaiFromDOngCai(s.code)
             if 'msg' in res:
@@ -1235,6 +1238,8 @@ def setAllSHStock():
                             for s in stock_list:
                                 code = s['A_STOCK_CODE']
                                 name = s['COMPANY_ABBR']
+                                if code.startswith("68"):
+                                    continue
                                 try:
                                     s = Stock.get_one(code)
                                     is_running = s.running
@@ -1264,6 +1269,7 @@ def setAllSHStock():
                         logger.error("请求SH数据异常...")
                     logger.info(f"正在处理SH第 {p + 1} 页...")
                     time.sleep(6)
+                updateStockBanKuai(ban=1)
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
@@ -1293,6 +1299,8 @@ def setAllSZStock():
                             for s in stock_list:
                                 code = s['agdm']
                                 name = s['agjc'].split('<u>')[-1].split('</u>')[0]
+                                if code.startswith("68"):
+                                    continue
                                 try:
                                     s = Stock.get_one(code)
                                     is_running = s.running
@@ -1321,6 +1329,7 @@ def setAllSZStock():
                         logger.error("请求SZ数据异常...")
                     logger.info(f"正在处理SZ第 {p + 1} 页...")
                     time.sleep(6)
+                updateStockBanKuai(ban=1)
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")

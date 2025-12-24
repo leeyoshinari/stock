@@ -33,8 +33,8 @@ function getStockList() {
         .then(data => {
             let s = ""
             data.data.forEach(item => {
-                let region = getStockRegion(`'${item.code}'`);
-                s += `<div id="${item.code}" class="item-list" style="height:90px;"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}', '${item.name}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="show_reason('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div><a style="cursor:pointer;" onclick="get_stock_real_figure('${item.code}', '${item.name}');">${item.price}</a></div><div class="three-price"><span>${item.create_time}</span><span><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">筹码分布</a></span></div><div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
+                let region = getStockRegion(item.code);
+                s += `<div id="${item.code}" class="item-list" style="height:90px;"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="show_reason('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div><a style="cursor:pointer;" onclick="get_stock_real_figure('${item.code}');">${item.price}</a></div><div class="three-price"><span>${item.create_time}</span><span><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">筹码分布</a></span></div><div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_two_price>0 ? "red" : item.last_two_price<0 ? "green" : "black"};">收:${item.last_two_price}%</span><span style="color:${item.last_two_high>0 ? "red" : item.last_two_high<0 ? "green" : "black"};">高:${item.last_two_high}%</span><span style="color:${item.last_two_low>0 ? "red" : item.last_two_low<0 ? "green" : "black"};">低:${item.last_two_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_three_price>0 ? "red" : item.last_three_price<0 ? "green" : "black"};">收:${item.last_three_price}%</span><span style="color:${item.last_three_high>0 ? "red" : item.last_three_high<0 ? "green" : "black"};">高:${item.last_three_high}%</span><span style="color:${item.last_three_low>0 ? "red" : item.last_three_low<0 ? "green" : "black"};">低:${item.last_three_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_four_price>0 ? "red" : item.last_four_price<0 ? "green" : "black"};">收:${item.last_four_price}%</span><span style="color:${item.last_four_high>0 ? "red" : item.last_four_high<0 ? "green" : "black"};">高:${item.last_four_high}%</span><span style="color:${item.last_four_low>0 ? "red" : item.last_four_low<0 ? "green" : "black"};">低:${item.last_four_low}%</span></div>
@@ -54,32 +54,35 @@ function getStockList() {
         })
 }
 
-function get_stock_figure(code, name) {
+function get_stock_figure(code) {
     fetch(prefix + `/get?code=${code}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
+                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
+                figure.style.height = '';
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund);
+                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
 }
 
-function get_stock_real_figure(code, name) {
+function get_stock_real_figure(code) {
     fetch(prefix + `/query/recommend/real?code=${code}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
+                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
                 figure.style.height = '500px';
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_minute_line(stockChart, `${name} - ${code}`, data.data.x, data.data.price, data.data.volume);
+                plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.volume);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
@@ -90,9 +93,10 @@ function show_reason(code) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                let info = `\n\n地区: ${data.data[0].region} \n\n 行业: ${data.data[0].industry} \n\n 概念: ${data.data[0].concept}`;
+                let title = `${data.data[0].name} - ${code} - ${data.data[0].region} - ${data.data[0].industry}`;
+                let info = `\n\n 概念: ${data.data[0].concept}`;
                 let codeEle = document.getElementById(code + '-reason');
-                document.getElementById("data-tips").innerText = code + '\n' + codeEle.innerText + info;
+                document.getElementById("data-tips").innerText = title + '\n\n' + codeEle.innerText + info;
                 document.getElementsByClassName("stock-data")[0].style.display = "flex";
             }
         })

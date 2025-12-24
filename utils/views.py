@@ -132,11 +132,12 @@ async def queryByCode(code: str) -> Result:
             kdjj.append(round(stockInfo[index].kdjj, 3))
             trix.append(round(stockInfo[index].trix, 3))
             trma.append(round(stockInfo[index].trma, 3))
+        st = Stock.get_one(code)
         result.data = {
-            'x': x,
+            'x': x, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry,
             'price': data, 'volumn': volumn, 'qrr': qrr, 'turnover_rate': turnover_rate,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty,
-            'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund,
+            'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'concept': st.concept,
             'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma
         }
         result.total = len(result.data)
@@ -379,7 +380,8 @@ async def calc_stock_real(code: str) -> Result:
             volume.append(r.volume - pre_volume)
             pre_volume = r.volume
         volume[0] = 0
-        result.data = {'x': x, 'price': price, 'volume': volume}
+        st = Stock.get_one(code)
+        result.data = {'x': x, 'price': price, 'volume': volume, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'concept': st.concept}
         logger.info(f"query Recommend stock minute real data success - {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
