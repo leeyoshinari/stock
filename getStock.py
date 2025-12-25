@@ -20,7 +20,7 @@ from utils.model import StockModelDo, StockDataList, AiModelStockList
 from utils.database import Database
 from utils.scheduler import scheduler
 from utils.send_email import sendEmail
-from utils.initData import initStockData
+# from utils.initData import initStockData
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai
@@ -1260,7 +1260,7 @@ def setAllSHStock():
                                         Stock.update(s, running=is_running, name=name)
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 重新上市, 继续处理...")
                                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{name} - {code}，请检查数据～")
-                                        initStockData(code, name)
+                                        # initStockData(code, name)
                                         continue
                                     Stock.update(s, name=name)
                                 except NoResultFound:
@@ -1324,7 +1324,7 @@ def setAllSZStock():
                                         Stock.update(s, running=1, name=name)
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 重新上市, 继续处理...")
                                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{name} - {code}，请检查数据～")
-                                        initStockData(code, name)
+                                        # initStockData(code, name)
                                         continue
                                     Stock.update(s, name=name)
                                 except NoResultFound:
