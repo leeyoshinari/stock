@@ -4,25 +4,16 @@
 
 import json
 import time
-import queue
 import traceback
 import requests
 from typing import List
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, wait
 from sqlalchemy import desc, asc
-from utils.database import Database
 from utils.model import StockModelDo
-from utils.scheduler import scheduler
 from utils.database import Stock, Detail
 from utils.logging import logger
-from utils.initData import initStockData
 
 
-BATCH_SIZE = 30
-Database.init_db()
-queryTask = queue.Queue()
-executor = ThreadPoolExecutor(1)
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 }
@@ -54,59 +45,51 @@ def getStockRegionNum(code: str) -> str:
         return ""
 
 
-def getStockFromSohu():
+def getStockFromSohu(datas: List):
+    ''' datas = [{'002868': '*ST绿康'}] '''
     start_time = datetime.now() - timedelta(days=360)
     start_date = start_time.strftime("%Y%m%d")
     current_day = time.strftime("%Y%m%d")
-    while True:
-        datas = queryTask.get()
-        try:
-            if datas == 'end': break
-            dataDict = {k: v for d in datas for k, v in d.items()}
-            s = []
-            for r in list(dataDict.keys()):
-                s.append(f"cn_{r}")
-            if (len(s) == 0): continue
-            s_list = ",".join(s)
-            res = requests.get(f"https://q.stock.sohu.com/hisHq?code={s_list}&start={start_date}&end={current_day}", headers=headers)
-            if res.status_code == 200:
-                res_json = json.loads(res.text)
-                for d in res_json:
-                    try:
-                        stockDo = StockModelDo()
-                        if len(d["hq"]) == 0:
+    try:
+        dataDict = {k: v for d in datas for k, v in d.items()}
+        s = []
+        for r in list(dataDict.keys()):
+            s.append(f"cn_{r}")
+        s_list = ",".join(s)
+        res = requests.get(f"https://q.stock.sohu.com/hisHq?code={s_list}&start={start_date}&end={current_day}", headers=headers)
+        if res.status_code == 200:
+            res_json = json.loads(res.text)
+            for d in res_json:
+                try:
+                    stockDo = StockModelDo()
+                    if len(d["hq"]) == 0:
+                        continue
+                    code = d["code"].split("_")[-1]
+                    stockDo.name = dataDict[code]
+                    stockDo.code = code
+                    history_list = d["hq"]
+                    history_list_sorted = sorted(history_list, key=lambda x: x[0])
+                    for r in history_list_sorted:
+                        stockDo.day = r[0].replace('-', '')
+                        try:
+                            _ = Detail.get_one((stockDo.code, stockDo.day))
                             continue
-                        code = d["code"].split("_")[-1]
-                        stockDo.name = dataDict[code]
-                        stockDo.code = code
-                        history_list = d["hq"]
-                        history_list_sorted = sorted(history_list, key=lambda x: x[0])
-                        for r in history_list_sorted:
-                            stockDo.day = r[0].replace('-', '')
-                            try:
-                                _ = Detail.get_one((stockDo.code, stockDo.day))
-                                continue
-                            except:
-                                stockDo.current_price = float(r[2])
-                                stockDo.open_price = float(r[1])
-                                stockDo.volumn = int(r[7])
-                                stockDo.max_price = float(r[6])
-                                stockDo.min_price = float(r[5])
-                                saveStockInfo(stockDo)
-                                logger.info(f"Sohu: {stockDo}")
-                    except:
-                        logger.error(f"Sohu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {d}")
-                        logger.error(traceback.format_exc())
-                        queryTask.put([{stockDo.code: stockDo.name}])
-            else:
-                logger.error("Sohu - 请求未正常返回...")
-                queryTask.put(datas)
-        except:
-            logger.error("Sohu - 出现异常......")
-            logger.error(traceback.format_exc())
-            queryTask.put(datas)
-        finally:
-            queryTask.task_done()
+                        except:
+                            stockDo.current_price = float(r[2])
+                            stockDo.open_price = float(r[1])
+                            stockDo.volumn = int(r[7])
+                            stockDo.max_price = float(r[6])
+                            stockDo.min_price = float(r[5])
+                            saveStockInfo(stockDo)
+                            logger.info(f"Sohu: {stockDo}")
+                except:
+                    logger.error(f"Sohu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {d}")
+                    logger.error(traceback.format_exc())
+        else:
+            logger.error("Sohu - 请求未正常返回...")
+    except:
+        logger.error("Sohu - 出现异常......")
+        logger.error(traceback.format_exc())
 
 
 def saveStockInfo(stockDo: StockModelDo):
@@ -122,27 +105,6 @@ def saveStockInfo(stockDo: StockModelDo):
         average_volumn = sum(stock_volumn[-7: -2]) / 5
         stockObj = Detail.get_one((stockDo.code, stockDo.day))
         Detail.update(stockObj, qrr=round(stockDo.volumn / average_volumn, 2))
-
-
-def setAvailableStock():
-    try:
-        total_cnt = Stock.query(running=1).count()
-        total_batch = int((total_cnt + BATCH_SIZE - 1) / BATCH_SIZE)
-        page = 0
-        while page < total_batch:
-            offset = page * BATCH_SIZE
-            stockList = []
-            stockInfo = Stock.query(running=1).order_by(asc(Stock.create_time)).offset(offset).limit(BATCH_SIZE).all()
-            for s in stockInfo:
-                stockList.append({s.code: s.name})
-            if (stockList):
-                queryTask.put(stockList)
-            page += 1
-            logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次...")
-            time.sleep(10)
-        queryTask.put("end")
-    except:
-        logger.error(traceback.format_exc())
 
 
 def getAllStockData(code):
@@ -203,6 +165,8 @@ def getAllStockData(code):
                     stock = Detail.get_one((code, item[0]))
                     Detail.update(stock, emas=ema_s, emal=ema_l, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj, trix_ema_one=ema1, trix_ema_two=ema2, trix_ema_three=ema3, trix=trix, trma=trma)
                     logger.info(f"{item[0]} - diff: {diff} - dea: {dea} - K: {kdjk} - D: {kdjd} - J: {kdjj} - TRIX: {trix} - TRMA: {trma}")
+        else:
+            logger.error(f"Update stock MACD/KDJ/TRIX data error - {code}")
 
     except:
         logger.error(traceback.format_exc())
@@ -210,7 +174,8 @@ def getAllStockData(code):
 
 def update_stock_turnover_rate(code):
     try:
-        res = requests.get(f"https://q.stock.sohu.com/hisHq?code=cn_{code}&start=20250901&end=20251205", headers=headers)
+        current_day = time.strftime("%Y%m%d")
+        res = requests.get(f"https://q.stock.sohu.com/hisHq?code=cn_{code}&start=20250901&end={current_day}", headers=headers)
         if res.status_code == 200:
             res_json = json.loads(res.text)
             if len(res_json) < 1:
@@ -223,13 +188,14 @@ def update_stock_turnover_rate(code):
                 try:
                     stock = Detail.get_one((code, day))
                     tr = float(k[9].replace('%', ''))
+                    if stock.turnover_rate is not None and stock.turnover_rate > 0:
+                        continue
                     Detail.update(stock, turnover_rate=tr)
+                    logger.info(f"turnover_rate: {code} - {tr}")
                 except:
                     logger.error(f"turnover_rate_error: {code} - {day} is not in table")
-            logger.info(f"turnover_rate: {code}")
         else:
             logger.error(f"turnover_rate_error: {code} request error")
-        logger.info("completed!!!!")
     except:
         logger.error(traceback.format_exc())
 
@@ -250,32 +216,19 @@ def getStockFundFlow(code):
             money = round(float(datas[1]) / 10000, 2)
             try:
                 ss = Detail.get_one((code, day))
+                if ss.fund is not None:
+                    continue
                 Detail.update(ss, fund=money)
+                logger.info(f"fund: {code} - {money}")
             except:
                 logger.error(f"Error fund - {code}")
     except:
         logger.error(traceback.format_exc())
 
 
-if __name__ == '__main__':
-    s_list = [{'002868': '*ST绿康'}]
-    initStockData('002868', '*ST绿康')
-    # executor.submit(getStockFromSohu)
-    # queryTask.put(s_list)
-    # queryTask.put("end")
-    # s = executor.submit(fixQrrLastDay)
-    # scheduler.add_job(setAvailableStock, 'cron', hour=11, minute=5, second=20)
-    # time.sleep(2)
-    # scheduler.start()
-    # PID = os.getpid()
-    # with open('pid', 'w', encoding='utf-8') as f:
-    #     f.write(str(PID))
-    # wait([s])
-    # fixMacdData()
-    # fixMacdEma()
-    # getStocks()
-    # getAllStockData('002316')
-    # update_stock_turnover_rate('600831')
-    # update_turnover_rate()
-    # getStockFundFlowFromDongCai()
-    # getStockFundFlow('002602')
+def initStockData(code: str, name: str):
+    getStockFromSohu([{code: name}])    # update price and volume
+    getAllStockData(code)   # update MACD/KDJ
+    update_stock_turnover_rate(code)    # update turnover rate
+    getStockFundFlow(code)      # update fund
+    Detail.delete_where({"day": ("<", "20250901")})

@@ -14,6 +14,7 @@ from utils.selectStock import getStockZhuLiFundFromDongCai
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.logging import logger
 from utils.results import Result
+from utils.initData import initStockData
 from utils.metric import analyze_buy_signal
 from utils.database import Detail, Tools, Recommend, Stock, MinuteK
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE
@@ -656,6 +657,19 @@ async def get_stock_info(code: str) -> Result:
         result.data = stockList
         result.total = len(stockList)
         logger.info(f"查询股票信息成功 - {code}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def init_stock_data(code: str) -> Result:
+    result = Result()
+    try:
+        stock = Stock.get_one(code)
+        initStockData(code, stock.name)
+        logger.info(f"初始化股票数据成功 - {code} - {stock.name}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

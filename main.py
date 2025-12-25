@@ -99,6 +99,11 @@ class StockController(Controller):
         result = await views.set_stock_filter(code, filter, operate)
         return result
 
+    @get('/stock/init', summary="初始化股票数据")
+    async def init_stock_data(self, code: str) -> Result:
+        result = await views.init_stock_data(code)
+        return result
+
     @get('/test')
     async def test(self) -> Result:
         result = await views.test()

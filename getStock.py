@@ -20,6 +20,7 @@ from utils.model import StockModelDo, StockDataList, AiModelStockList
 from utils.database import Database
 from utils.scheduler import scheduler
 from utils.send_email import sendEmail
+from utils.initData import initStockData
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai
@@ -819,7 +820,7 @@ def checkTradeDay():
                     v2 = res_list[1].split('~')[6]
                     if int(v1) > 2 or int(v2) > 2:
                         is_trade_day = True
-                        job = scheduler.add_job(queryRecommendStockData, "interval", minutes=1, next_run_time=datetime.now() + timedelta(seconds=8))
+                        job = scheduler.add_job(queryRecommendStockData, "interval", minutes=1, next_run_time=datetime.now() + timedelta(seconds=7))
                         running_job_id = job.id
                         try:
                             tool = Tools.get_one("openDoor")
@@ -1173,7 +1174,7 @@ def updateStockBanKuai(ban=0):
         if ban == 0:
             stockInfo = Stock.query(running=1).all()
         else:
-            stockInfo = Stock.query(running=1, region=None).all()
+            stockInfo = Stock.query(running=1, region="").all()
         for s in stockInfo:
             res = getStockBanKuaiFromDOngCai(s.code)
             if 'msg' in res:
@@ -1258,6 +1259,8 @@ def setAllSHStock():
                                         is_running = min(getStockType(code), 1)
                                         Stock.update(s, running=is_running, name=name)
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 重新上市, 继续处理...")
+                                        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{name} - {code}，请检查数据～")
+                                        initStockData(code, name)
                                         continue
                                     Stock.update(s, name=name)
                                 except NoResultFound:
@@ -1312,12 +1315,16 @@ def setAllSZStock():
                                     s = Stock.get_one(code)
                                     is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
+                                        if 'myself' in s.filter:
+                                            continue
                                         Stock.update(s, running=0, name=name)
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 处于退市状态, 忽略掉...")
                                         continue
                                     if 'ST' in s.name.upper() and 'ST' not in name.upper():
                                         Stock.update(s, running=1, name=name)
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 重新上市, 继续处理...")
+                                        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{name} - {code}，请检查数据～")
+                                        initStockData(code, name)
                                         continue
                                     Stock.update(s, name=name)
                                 except NoResultFound:
