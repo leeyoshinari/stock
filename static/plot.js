@@ -1,11 +1,7 @@
 function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
-  const totalDataPoints = x.length;
-  let startValue = 0;
-  if (totalDataPoints > 80) {
-    startValue = ((totalDataPoints - 80) / totalDataPoints) * 100;
-  }
+  let startValue = x.length > 80 ? (1 - 80 / x.length) * 100 : 0;
   let option;
   myChart.clear();
   myChart.setOption(
@@ -203,14 +199,14 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
       dataZoom: [{
           type: 'inside',
           xAxisIndex: [0, 1, 2, 3, 4, 5],
-          start: 0,
+          start: startValue,
           end: 100
         },
         {
           show: false,
           xAxisIndex: [0, 1, 2, 3, 4, 5],
           type: 'slider',
-          start: 0,
+          start: startValue,
           end: 100
         }
       ],
@@ -577,12 +573,7 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
 }
 
 function plot_minute_line(myChart, title, x, price, volume) {
-  const totalDataPoints = x.length;
-  let startValue = 0;
-  
-  if (totalDataPoints > 250) {
-    startValue = ((totalDataPoints - 250) / totalDataPoints) * 100;
-  }
+  let startValue = x.length > 250 ? (1 - 250 / x.length) * 100 : 0;
   let option;
   myChart.clear();
   myChart.setOption(
