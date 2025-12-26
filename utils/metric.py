@@ -170,7 +170,7 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
         包含买入信号、置信度、原始分数、各子信号分项及理由
     """
     default_params = {
-        'min_days_for_trend': 4,  # 检查最近的最小天数，用于均线、价格趋势、MACD等持续性判断（场景2,4）
+        'min_days_for_trend': 3,  # 检查最近的最小天数，用于均线、价格趋势、MACD等持续性判断（场景2,4）
         'qrr_threshold': 1.2,     # 量比阈值，大于此值视为成交量放大（场景3，经验值：1.5表示成交量是过去5日均量的1.5倍以上）
         'upper_shadow_ratio': 0.3,         # 上影线长度比率阈值
         'min_score': 5
@@ -185,7 +185,8 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
 
     # -------------------- 均线 --------------------
     ma5_up = True
-    for i in range(1, params['min_days_for_trend']):
+    for i in range(len(stock_data_list) - params['min_days_for_trend'], len(stock_data_list)):
+        print(stock_data_list[i]['day'])
         if stock_data_list[i]['ma_five'] <= stock_data_list[i - 1]['ma_five']:
             ma5_up = False
             break
@@ -195,7 +196,7 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
         reasons.append('5日均线向上并且大于10日均线')
     else:
         score -= 1
-        reasons.append('5日均线未享向上')
+        reasons.append('5日均线未向上')
 
     # -----------价格-----------------
     price_aboce_ma5 = stock_data_list[-1]['current_price'] > stock_data_list[-1]['ma_five']     # 当前价格必须站上5日均线
@@ -222,7 +223,7 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
     # -------------------- MACD --------------------
     macd_bar = []
     for day in stock_data_list:
-        macd_bar.append(day['diff'] - day['dea'])
+        macd_bar.append((day['diff'] - day['dea']) * 2)
 
     # diff 必须大于0
     diff_greater_zero = stock_data_list[-1]['diff'] > 0
@@ -230,7 +231,9 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
     # MACD柱不减小
     macd_bar_increase = macd_bar[-1] > macd_bar[-2]
 
-    if diff_greater_zero and macd_bar_increase:
+    macd_bar_increase123 = stock_data_list[-1]['diff'] > -0.2 and macd_bar_increase and macd_bar[-1] > 0.2
+
+    if (diff_greater_zero and macd_bar_increase) or macd_bar_increase123:
         score += 1
         reasons.append('MACD diff大于0且加速上涨')
     else:
