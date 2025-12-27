@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
-from litestar import Litestar, Router, Controller, get, post
+from litestar import Litestar, Request, Router, Controller, get, post
 from litestar.openapi import OpenAPIConfig
 from litestar.response import Template
 from litestar.openapi.plugins import SwaggerRenderPlugin
@@ -10,7 +10,7 @@ from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
 from contextlib import asynccontextmanager
-from settings import PREFIX, HOST, PORT
+from settings import PREFIX, HOST, PORT, checkout
 from utils.scheduler import scheduler
 from utils.database import Database
 from utils.results import Result
@@ -25,24 +25,30 @@ class StockController(Controller):
     tags = ['stock']
 
     @get("/list", summary="查询股票列表")
-    async def query_stock_list(self, code: str = "", name: str = "", sortField: str = 'qrr-desc', page: int = 1, pageSize: int = 20) -> Result:
-        query = model.SearchStockParam()
-        query.code = code if code else ""
-        query.name = name if name else ""
-        query.sortField = sortField if sortField else 'qrr-desc'
-        query.page = page
-        query.pageSize = pageSize
-        result = await views.queryStockList(query)
+    async def query_stock_list(self, request: Request, code: str = "", name: str = "", sortField: str = 'qrr-desc', page: int = 1, pageSize: int = 20) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            query = model.SearchStockParam()
+            query.code = code if code else ""
+            query.name = name if name else ""
+            query.sortField = sortField if sortField else 'qrr-desc'
+            query.page = page
+            query.pageSize = pageSize
+            result = await views.queryStockList(query)
         return result
 
     @get('/get', summary="查询股票信息")
-    async def create_file(self, code: str) -> Result:
-        result = await views.queryByCode(code)
+    async def create_file(self, request: Request, code: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.queryByCode(code)
         return result
 
     @get('/getRecommend', summary="获取推荐的股票")
-    async def get_recommend(self, page: int = 1) -> Result:
-        result = await views.queryRecommendStockList(page)
+    async def get_recommend(self, request: Request, page: int = 1) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.queryRecommendStockList(page)
         return result
 
     @post('/query/tencent', summary="查询股票数据信息")
@@ -61,51 +67,63 @@ class StockController(Controller):
         return result
 
     @get('/query/ai')
-    async def stock_ai_data(self, code: str) -> Result:
-        result = await views.query_ai_stock(code)
+    async def stock_ai_data(self, request: Request, code: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.query_ai_stock(code)
         return result
 
     @get('/query/stock/return', summary="查询选出来的股票的收益")
-    async def stock_return(self) -> Result:
+    async def stock_return(self, request: Request) -> Result:
         result = await views.calc_stock_return()
         return result
 
     @get('/query/recommend/real', summary="查询选出来的股票的分钟级走势")
-    async def stock_real(self, code: str) -> Result:
-        result = await views.calc_stock_real(code)
+    async def stock_real(self, request: Request, code: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.calc_stock_real(code)
         return result
 
     @get('/stock/list', summary="查询股票信息")
-    async def all_stock_list(self, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", page: int = 1, pageSize: int = 20) -> Result:
-        query = model.SearchStockParam()
-        query.code = code if code else ""
-        query.name = name if name else ""
-        query.region = region if region else ""
-        query.industry = industry if industry else ""
-        query.concept = concept if concept else ""
-        query.filter = filter if filter else ""
-        query.page = page
-        query.pageSize = pageSize
-        result = await views.all_stock_info(query)
+    async def all_stock_list(self, request: Request, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", page: int = 1, pageSize: int = 20) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            query = model.SearchStockParam()
+            query.code = code if code else ""
+            query.name = name if name else ""
+            query.region = region if region else ""
+            query.industry = industry if industry else ""
+            query.concept = concept if concept else ""
+            query.filter = filter if filter else ""
+            query.page = page
+            query.pageSize = pageSize
+            result = await views.all_stock_info(query)
         return result
 
     @get('/stock/info', summary="查询股票板块、概念等信息")
-    async def get_stock_info(self, code: str) -> Result:
-        result = await views.get_stock_info(code)
+    async def get_stock_info(self, request: Request, code: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.get_stock_info(code)
         return result
 
     @get('/stock/setFilter', summary="设置股票标签")
-    async def set_stock_filter(self, code: str, filter: str, operate: int) -> Result:
-        result = await views.set_stock_filter(code, filter, operate)
+    async def set_stock_filter(self, request: Request, code: str, filter: str, operate: int) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.set_stock_filter(code, filter, operate)
         return result
 
     @get('/stock/init', summary="初始化股票数据")
-    async def init_stock_data(self, code: str) -> Result:
-        result = await views.init_stock_data(code)
+    async def init_stock_data(self, request: Request, code: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.init_stock_data(code)
         return result
 
     @get('/test')
-    async def test(self) -> Result:
+    async def test(self, request: Request) -> Result:
         result = await views.test()
         return result
 

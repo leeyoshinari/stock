@@ -56,3 +56,14 @@ OPENAI_MODEL = get_config("openAIModel")
 OPENAI_KEY = get_config("openAIKey")
 HTTP_HOST1 = get_config("HTTPHost1")
 HTTP_HOST2 = get_config("HTTPHost2")
+ACCESS_KEY = get_config("accessKey")
+
+
+def checkout(pwd: str) -> bool:
+    if ACCESS_KEY:
+        if ACCESS_KEY == pwd:
+            return True
+        else:
+            return False
+    else:
+        return True

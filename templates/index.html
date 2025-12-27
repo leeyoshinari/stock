@@ -12,32 +12,36 @@
 <body>
     <div class="container">
         <div class="header">
-            <div>
-                <label>股票名：</label> <input type="text" id="stock-name" placeholder="">
+            <div class="header-filter">
+                <div>
+                    <label>名称：</label> <input type="text" id="stock-name" placeholder="" autocomplete="off">
+                </div>
+                <div>
+                    <label>代码：</label> <input type="text" id="stock-code" placeholder="" autocomplete="off">
+                </div>
+                <div>
+                    <label>排序：</label> <select id="order-by" onchange="change_select();">
+                        <option value="qrr-desc">量比降序</option>
+                        <option value="qrr-asc">量比升序</option>
+                        <option value="volumn-desc">成交量降序</option>
+                        <option value="volumn-asc">成交量升序</option>
+                        <option value="turnover_rate-desc">换手率降序</option>
+                        <option value="turnover_rate-asc">换手率升序</option>
+                        <option value="fund-desc">主力资金降序</option>
+                        <option value="fund-asc">主力资金升序</option>
+                    </select>
+                </div>
             </div>
-            <div>
-                <label>股票代码：</label> <input type="text" id="stock-code" placeholder="">
-            </div>
-            <div>
-                <label>排序：</label> <select id="order-by" style="height:34px;width:108px;" onchange="change_select();">
-                    <option value="qrr-desc">量比降序</option>
-                    <option value="qrr-asc">量比升序</option>
-                    <option value="volumn-desc">成交量降序</option>
-                    <option value="volumn-asc">成交量升序</option>
-                    <option value="turnover_rate-desc">换手率降序</option>
-                    <option value="turnover_rate-asc">换手率升序</option>
-                    <option value="fund-desc">主力资金降序</option>
-                    <option value="fund-asc">主力资金升序</option>
-                </select>
-            </div>
-            <div>
-                <button id="search">搜 索</button>
-            </div>
-            <div>
-                <button id="pre-page">上一页</button>
-            </div>
-            <div>
-                <button id="next-page">下一页</button>
+            <div class="header-actions">
+                <div>
+                    <button id="search">搜 索</button>
+                </div>
+                <div>
+                    <button id="pre-page">上一页</button>
+                </div>
+                <div>
+                    <button id="next-page">下一页</button>
+                </div>
             </div>
         </div>
         <div class="stock-list">

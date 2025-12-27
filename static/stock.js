@@ -1,5 +1,11 @@
 const pageSize = 20;
 let page = 1;
+const originalFetch = window.fetch;
+window.fetch = function(url, options = {}) {
+  const defaultHeaders = {'referered': localStorage.getItem("pwd")};
+  const headers = {...defaultHeaders,...(options.headers || {})};
+  return originalFetch(url, {...options,headers});
+};
 document.getElementById("search").addEventListener("click", () => {
     page = 1; getStockList();
 })
@@ -131,7 +137,7 @@ function click_stock_code(code, flag) {
 }
 
 function show_stock_filter(code) {
-    let s = `<div class="header">${code}</div><div><div class="title"><label>标签：</label><input type="text" id="filter-values" placeholder=""></div><div><button onclick="set_stock_filter('${code}', 1);">设置</button><button onclick="set_stock_filter('${code}', 0);">删除</button></div></div>`;
+    let s = `<div class="header">${code}</div><div><div class="title"><label>标签：</label><input type="text" id="filter-values" placeholder="" autocomplete="off"></div><div><button onclick="set_stock_filter('${code}', 1);">设置</button><button onclick="set_stock_filter('${code}', 0);">删除</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
     document.getElementsByClassName("stock-data")[0].style.display = "flex";
 }

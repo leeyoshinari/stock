@@ -389,7 +389,7 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
       {
         left: '5%',
         right: '5%',
-        top: 150,
+        top: 160,
         height: 350
       }
     ],

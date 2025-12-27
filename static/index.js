@@ -1,5 +1,11 @@
 const pageSize = 20;
 let page = 1;
+const originalFetch = window.fetch;
+window.fetch = function(url, options = {}) {
+  const defaultHeaders = {'referered': localStorage.getItem("pwd")};
+  const headers = {...defaultHeaders,...(options.headers || {})};
+  return originalFetch(url, {...options,headers});
+};
 document.getElementById("search").addEventListener("click", () => {
     page = 1; getStockList();
 })
