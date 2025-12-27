@@ -378,7 +378,7 @@ async def calc_stock_real(code: str) -> Result:
                 pre_volume = 0
             x.append(f"{r.day} {r.minute}")
             price.append(r.price)
-            volume.append(r.volume - pre_volume)
+            volume.append(max(r.volume - pre_volume, 0))
             pre_volume = r.volume
         volume[0] = 0
         st = Stock.get_one(code)

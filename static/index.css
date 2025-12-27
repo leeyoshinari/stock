@@ -41,18 +41,12 @@ input:-webkit-autofill:focus {
     height: 28px;
 }
 
-.header>div>button {
-    height: 30px;
-    width: 88px;
-    cursor: pointer;
-}
-
 .header-actions {
     display: flex;
     gap: 30px;
     align-items: center;
 }
-.header-actions>div>button {
+button {
     height: 30px;
     width: 88px;
     cursor: pointer;

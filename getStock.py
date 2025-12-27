@@ -1360,15 +1360,14 @@ def stopTask():
         logger.info("查询任务不存在或已结束...")
 
 
-# def clearStockData():
-#     # 清理 volumn 表数据
-#     stockInfos = Stock.query().all()
-#     for s in stockInfos:
-#         s_v = Volumn.query(code=s.code).order_by(asc(Volumn.create_time)).all()
-#         if len(s_v) > 125:
-#             for i in range(25):
-#                 Volumn.delete(s_v[i])
-#             logger.info(f"delete stock volume data success,  {s.code} - {s.name}")
+def clearStockData():
+    stockInfos = Stock.filter_condition(like_condition={'filter': 'myself'}).all()
+    for s in stockInfos:
+        s_v = MinuteK.query(code=s.code).order_by(desc(MinuteK.create_time)).all()
+        if len(s_v) > 10:
+            for i in range(10, len(s_v)):
+                MinuteK.delete(s_v[i])
+            logger.info(f"delete my stock data success, {s.code} - {s.name}")
 
 
 if __name__ == '__main__':
@@ -1383,7 +1382,7 @@ if __name__ == '__main__':
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1])    # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
-    # scheduler.add_job(clearStockData, 'cron', hour=15, minute=58, second=50)    # 删除交易时间的数据
+    scheduler.add_job(clearStockData, 'cron', hour=12, minute=55, second=20)    # 删除数据
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()
