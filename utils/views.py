@@ -160,8 +160,8 @@ async def queryStockList(query: SearchStockParam) -> Result:
         if query.code:
             stockInfo = Detail.get((query.code, day))
             if not stockInfo:
-                stockInfo = Detail.get_one((query.code, day2))
-            stockList = [StockModelDo.model_validate(stockInfo).model_dump()]
+                stockInfo = Detail.get((query.code, day2))
+            stockList = [StockModelDo.model_validate(stockInfo).model_dump()] if stockInfo else []
         elif query.name:
             stockInfo = Detail.filter_condition(equal_condition={"day": day}, like_condition={"name": query.name}).all()
             if len(stockInfo) < 1:

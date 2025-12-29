@@ -232,7 +232,7 @@ def getBanKuaiKlineFromDongCai(code: str) -> dict:
 
 def getBanKuaiFundFlowFromDongCai(ban: str, page: int = 1) -> dict:
     '''从东方财富获取板块的资金流入数据'''
-    '''https://quote.eastmoney.com/bk/90.BK0908.html'''
+    '''https://quote.eastmoney.com/center/hsbk.html'''
     current_time = str(int(time.time() * 1000))
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
     if ban == 'concept':

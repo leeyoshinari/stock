@@ -6,14 +6,6 @@ window.fetch = function(url, options = {}) {
   const headers = {...defaultHeaders,...(options.headers || {})};
   return originalFetch(url, {...options,headers});
 };
-document.getElementById("search").addEventListener("click", () => {
-    page = 1; getStockList();
-})
-document.addEventListener('keypress', function(event) {
-    if (event.key === 'Enter') {
-        page = 1; getStockList();
-    }
-});
 
 document.getElementById("pre-page").addEventListener("click", () => {
     page -= 1;
@@ -26,11 +18,25 @@ document.getElementById("pre-page").addEventListener("click", () => {
 
 document.getElementById("next-page").addEventListener("click", () => {
     page += 1;
-    if (page > 1) {
-        document.getElementById("pre-page").disabled = '';
-    }
+    if (page > 1) {document.getElementById("pre-page").disabled = '';}
     getStockList();
 })
+
+function watchInput(el, callback, delay = 500) {
+  let timer = null, composing = false;
+  const fire = e => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      callback({
+        value: el.value ?? el.innerText,
+        type: e.inputType || e.type
+      });
+    }, delay);
+  };
+  el.addEventListener('compositionstart', () => composing = true);
+  el.addEventListener('compositionend', e => { composing = false; fire(e); });
+  el.addEventListener('input', e => { if (!composing) fire(e); });
+}
 
 function getStockList() {
     let sortField = document.getElementById("order-by").value;
@@ -68,7 +74,7 @@ function getStockList() {
         })
 }
 
-function change_select() {page = 1;getStockList();}
+function change_select() {page=1;getStockList();}
 
 function get_stock_figure(code) {
     fetch(prefix + `/get?code=${code}`)
@@ -105,12 +111,9 @@ function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style
 
 const overlay = document.querySelector('.stock-chart');
 const overlay_data = document.querySelector('.stock-data');
-overlay.addEventListener('click', function(event) {
-  if (event.target === overlay) {overlay.style.display = 'none';}
-});
-overlay_data.addEventListener('click', function(event) {
-  if (event.target === overlay_data) {overlay_data.style.display = 'none';}
-});
-
+overlay.addEventListener('click', function(event) { if (event.target === overlay) { overlay.style.display = 'none'; }});
+overlay_data.addEventListener('click', function(event) {if (event.target === overlay_data) { overlay_data.style.display = 'none'; }});
 document.getElementById("pre-page").disabled = 'true';
 getStockList();
+watchInput(document.getElementById('stock-name'), getStockList);
+watchInput(document.getElementById('stock-code'), getStockList);

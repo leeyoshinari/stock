@@ -1382,7 +1382,7 @@ if __name__ == '__main__':
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1])    # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
-    scheduler.add_job(clearStockData, 'cron', hour=12, minute=55, second=20)    # 删除数据
+    scheduler.add_job(clearStockData, 'cron', hour=9, minute=20, second=20)    # 删除数据
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()
