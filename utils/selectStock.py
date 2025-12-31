@@ -244,3 +244,14 @@ def getBanKuaiFundFlowFromDongCai(ban: str, page: int = 1) -> dict:
     res = requests.get(url, headers=header)
     res_json = json.loads(res.text.split(current_time + '(')[1][: -2])
     return res_json['data']['diff']
+
+
+def getStockTopicFromTongHuaShun() -> dict:
+    '''从同花顺获取最新热点主题'''
+    '''https://focus.10jqka.com.cn/zttz.html'''
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
+    current_time = str(int(time.time() * 1000))
+    url = f'https://ai.iwencai.com/mobile/NewHotSpotStocks/indexData?params=zcxjh:5,jrjh:7&source=wzzttz&callback=jQuery1830609281377850579_{current_time}&_={current_time}'
+    res = requests.get(url, headers=header)
+    res_json = json.loads(res.text.split(current_time + '(')[1][: -1])
+    return res_json['data']['jrjh']

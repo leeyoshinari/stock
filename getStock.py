@@ -25,7 +25,7 @@ from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
-from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
+from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent, getStockTopicFromTongHuaShun
 from utils.database import Stock, Detail, Tools, Recommend, MinuteK, Concept, Sector
 from utils.logging_getstock import logger
 
@@ -1255,7 +1255,7 @@ def setAllSHStock():
                                         Stock.update(s, running=0, name=name)
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 处于退市状态, 忽略掉...")
                                         continue
-                                    if 'ST' in s.name.upper() and 'ST' not in name.upper():
+                                    if 'ST' in s.name.upper() and ('ST' not in name.upper() or '退' not in name):
                                         is_running = min(getStockType(code), 1)
                                         Stock.update(s, running=is_running, name=name)
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 重新上市, 继续处理...")
@@ -1268,7 +1268,7 @@ def setAllSHStock():
                                     if 'ST' in name.upper() or '退' in name:
                                         is_running = 0
                                     if is_running == 1:
-                                        Stock.create(code=code, name=name, running=is_running)
+                                        Stock.create(code=code, name=name, running=is_running, region="", industry="", concept="", filter="")
                                         logger.info(f"股票 {name} - {code}  | {name} - {code} 添加成功, 状态是 {is_running} ...")
                                 except:
                                     logger.error(traceback.format_exc())
@@ -1332,7 +1332,7 @@ def setAllSZStock():
                                     if 'ST' in name.upper() or '退' in name:
                                         is_running = 0
                                     if is_running == 1:
-                                        Stock.create(code=code, name=name, running=is_running)
+                                        Stock.create(code=code, name=name, running=is_running, region="", industry="", concept="", filter="")
                                         logger.info(f"股票 {name} - {code} | {name} - {code} 添加成功, 状态是 {is_running} ...")
                                 except:
                                     logger.error(traceback.format_exc())
@@ -1347,6 +1347,15 @@ def setAllSZStock():
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
+
+
+def getStockTopic():
+    try:
+        res = getStockTopicFromTongHuaShun()
+        res_list = [r['conceptName'] for r in res]
+    except:
+        logger.error(traceback.format_exc())
+        logger.error("数据更新异常...")
 
 
 def stopTask():
