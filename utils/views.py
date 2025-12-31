@@ -9,7 +9,7 @@ import requests
 from typing import List
 from sqlalchemy import desc, asc
 from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList
-from utils.model import StockRealDo, StockInfoList, RecommendStockDataList
+from utils.model import StockInfoList, RecommendStockDataList, AiModelStockList
 from utils.selectStock import getStockZhuLiFundFromDongCai
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.logging import logger
@@ -677,15 +677,12 @@ async def init_stock_data(code: str) -> Result:
     return result
 
 
-async def test() -> Result:
+async def test(code) -> Result:
     result = Result()
     try:
-        stock_volumn_obj = Stock.query(running=1).limit(10).all()
-        stock_volumn = [StockInfoList.from_orm_format(r).model_dump() for r in stock_volumn_obj]
-        stockInfo = Detail.query(code='000010').order_by(asc(Detail.create_time)).all()
-        for s in stockInfo:
-            _ = s.current_price
-            print(s)
+        stock_volumn_obj = Detail.query(code=code).order_by(desc(Detail.day)).limit(6).all()
+        stock_volumn = [AiModelStockList.from_orm_format(r).model_dump() for r in stock_volumn_obj]
+        stock_volumn.reverse()
         result.data = stock_volumn
     except:
         logger.error(traceback.format_exc())

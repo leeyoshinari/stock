@@ -123,8 +123,8 @@ class StockController(Controller):
         return result
 
     @get('/test')
-    async def test(self, request: Request) -> Result:
-        result = await views.test()
+    async def test(self, request: Request, code: str) -> Result:
+        result = await views.test(code)
         return result
 
 

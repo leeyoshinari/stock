@@ -1235,6 +1235,7 @@ def setAllSHStock():
                 res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
                 res_json = json.loads('{' + res_text + '}')
                 total_page = res_json['pageHelp']['pageCount']
+                resubmit_list = []
                 for p in range(total_page):
                     try:
                         t = int(time.time() * 1000)
@@ -1255,11 +1256,11 @@ def setAllSHStock():
                                         Stock.update(s, running=0, name=name)
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 处于退市状态, 忽略掉...")
                                         continue
-                                    if 'ST' in s.name.upper() and ('ST' not in name.upper() or '退' not in name):
+                                    if 'ST' in s.name.upper() and 'ST' not in name.upper() and '退' not in name:
                                         is_running = min(getStockType(code), 1)
                                         Stock.update(s, running=is_running, name=name)
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 重新上市, 继续处理...")
-                                        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{name} - {code}，请检查数据～")
+                                        resubmit_list.append(f"{name} - {code}")
                                         # initStockData(code, name)
                                         continue
                                     Stock.update(s, name=name)
@@ -1280,6 +1281,8 @@ def setAllSHStock():
                     logger.info(f"正在处理SH第 {p + 1} 页...")
                     time.sleep(6)
                 updateStockBanKuai(ban=1)
+                if (len(resubmit_list) > 0):
+                    sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{','.join(resubmit_list)}，请检查数据～")
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
@@ -1299,6 +1302,7 @@ def setAllSZStock():
             if res.status_code == 200:
                 res_json = json.loads(res.text)[0]
                 total_page = res_json['metadata']['pagecount']
+                resubmit_list = []
                 for p in range(total_page):
                     try:
                         t = int(time.time() * 1000)
@@ -1320,10 +1324,10 @@ def setAllSZStock():
                                         Stock.update(s, running=0, name=name)
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 处于退市状态, 忽略掉...")
                                         continue
-                                    if 'ST' in s.name.upper() and 'ST' not in name.upper():
+                                    if 'ST' in s.name.upper() and 'ST' not in name.upper() and '退' not in name:
                                         Stock.update(s, running=1, name=name)
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 重新上市, 继续处理...")
-                                        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{name} - {code}，请检查数据～")
+                                        resubmit_list.append(f"{name} - {code}")
                                         # initStockData(code, name)
                                         continue
                                     Stock.update(s, name=name)
@@ -1344,6 +1348,8 @@ def setAllSZStock():
                     logger.info(f"正在处理SZ第 {p + 1} 页...")
                     time.sleep(6)
                 updateStockBanKuai(ban=1)
+                if (len(resubmit_list) > 0):
+                    sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{','.join(resubmit_list)}，请检查数据～")
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
