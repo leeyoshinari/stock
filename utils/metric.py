@@ -170,7 +170,7 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
         包含买入信号、置信度、原始分数、各子信号分项及理由
     """
     default_params = {
-        'min_days_for_trend': 3,  # 检查最近的最小天数，用于均线、价格趋势、MACD等持续性判断（场景2,4）
+        'min_days_for_trend': 3,  # 检查最近的最小天数，用于均线、价格趋势、MACD等持续性判断
         'qrr_threshold': 1.2,     # 量比阈值，大于此值视为成交量放大（场景3，经验值：1.5表示成交量是过去5日均量的1.5倍以上）
         'upper_shadow_ratio': 0.3,         # 上影线长度比率阈值
         'min_score': 5

@@ -8,6 +8,7 @@ import time
 import queue
 import random
 import traceback
+import jieba
 import requests
 from typing import List
 from datetime import datetime, timedelta
@@ -23,10 +24,10 @@ from utils.send_email import sendEmail
 # from utils.initData import initStockData
 from utils.ai_model import queryGemini, queryOpenAi
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
-from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai
+from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
 from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent, getStockTopicFromTongHuaShun
-from utils.database import Stock, Detail, Tools, Recommend, MinuteK, Concept, Sector
+from utils.database import Stock, Detail, Tools, Recommend, MinuteK
 from utils.logging_getstock import logger
 
 
@@ -35,6 +36,7 @@ queryTask = queue.Queue()   # FIFO queue
 recommendTask = queue.Queue()   # FIFO queue
 running_job_id = None
 is_trade_day = False
+current_topic = []
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
@@ -90,6 +92,35 @@ def generateStockCode(data: dict) -> str:
 
 def calc_MA(data: List, window: int) -> float:
     return round(sum(data[:window]) / len(data[:window]), 2)
+
+
+def detail2List(data: list) -> dict:
+    res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
+           'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
+           'd': [], 'j': [], 'trix': [], 'trma': []}
+    for d in data:
+        res['code'] = d.code
+        res['day'].append(d.day)
+        res['current_price'].append(d.current_price)
+        res['last_price'].append(d.last_price)
+        res['open_price'].append(d.open_price)
+        res['max_price'].append(d.max_price)
+        res['min_price'].append(d.min_price)
+        res['volume'].append(d.volumn)
+        res['turnover_rate'].append(f"{d.turnover_rate}%")
+        res['fund'].append(d.fund)
+        res['ma_five'].append(d.ma_five)
+        res['ma_ten'].append(d.ma_ten)
+        res['ma_twenty'].append(d.ma_twenty)
+        res['qrr'].append(d.qrr)
+        res['diff'].append(round(d.emas - d.emal, 4))
+        res['dea'].append(round(d.dea, 4))
+        res['k'].append(round(d.kdjk, 4))
+        res['d'].append(round(d.kdjd, 4))
+        res['j'].append(round(d.kdjj, 4))
+        res['trix'].append(round(d.trix, 4))
+        res['trma'].append(round(d.trma, 4))
+    return res
 
 
 def getStockFromTencent(a):
@@ -515,30 +546,6 @@ def saveStockInfo(stockDo: StockModelDo):
                       trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate)
 
 
-def saveBanKuaiInfo(stockDo: dict):
-    stock_price_obj = Sector.query(code=stockDo['code']).order_by(desc(Sector.day)).limit(21).all()
-    stock_price = [r.current_price for r in stock_price_obj]
-    try:
-        stockObj = Sector.get_one((stockDo['code'], stockDo['day']))
-        stock_price[0] = stockDo['current_price']
-        volume_list = [r.volumn for r in stock_price_obj[1: 6]]
-        volume_len = min(max(len(volume_list), 1), 5)
-        average_volumn = sum(volume_list) / volume_len
-        average_volumn = average_volumn if average_volumn > 0 else stockDo['volumn']
-        Sector.update(stockObj, current_price=stockDo['current_price'], open_price=stockDo['open_price'], turnover_rate=stockDo['turnover_rate'],
-                      max_price=stockDo['max_price'], min_price=stockDo['min_price'], volumn=stockDo['volumn'], ma_five=calc_MA(stock_price, 5),
-                      ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo['volumn'] / average_volumn, 2))
-    except NoResultFound:
-        stock_price.insert(0, stockDo['current_price'])
-        volume_list = [r.volumn for r in stock_price_obj[: 5]]
-        volume_len = min(max(len(volume_list), 1), 5)
-        average_volumn = sum(volume_list) / volume_len
-        average_volumn = average_volumn if average_volumn > 0 else stockDo['volumn']
-        Detail.create(code=stockDo['code'], day=stockDo['day'], name=stockDo['name'], current_price=stockDo['current_price'], open_price=stockDo['open_price'],
-                      max_price=stockDo['max_price'], min_price=stockDo['min_price'], volumn=stockDo['volumn'], fund=0.0, turnover_rate=stockDo['turnover_rate'],
-                      ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo['volumn'] / average_volumn, 2))
-
-
 def setAvailableStock():
     global is_trade_day
     if not is_trade_day:
@@ -798,6 +805,7 @@ def startSelectStock():
                 Tools.update(tool, value=current_day)
             except NoResultFound:
                 Tools.create(key="openDoor2", value=current_day)
+            getStockTopic()
         except:
             logger.error(traceback.format_exc())
 
@@ -839,6 +847,7 @@ def checkTradeDay():
                     break
             else:
                 logger.error(f"获取 SH600519 数据异常，状态码: {res.status_code}")
+            getStockTopic()
         except:
             logger.error(traceback.format_exc())
         time.sleep(3)
@@ -919,6 +928,7 @@ def calcStockMetric():
 
 def selectStockMetric():
     global is_trade_day
+    global current_topic
     try:
         if is_trade_day:
             stock_metric = []   # 非买入信号的策略选股
@@ -930,6 +940,10 @@ def selectStockMetric():
                 try:
                     stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(5).all()
                     if (stockList[0].qrr < 1.2 or stockList[0].qrr > 6):
+                        continue
+                    s_info = Stock.get_one(s.code)
+                    concept_res = [c for c in current_topic if c in s_info.concept or c in s_info.industry]
+                    if len(concept_res) < 1:
                         continue
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
@@ -967,8 +981,10 @@ def selectStockMetric():
                         time.sleep(2)
                         continue
                 stock_data_list = Detail.query(code=stock_code_id).order_by(desc(Detail.day)).limit(6).all()
-                stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
-                stockData.reverse()
+                stock_data_list.reverse()
+                stockData = detail2List(stock_data_list)
+                # stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
+                # stockData.reverse()
                 try:
                     fflow = getStockZhuLiFundFromDongCai(stock_code_id)
                 except:
@@ -979,9 +995,15 @@ def selectStockMetric():
                         logger.error(traceback.format_exc())
                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
                         fflow = 0.0
-                stockData[-1]['fund'] = fflow
+                # stockData[-1]['fund'] = fflow
+                stockData['fund'][-1] = fflow
                 # 请求大模型
                 try:
+                    s_info = Stock.get_one(stock_code_id)
+                    topic_info = Tools.get_one(current_day)
+                    stockData['hot_topic'] = topic_info.value
+                    stockData['industry'] = s_info.industry
+                    stockData['concept'] = s_info.concept
                     reason = f"主动性买盘: {da_dan['b']}%, 主动性卖盘: {da_dan['s']}%, 中性盘: {da_dan['m']}%\n\n"
                     stock_dict = queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
@@ -1026,16 +1048,6 @@ def saveStockFund(day: str, code: str, fund: float):
     if s:
         Detail.update(s, fund=fund)
         logger.info(f"Update Stock Fund: {code} - {fund}")
-
-
-def saveBanKuaiFund(stockDo: dict):
-    s = Sector.get((stockDo['code'], stockDo['day']))
-    if s:
-        Sector.update(s, fund=stockDo['fund'])
-        logger.info(f"Update BanKuai Fund: {stockDo['code']} - {stockDo['fund']}")
-    bankuai = Concept.get(code=stockDo['code'])
-    if not bankuai:
-        Concept.create(code=stockDo['code'], name=stockDo['name'], type=stockDo['type'])
 
 
 def updateStockFund(a=1):
@@ -1187,39 +1199,6 @@ def updateStockBanKuai(ban=0):
         logger.error(traceback.format_exc())
 
 
-def updateBanKuaiData():
-    try:
-        tool = Tools.get_one("openDoor")
-        day = tool.value
-        page = 1
-        while True:
-            res = getBanKuaiFundFlowFromDongCai('industry', page)
-            for r in res:
-                d = {'type': 'industry', 'day': day, 'code': r['f12'], 'name': r['f14'], 'fund': round(r['f62'] / 10000, 2)}
-                saveBanKuaiFund(d)
-            if len(res) < 50:
-                break
-            time.sleep(3)
-            page += 1
-        page = 1
-        while True:
-            res = getBanKuaiFundFlowFromDongCai('concept', page)
-            for r in res:
-                d = {'type': 'industry', 'day': day, 'code': r['f12'], 'name': r['f14'], 'fund': round(r['f62'] / 10000, 2)}
-                saveBanKuaiFund(d)
-            if len(res) < 50:
-                break
-            time.sleep(3)
-            page += 1
-
-        res = getBanKuaiFundFlowFromDongCai('region', 1)
-        for r in res:
-            d = {'type': 'industry', 'day': day, 'code': r['f12'], 'name': r['f14'], 'fund': round(r['f62'] / 10000, 2)}
-            saveBanKuaiFund(d)
-    except:
-        logger.error(traceback.format_exc())
-
-
 def setAllSHStock():
     today = datetime.today()
     if today.weekday() < 5:
@@ -1348,6 +1327,7 @@ def setAllSZStock():
                     logger.info(f"正在处理SZ第 {p + 1} 页...")
                     time.sleep(6)
                 updateStockBanKuai(ban=1)
+                getStockTopic()
                 if (len(resubmit_list) > 0):
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{','.join(resubmit_list)}，请检查数据～")
         except:
@@ -1357,8 +1337,19 @@ def setAllSZStock():
 
 def getStockTopic():
     try:
+        global current_topic
         res = getStockTopicFromTongHuaShun()
         res_list = [r['conceptName'] for r in res]
+        tool = Tools.get_one("openDoor")
+        current_day = tool.value
+        try:
+            tool = Tools.get_one(current_day)
+            Tools.update(tool, value=',' .join(res_list))
+        except NoResultFound:
+            Tools.create(key=current_day, value=',' .join(res_list))
+        logger.info(f"Current hot topic is {res_list}")
+        current_topic = [normalize_topic(r) for r in res_list]
+        logger.info(f"Normalized topic: {current_topic}")
     except:
         logger.error(traceback.format_exc())
         logger.error("数据更新异常...")
@@ -1386,6 +1377,7 @@ def clearStockData():
 
 
 if __name__ == '__main__':
+    scheduler.add_job(clearStockData, 'cron', hour=9, minute=20, second=20)    # 删除数据
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)  # 启动任务
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 中午更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 中午更新股票信息
@@ -1397,7 +1389,7 @@ if __name__ == '__main__':
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1])    # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
-    scheduler.add_job(clearStockData, 'cron', hour=9, minute=20, second=20)    # 删除数据
+    scheduler.add_job(getStockTopic, 'cron', hour=15, minute=45, second=50)
     scheduler.start()
     time.sleep(2)
     PID = os.getpid()

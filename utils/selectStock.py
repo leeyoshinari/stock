@@ -7,6 +7,42 @@ import json
 import requests
 
 
+# 完整题材白名单（不可拆）
+FULL_TOPICS = {"虚拟现实", "增强现实", "混合现实", "工业互联网", "新能源车", "新材料"}
+# 词头无效词（仅能删在开头）
+SUFFIX_STARTWORDS = ("人形")
+# 词尾无效词（仅能删在末尾）
+SUFFIX_STOPWORDS = ("概念", "行业", "板块", "相关", "受益", "标的", "龙头")
+# 结构性无效词（安全删除）
+STRUCT_STOPWORDS = ("开发", "服务", "制造", "加工", "生产", "供应", "销售", "流通", "贸易", "商业", "工程", "装备",
+                    "施工", "咨询", "检测", "运维", "系统", "平台", "方案", "设备", "装置", "部件", "组件", "模块")
+
+
+# 4. 核心清洗函数
+def normalize_topic(name: str) -> str:
+    name = name.strip()
+    # 完整题材优先（不拆）
+    for topic in FULL_TOPICS:
+        if topic in name:
+            return topic
+    # 删除词头无效词
+    for suffix in SUFFIX_STARTWORDS:
+        if name.startswith(suffix):
+            name = name[len(suffix) + 1:]
+            break
+    # 删除词尾无效词
+    for suffix in SUFFIX_STOPWORDS:
+        if name.endswith(suffix):
+            name = name[:-len(suffix)]
+            break
+    # 删除结构性无效词（只删一次，防止过度）
+    for word in STRUCT_STOPWORDS:
+        if name.endswith(word):
+            name = name[:-len(word)]
+            break
+    return name.strip()
+
+
 def getStockRegionNum(code: str) -> str:
     if code.startswith("60") or code.startswith("68"):
         return "1"
@@ -84,7 +120,7 @@ def getStockOrderByFundFromDongCai():
     fflow = []
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     current_time = int(time.time() * 1000)
-    for p in range(10):
+    for p in range(12):
         url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery1123022029913423580905_{current_time}&fid=f62&po=1&pz=50&pn={p + 1}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
         res = requests.get(url, headers=header)
         res_json = json.loads(res.text.split('(')[1].split(')')[0])

@@ -277,16 +277,6 @@ class Stock(Base, CRUDBase):
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
-class Concept(Base, CRUDBase):
-    __tablename__ = 'concept'
-
-    code = Column(String(8), primary_key=True, comment="板块代码")
-    name = Column(String(8), nullable=False, comment="板块名称")
-    type = Column(String(16), nullable=True, comment="region、industry、concept")
-    create_time = Column(DateTime, default=datetime.now)
-    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-
 class Detail(Base, CRUDBase):
     __tablename__ = 'detail'
     __table_args__ = (
@@ -375,30 +365,5 @@ class Tools(Base, CRUDBase):
     __tablename__ = 'tools'
 
     key = Column(String(8), primary_key=True, comment="键")
-    value = Column(String(64), nullable=False, comment="值")
+    value = Column(String(255), nullable=False, comment="值")
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-
-class Sector(Base, CRUDBase):
-    __tablename__ = 'sector'
-    __table_args__ = (
-        PrimaryKeyConstraint('code', 'day'),
-        Index('sector_idx_code', 'code'),
-        Index('sector_idx_day', 'day')
-    )
-
-    code = Column(String(8), nullable=False, comment="板块代码")
-    day = Column(String(8), nullable=False, comment="日期")
-    name = Column(String(8), nullable=False, comment="股票名称")
-    current_price = Column(Float, nullable=False, comment="当前价")
-    open_price = Column(Float, nullable=False, comment="开盘价")
-    max_price = Column(Float, nullable=False, comment="最高价")
-    min_price = Column(Float, nullable=False, comment="最低价")
-    volumn = Column(Integer, nullable=False, comment="成交量（手）")
-    ma_five = Column(Float, nullable=True, comment="5日均线")
-    ma_ten = Column(Float, nullable=True, comment="10日均线")
-    ma_twenty = Column(Float, nullable=True, comment="20日均线")
-    qrr = Column(Float, nullable=True, comment="量比")
-    turnover_rate = Column(Float, nullable=True, comment="换手率")
-    fund = Column(Float, nullable=True, comment="主力资金")
-    create_time = Column(DateTime, default=datetime.now)

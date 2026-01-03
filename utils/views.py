@@ -681,9 +681,44 @@ async def test(code) -> Result:
     result = Result()
     try:
         stock_volumn_obj = Detail.query(code=code).order_by(desc(Detail.day)).limit(6).all()
-        stock_volumn = [AiModelStockList.from_orm_format(r).model_dump() for r in stock_volumn_obj]
-        stock_volumn.reverse()
+        stock_volumn_obj.reverse()
+        stock_volumn = detail2List(stock_volumn_obj)
+        s_info = Stock.get_one(code)
+        tool = Tools.get_one("openDoor")
+        topic_info = Tools.get_one(tool.value)
+        stock_volumn['hot_topic'] = topic_info.value
+        stock_volumn['industry'] = s_info.industry
+        stock_volumn['concept'] = s_info.concept
         result.data = stock_volumn
     except:
         logger.error(traceback.format_exc())
     return result
+
+
+def detail2List(data: list) -> dict:
+    res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
+           'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
+           'd': [], 'j': [], 'trix': [], 'trma': []}
+    for d in data:
+        res['code'] = d.code
+        res['day'].append(d.day)
+        res['current_price'].append(d.current_price)
+        res['last_price'].append(d.last_price)
+        res['open_price'].append(d.open_price)
+        res['max_price'].append(d.max_price)
+        res['min_price'].append(d.min_price)
+        res['volume'].append(d.volumn)
+        res['turnover_rate'].append(f"{d.turnover_rate}%")
+        res['fund'].append(d.fund)
+        res['ma_five'].append(d.ma_five)
+        res['ma_ten'].append(d.ma_ten)
+        res['ma_twenty'].append(d.ma_twenty)
+        res['qrr'].append(d.qrr)
+        res['diff'].append(round(d.emas - d.emal, 4))
+        res['dea'].append(round(d.dea, 4))
+        res['k'].append(round(d.kdjk, 4))
+        res['d'].append(round(d.kdjd, 4))
+        res['j'].append(round(d.kdjj, 4))
+        res['trix'].append(round(d.trix, 4))
+        res['trma'].append(round(d.trma, 4))
+    return res

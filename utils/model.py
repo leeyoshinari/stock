@@ -76,7 +76,6 @@ class StockDataList(BaseModel):
 
 class AiModelStockList(BaseModel):
     code: str = None
-    name: str = None
     day: str = None
     current_price: float = None
     last_price: float = None
@@ -103,7 +102,7 @@ class AiModelStockList(BaseModel):
 
     @classmethod
     def from_orm_format(cls, obj):
-        return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price, fund=obj.fund,
+        return cls(code=obj.code, day=obj.day, current_price=obj.current_price, last_price=obj.last_price, fund=obj.fund,
                    open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, turnover_rate=f"{obj.turnover_rate}%",
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=round(obj.emas - obj.emal, 4),
                    dea=round(obj.dea, 4), k=round(obj.kdjk, 4), d=round(obj.kdjd, 4), j=round(obj.kdjj, 4), trix=round(obj.trix, 4), trma=round(obj.trma, 4))
