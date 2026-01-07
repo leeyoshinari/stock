@@ -997,11 +997,11 @@ def selectStockMetric():
                 stockData['fund'][-1] = fflow
                 # 请求大模型
                 try:
-                    s_info = Stock.get_one(stock_code_id)
-                    topic_info = Tools.get_one(current_day)
-                    stockData['hot_topic'] = topic_info.value
-                    stockData['industry'] = s_info.industry
-                    stockData['concept'] = s_info.concept
+                    # s_info = Stock.get_one(stock_code_id)
+                    # topic_info = Tools.get_one(current_day)
+                    # stockData['hot_topic'] = topic_info.value
+                    # stockData['industry'] = s_info.industry
+                    # stockData['concept'] = s_info.concept
                     reason = f"主动性买盘: {da_dan['b']}%, 主动性卖盘: {da_dan['s']}%, 中性盘: {da_dan['m']}%\n\n"
                     stock_dict = queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
