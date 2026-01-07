@@ -940,10 +940,10 @@ def selectStockMetric():
                     stockList = Detail.query(code=s.code).order_by(desc(Detail.day)).limit(5).all()
                     if (stockList[0].qrr < 1.2 or stockList[0].qrr > 6):
                         continue
-                    s_info = Stock.get_one(s.code)
-                    concept_res = [c for c in current_topic if c in s_info.concept or c in s_info.industry]
-                    if len(concept_res) < 1:
-                        continue
+                    # s_info = Stock.get_one(s.code)
+                    # concept_res = [c for c in current_topic if c in s_info.concept or c in s_info.industry]
+                    # if len(concept_res) < 1:
+                    #     continue
                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
                     stockData.reverse()
                     stockMetric = analyze_buy_signal_new(stockData)
@@ -956,7 +956,6 @@ def selectStockMetric():
                     logger.error(traceback.format_exc())
 
             send_msg = []
-            # stock_metric.sort(key=lambda x: -x['turnover_rate'])
             logger.info(f"select stocks: {stock_metric}")
             ai_model_list = stock_metric[: 500]
             has_index = 0
