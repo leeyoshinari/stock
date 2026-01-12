@@ -3,10 +3,9 @@
 # @Author: leeyoshinari
 
 from sqlalchemy import create_engine, Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint
-from sqlalchemy.orm import relationship, scoped_session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import text, desc, func
-from typing import List
+from sqlalchemy import func
 from datetime import datetime
 from settings import DB_URL, DB_POOL_SIZE
 
@@ -16,15 +15,10 @@ Base = declarative_base()
 class Database:
     engine = create_engine(DB_URL, echo=False, pool_size=DB_POOL_SIZE, max_overflow=DB_POOL_SIZE * 2, pool_timeout=30, pool_recycle=3600, pool_pre_ping=True, pool_use_lifo=True)
     session_factory = sessionmaker(bind=engine)
-    session = scoped_session(session_factory)
 
     @classmethod
     def get_session(cls):
-        return cls.session()
-
-    @classmethod
-    def close_session(cls):
-        cls.session.remove()
+        return cls.session_factory()
 
     @classmethod
     def init_db(cls):
@@ -34,31 +28,20 @@ class Database:
 class CRUDBase:
     @classmethod
     def create(cls, **kwargs):
-        session = Database.get_session()
-        try:
-            instance = cls(**kwargs)
-            session.add(instance)
-            session.commit()
+        with Database.get_session() as session:
+            with session.begin():
+                instance = cls(**kwargs)
+                session.add(instance)
             session.refresh(instance)
             return instance
-        except:
-            session.rollback()
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def get(cls, value):
         """
         user = User.get("cat001")
         """
-        session = Database.get_session()
-        try:
+        with Database.get_session() as session:
             return session.get(cls, value)
-        except:
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def get_one(cls, value):
@@ -66,13 +49,8 @@ class CRUDBase:
         If not existed, raise NoResultFound
         user = User.get_one("cat001")
         """
-        session = Database.get_session()
-        try:
+        with Database.get_session() as session:
             return session.get_one(cls, value)
-        except:
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def all(cls):
@@ -80,44 +58,29 @@ class CRUDBase:
         Query all datas.
         users = User.all()
         """
-        session = Database.get_session()
-        try:
+        with Database.get_session() as session:
             return session.query(cls)
-        except:
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def query(cls, **kwargs):
         """
         users = User.query(name="Documents", is_delete=0).all()
         """
-        session = Database.get_session()
-        try:
+        with Database.get_session() as session:
             if kwargs:
                 return session.query(cls).filter_by(**kwargs)
             else:
                 return session.query(cls)
-        except:
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def query_fields(cls, columns: list, **kwargs):
         """
         users = User.query_fields(columns=['id', 'name'], name="Documents", is_delete=0).all()
         """
-        session = Database.get_session()
-        try:
+        with Database.get_session() as session:
             column_attrs = [getattr(cls, col) for col in columns]
             query = session.query(*column_attrs)
             return query.filter_by(**kwargs)
-        except:
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def query_groupby(cls, columns: list, **kwargs):
@@ -125,8 +88,7 @@ class CRUDBase:
         users = User.query_groupby(columns=['id', 'name'], is_delete=0).all()
         select id, name, count(*) as count from user where is_delete=0 group by id, name;
         """
-        session = Database.get_session()
-        try:
+        with Database.get_session() as session:
             column_attrs = [getattr(cls, col) for col in columns]
             column_attrs.append(func.count('*').label('count'))
             group_by_attrs = [getattr(cls, col) for col in columns]
@@ -134,10 +96,6 @@ class CRUDBase:
             if kwargs:
                 query = query.filter_by(**kwargs)
             return query.group_by(*group_by_attrs)
-        except:
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None, greater_equal_condition: dict = None, less_equal_condition: dict = None, in_condition: dict = None, is_null_condition: list = None, is_not_null_condition: list = None):
@@ -145,8 +103,7 @@ class CRUDBase:
         users = User.filter_condition(equal_condition={'status': 1, 'name': '222'}, not_equal_condition={'description': 'temp'})
         SELECT * FROM catuseralog WHERE status = 1 AND name = '222' AND description != 'temp';
         """
-        session = Database.get_session()
-        try:
+        with Database.get_session() as session:
             query = session.query(cls)
             if equal_condition:
                 for column, value in equal_condition.items():
@@ -173,94 +130,59 @@ class CRUDBase:
                 for column in is_not_null_condition:
                     query = query.filter(getattr(cls, column).isnot(None))
             return query
-        except:
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def update(cls, instance, **kwargs):
         """
         updated_user = User.update(user, name="New Name", is_backup=1)
         """
-        session = Database.get_session()
-        try:
-            if instance in session:
-                current_instance = instance
-            else:
-                current_instance = session.merge(instance, load=False)
-            for key, value in kwargs.items():
-                setattr(current_instance, key, value)
-            session.commit()
+        with Database.get_session() as session:
+            with session.begin():
+                if instance in session:
+                    current_instance = instance
+                else:
+                    current_instance = session.merge(instance, load=False)
+                for key, value in kwargs.items():
+                    setattr(current_instance, key, value)
             session.refresh(current_instance)
             return current_instance
-        except:
-            session.rollback()
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def delete(cls, instance):
         """
         User.delete(user)
         """
-        session = Database.get_session()
-        try:
+        with Database.get_session() as session:
             current_instance = session.get(cls, instance.id)
             session.delete(current_instance)
-            session.commit()
-        except:
-            session.rollback()
-            raise
-        finally:
-            Database.close_session()
 
     @classmethod
     def delete_where(cls, where: dict):
-        session = Database.get_session()
-        try:
-            query = session.query(cls)
-            for key, value in where.items():
-                col = getattr(cls, key)
-                if isinstance(value, tuple) and len(value) == 2:
-                    op, val = value
-                    if op == ">":
-                        query = query.filter(col > val)
-                    elif op == "<":
-                        query = query.filter(col < val)
-                    elif op == ">=":
-                        query = query.filter(col >= val)
-                    elif op == "<=":
-                        query = query.filter(col <= val)
-                    elif op in ("!=", "<>"):
-                        query = query.filter(col != val)
-                    elif op == "in":
-                        query = query.filter(col.in_(val))
+        with Database.get_session() as session:
+            with session.begin():
+                query = session.query(cls)
+                for key, value in where.items():
+                    col = getattr(cls, key)
+                    if isinstance(value, tuple) and len(value) == 2:
+                        op, val = value
+                        if op == ">":
+                            query = query.filter(col > val)
+                        elif op == "<":
+                            query = query.filter(col < val)
+                        elif op == ">=":
+                            query = query.filter(col >= val)
+                        elif op == "<=":
+                            query = query.filter(col <= val)
+                        elif op in ("!=", "<>"):
+                            query = query.filter(col != val)
+                        elif op == "in":
+                            query = query.filter(col.in_(val))
+                        else:
+                            raise ValueError(f"不支持的操作符: {op}")
                     else:
-                        raise ValueError(f"不支持的操作符: {op}")
-                else:
-                    query = query.filter(col == val)
-            count = query.delete(synchronize_session=False)
-            session.commit()
-            return count
-        except:
-            session.rollback()
-            raise
-        finally:
-            Database.close_session()
-
-
-class CRUDBaseVolumn(CRUDBase):
-    @classmethod
-    def queryByCodeAndDate(cls, code: List, date: str):
-        session = Database.get_session()
-        try:
-            return session.query(cls).filter_by(getattr(cls, 'code').in_(code), getattr(cls, 'date') == date).order_by(getattr(cls, 'code'), desc(getattr(cls, 'create_time')))
-        except:
-            raise
-        finally:
-            Database.close_session()
+                        query = query.filter(col == val)
+                count = query.delete(synchronize_session=False)
+                return count
 
 
 class Stock(Base, CRUDBase):

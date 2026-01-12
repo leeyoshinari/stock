@@ -128,6 +128,8 @@ def getStockOrderByFundFromDongCai():
         for k in diffs:
             if 1 <= k['f3'] <= 9 and getStockType(k['f12']) and k['f2'] < 51:
                 fflow.append({'code': k['f12'], 'name': k['f14'], 'pcnt': k['f3'], 'fund': round(k['f62'] / 10000, 2), 'ratio': k['f184']})
+            if k['f62'] < 100:
+                break
         time.sleep(1)
     return fflow
 
@@ -146,6 +148,8 @@ def getStockOrderByFundFromTencent():
             change_ratio = float(k['zdf'])
             if 1 <= change_ratio <= 9 and getStockType(k['code'][2:]) and float(k['zxj']) < 51:
                 fflow.append({'code': k['code'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': float(k['zljlr']), 'ratio': 0})
+            if float(k['zljlr']) < 1:
+                break
         time.sleep(1)
     return fflow
 
