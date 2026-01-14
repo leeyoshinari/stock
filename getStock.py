@@ -89,6 +89,13 @@ def generateStockCode(data: dict) -> str:
     return ",".join(s)
 
 
+def generateStockCodeForSina(data: dict) -> str:
+    s = []
+    for r in list(data.keys()):
+        s.append(f"{getStockRegion(r)}{r}_i")
+    return ",".join(s)
+
+
 def calc_MA(data: List, window: int) -> float:
     return round(sum(data[:window]) / len(data[:window]), 2)
 
@@ -595,13 +602,21 @@ def getStockFromTencentReal(a):
                         stockDo.name = stockInfo[1]
                         stockDo.code = stockInfo[2]
                         stockDo.current_price = float(stockInfo[3])
+                        stockDo.last_price = float(stockInfo[4])
+                        stockDo.open_price = float(stockInfo[5])
                         if int(stockInfo[6]) < 2:
                             logger.info(f"Tencent(Real) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                             continue
                         stockDo.volumn = int(int(stockInfo[6]))
-                        # stockDo.turnover_rate = float(stockInfo[38])
+                        stockDo.max_price = float(stockInfo[33])
+                        stockDo.min_price = float(stockInfo[34])
+                        stockDo.turnover_rate = float(stockInfo[38])
                         stockDo.day = stockInfo[30][:8]
                         MinuteK.create(code=stockDo.code, day=stockDo.day, minute=minute, volume=stockDo.volumn, price=stockDo.current_price)
+                        now = datetime.now().time()
+                        save_time = datetime.strptime("14:49:00", "%H:%M:%S").time()
+                        if now <= save_time:
+                            saveStockInfo(stockDo)
                         logger.info(f"Tencent(Real): {stockDo}")
                     except:
                         logger.error(f"Tencent(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
@@ -648,13 +663,21 @@ def getStockFromXueQiuReal(a):
                             stockDo.name = dataDict[code]
                             stockDo.code = code
                             stockDo.current_price = s['current']
-                            # stockDo.turnover_rate = s['turnover_rate']
+                            stockDo.open_price = s['open']
+                            stockDo.last_price = s['last_close']
+                            stockDo.max_price = s['high']
+                            stockDo.min_price = s['low']
+                            stockDo.turnover_rate = s['turnover_rate']
                             if not s['volume'] or s['volume'] < 2:
                                 logger.info(f"XueQiu(Real) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                                 continue
                             stockDo.volumn = int(s['volume'] / 100)
                             stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
                             MinuteK.create(code=stockDo.code, day=stockDo.day, minute=minute, volume=stockDo.volumn, price=stockDo.current_price)
+                            now = datetime.now().time()
+                            save_time = datetime.strptime("14:49:00", "%H:%M:%S").time()
+                            if now <= save_time:
+                                saveStockInfo(stockDo)
                             logger.info(f"XueQiu(Real): {stockDo}")
                         except:
                             logger.error(f"XueQiu(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
@@ -693,36 +716,78 @@ def getStockFromSinaReal(a):
             dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
             dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
             stockCode = generateStockCode(dataDict)
+            stockCode_i = generateStockCodeForSina(dataDict)
             h = {
                 'Referer': 'https://finance.sina.com.cn',
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
             }
-            res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
+            res = requests.get(f"http://hq.sinajs.cn/list={stockCode},{stockCode_i}", headers=h)
             if res.status_code == 200:
                 res_list = res.text.split(';')
                 minute = time.strftime("%H:%M")
-                for s in res_list:
+                data_dict = {}
+                for line in res_list:
                     try:
-                        stockDo = StockModelDo()
-                        if len(s) < 30:
+                        if len(line.strip()) < 30:
                             continue
-                        stockInfo = s.split(',')
-                        stockDo.name = stockInfo[0].split('"')[-1]
-                        stockDo.code = stockInfo[0].split('=')[0].split('_')[-1][2:]
-                        stockDo.current_price = float(stockInfo[3])
-                        if int(stockInfo[8]) < 2:
-                            logger.info(f"Sina(Real) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                            continue
-                        stockDo.volumn = int(int(stockInfo[8]) / 100)
-                        stockDo.day = stockInfo[30].replace('-', '')
-                        MinuteK.create(code=stockDo.code, day=stockDo.day, minute=minute, volume=stockDo.volumn, price=stockDo.current_price)
-                        logger.info(f"Sina(Real): {stockDo}")
+                        stockInfo = line.strip().split(',')
+                        code = stockInfo[0].split('=')[0].split('_')[2][2:].strip()
+                        if code in data_dict:
+                            stockDo = data_dict[code]
+                            if f"{code}_i" in line:
+                                if float(stockInfo[8]) < 0.5:
+                                    logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                                    continue
+                                stockDo.turnover_rate = float(stockInfo[8])
+                            else:
+                                stockDo.name = stockInfo[0].split('"')[-1]
+                                stockDo.current_price = float(stockInfo[3])
+                                stockDo.open_price = float(stockInfo[1])
+                                if int(stockInfo[8]) < 2:
+                                    logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                                    continue
+                                stockDo.volumn = int(int(stockInfo[8]) / 100)
+                                stockDo.last_price = float(stockInfo[2])
+                                stockDo.max_price = float(stockInfo[4])
+                                stockDo.min_price = float(stockInfo[5])
+                                stockDo.day = stockInfo[30].replace('-', '')
+                            data_dict.update({code: stockDo})
+                        else:
+                            stockDo = StockModelDo()
+                            stockDo.code = code
+                            if f"{code}_i" in line:
+                                if float(stockInfo[8]) < 0.5:
+                                    logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                                    continue
+                                stockDo.turnover_rate = float(stockInfo[8])
+                            else:
+                                stockDo.name = stockInfo[0].split('"')[-1]
+                                stockDo.current_price = float(stockInfo[3])
+                                stockDo.open_price = float(stockInfo[1])
+                                if int(stockInfo[8]) < 2:
+                                    logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
+                                    continue
+                                stockDo.volumn = int(int(stockInfo[8]) / 100)
+                                stockDo.last_price = float(stockInfo[2])
+                                stockDo.max_price = float(stockInfo[4])
+                                stockDo.min_price = float(stockInfo[5])
+                                stockDo.day = stockInfo[30].replace('-', '')
+                            data_dict.update({code: stockDo})
                     except:
-                        logger.error(f"Sina(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
+                        logger.error(f"Sina(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {line}")
                         logger.error(traceback.format_exc())
                         key_stock = f"{stockDo.code}count"
                         if dataCount[key_stock] < 5:
                             error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                for _, v in data_dict.items():
+                    if v.volumn > 0 and v.turnover_rate > 0:
+                        v.turnover_rate = round(v.volumn / v.turnover_rate, 2)
+                        MinuteK.create(code=v.code, day=v.day, minute=minute, volume=v.volumn, price=v.current_price)
+                        now = datetime.now().time()
+                        save_time = datetime.strptime("14:49:00", "%H:%M:%S").time()
+                        if now <= save_time:
+                            saveStockInfo(v)
+                        logger.info(f"Sina(Real): {v}")
                 if len(error_list) > 0:
                     recommendTask.put(error_list)
                     time.sleep(2)
@@ -1382,7 +1447,7 @@ if __name__ == '__main__':
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=49, second=1)  # 开始选股
     # scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
     scheduler.add_job(selectStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
-    scheduler.add_job(stopTask, 'cron', hour=15, minute=0, second=20)   # 停止任务
+    scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20)   # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)  # 收盘后更新数据
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1])    # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50)    # 更新推荐股票的价格

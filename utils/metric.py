@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import math
 from typing import List, Dict, Any
 
 
@@ -262,3 +263,15 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
         "score": score,
         "reasons": "; ".join(reasons)
     }
+
+
+def bollinger_bands(prices, n=20, k=2):
+    if len(prices) < n:
+        return None, None, None
+    window = prices[-n:]
+    mb = sum(window) / n
+    variance = sum((p - mb) ** 2 for p in window) / n
+    std = math.sqrt(variance)
+    up = mb + k * std
+    dn = mb - k * std
+    return mb, up, dn

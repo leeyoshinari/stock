@@ -191,7 +191,7 @@ def update_stock_turnover_rate(code):
                     if stock.turnover_rate is not None and stock.turnover_rate > 0:
                         continue
                     Detail.update(stock, turnover_rate=tr)
-                    logger.info(f"turnover_rate: {code} - {tr}")
+                    logger.info(f"turnover_rate: {day} - {code} - {tr}")
                 except:
                     logger.error(f"turnover_rate_error: {code} - {day} is not in table")
         else:
@@ -219,7 +219,7 @@ def getStockFundFlow(code):
                 if ss.fund is not None:
                     continue
                 Detail.update(ss, fund=money)
-                logger.info(f"fund: {code} - {money}")
+                logger.info(f"fund: {day} - {code} - {money}")
             except:
                 logger.error(f"Error fund - {code}")
     except:

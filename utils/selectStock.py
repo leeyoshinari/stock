@@ -72,6 +72,19 @@ def getStockRegion(code: str) -> str:
         return ""
 
 
+def isOpenStock() -> bool:
+    url = 'https://w.sinajs.cn/?&list=market_status_cn'
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    res = requests.get(url, headers=header)
+    if res.status_code == 200:
+        if "未开盘" in res.text:
+            return False
+        else:
+            return True
+    else:
+        return False
+
+
 def getStockZhuLiFundFromDongCai(code: str) -> float:
     '''获取东方财富当前股票的主力净流入'''
     '''https://data.eastmoney.com/stockdata/000045.html'''
