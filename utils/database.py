@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
+import asyncio
 from typing import Iterable, Any
 from contextlib import asynccontextmanager
 from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint
@@ -18,11 +19,14 @@ Base = declarative_base()
 
 async def write_worker():
     while True:
-        writer = await writer_queue.get()
+        writer, future = await writer_queue.get()
         try:
-            await writer()
-        except:
-            raise
+            result = await writer()
+            if not future.done():
+                future.set_result(result)
+        except Exception as e:
+            if not future.done():
+                future.set_exception(e)
         finally:
             writer_queue.task_done()
 
@@ -233,12 +237,17 @@ class CRUDBase:
 
     @classmethod
     async def create(cls, **kwargs):
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+
         async def _write():
             async with DBExecutor.session_scope() as session:
                 instance = cls(**kwargs)
                 session.add(instance)
                 await session.flush()
-        await writer_queue.put(_write)
+                return instance
+        await writer_queue.put((_write, future))
+        return await future
 
     @classmethod
     async def get(cls, value):
@@ -286,6 +295,9 @@ class CRUDBase:
         """
         await User.update(user_id, name="New Name", is_backup=1)
         """
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+
         async def _write():
             async with DBExecutor.session_scope() as session:
                 instance = await session.get(cls, pk)
@@ -294,7 +306,9 @@ class CRUDBase:
                 for key, value in kwargs.items():
                     setattr(instance, key, value)
                 await session.flush()
-        await writer_queue.put(_write)
+                return instance
+        await writer_queue.put((_write, future))
+        return await future
 
 
 class Stock(Base, CRUDBase):

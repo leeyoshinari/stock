@@ -70,10 +70,18 @@ function getStockList() {
     fetch(url)
         .then(res => res.json())
         .then(data => {
-            let s = ""
+            let s = "";
             data.data.forEach(item => {
-                s += `<div id="${item.code}" class="item-list"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a><img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" style="display:none;" /></div><div><a style="cursor:pointer;" onclick="click_stock_code('${item.code}', '${item.filter}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.region}</div><div>${item.industry}</div>
-                      <div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
+                let myself = ``;
+                if (item.filter.indexOf("myself") > -1) {
+                    myself = `<img onclick="click_stock_code('${item.code}');" id="trend-${item.code}" src="${prefix}/static/trend.svg" alt="" />`;
+                }
+                let setFlag = ``;
+                if (showFlag) {
+                    setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" />`;
+                }
+                s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a>${setFlag}${myself}</div><div><a target="_blank" href="https://quote.eastmoney.com/concept/${getStockRegion(item.code) + item.code}.html#chart-k-cyq">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
+                      <div>${item.region}<img id="ai-${item.code}" src="${prefix}/static/ai.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" /></div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -85,12 +93,6 @@ function getStockList() {
                         navigator.clipboard.writeText(event.target.id.split('-')[1]);
                     }
                 })
-            })
-            document.querySelectorAll('[id*="show-"]').forEach( item => {
-                item.addEventListener('click', (event) => {
-                    show_stock_filter(event.target.id.split('-')[1]);
-                })
-                if (showFlag) {item.style.display = "";}
             })
         })
 }
@@ -114,26 +116,21 @@ function get_stock_figure(code) {
         })
 }
 
-function click_stock_code(code, flag) {
-    if (flag.indexOf("myself") < 0) {
-        let scode = getStockRegion(code) + code;
-        window.open("https://quote.eastmoney.com/concept/" + scode + ".html#chart-k-cyq");
-    } else {
-        fetch(prefix + `/query/recommend/real?code=${code}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
-                let figure = document.getElementById("figure");
-                figure.style.height = '500px';
-                figure.removeAttribute("_echarts_instance_")
-                figure.innerHTML = '';
-                let stockChart = echarts.init(figure);
-                plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.volume);
-                document.getElementsByClassName("stock-chart")[0].style.display = "flex";
-            }
-        })
-    }
+function click_stock_code(code) {
+    fetch(prefix + `/query/recommend/real?code=${code}`)
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
+            let figure = document.getElementById("figure");
+            figure.style.height = '500px';
+            figure.removeAttribute("_echarts_instance_")
+            figure.innerHTML = '';
+            let stockChart = echarts.init(figure);
+            plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.volume);
+            document.getElementsByClassName("stock-chart")[0].style.display = "flex";
+        }
+    })
 }
 
 function show_stock_filter(code) {
@@ -154,6 +151,19 @@ function set_stock_filter(code, value) {
         .then(res => res.json())
         .then(data => {
             if (!data.success) {alert(data.msg);}
+        })
+}
+
+function query_stock_ai(code, name) {
+    show_modal_cover();
+    fetch(prefix + `/query/ai?code=${code}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
+                document.getElementsByClassName("stock-data")[0].style.display = "flex";
+            }
+            close_modal_cover();
         })
 }
 

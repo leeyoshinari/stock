@@ -118,10 +118,16 @@ button {
     text-align: center;
 }
 
+.list>div>div>a {
+    cursor: pointer;
+    color: inherit;
+    text-decoration: none;
+}
+
 .list>div>div>img {
     cursor: pointer;
-    width: 13px;
-    margin-left: 2px;
+    width: 14px;
+    margin-left: 4px;
     vertical-align: middle;
 }
 

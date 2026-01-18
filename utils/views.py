@@ -7,11 +7,10 @@ import json
 import traceback
 import requests
 from typing import List
-from sqlalchemy import desc, asc
 from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList
-from utils.model import StockInfoList, RecommendStockDataList, AiModelStockList
+from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList
 from utils.selectStock import getStockZhuLiFundFromDongCai
-from utils.ai_model import queryGemini, queryOpenAi
+from utils.ai_model import queryAI
 from utils.logging import logger
 from utils.results import Result
 from utils.initData import initStockData
@@ -348,18 +347,11 @@ async def query_ai_stock(code: str) -> Result:
             stockDo.update({'j': kdj['j']})
             stockDo.update({'trix': trix['trix']})
             stockDo.update({'trma': trix['trma']})
+            stockDo.update({'volume': stockDo['volumn']})
             stock_data.insert(0, stockDo)
         stock_data.reverse()
         post_data = detail2List(stock_data)
-        s_info = await Stock.get_one(code)
-        tool = await Tools.get_one("openDoor")
-        topic_info = await Tools.get_one(tool.value)
-        post_data['hot_topic'] = topic_info.value
-        post_data['industry'] = s_info.industry
-        post_data['concept'] = s_info.concept
-        stock_dict = queryGemini(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL, AUTH_CODE)
-        # stock_dict = queryOpenAi(json.dumps(post_data), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
-        # logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
+        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL, AUTH_CODE)
         result.data = stock_dict['reason']
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
     except Exception as e:
@@ -627,6 +619,23 @@ async def all_stock_info(query: SearchStockParam) -> Result:
     return result
 
 
+async def all_topic_info(query: SearchStockParam) -> Result:
+    result = Result()
+    try:
+        offset = (query.page - 1) * query.pageSize
+        total_num = await Tools.query().count()
+        topicInfo = await Tools.query().order_by(Tools.update_time.desc()).offset(offset).limit(query.pageSize).all()
+        topicList = [ToolsInfoList.from_orm_format(f).model_dump() for f in topicInfo if not f.key.startswith('openDoor')]
+        result.total = total_num
+        result.data = topicList
+        logger.info(f"查询股票列表成功, 查询参数: {query}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
 async def set_stock_filter(code: str, filter: str, operate: int) -> Result:
     result = Result()
     try:
@@ -709,7 +718,7 @@ def detail2List(data: list) -> dict:
         res['open_price'].append(d['open_price'])
         res['max_price'].append(d['max_price'])
         res['min_price'].append(d['min_price'])
-        res['volume'].append(d['volumn'])
+        res['volume'].append(d['volume'])
         res['turnover_rate'].append(f"{d['turnover_rate']}%")
         res['fund'].append(d['fund'])
         res['ma_five'].append(d['ma_five'])

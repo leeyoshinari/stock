@@ -5,11 +5,11 @@
 import json
 import time
 import traceback
-import requests
 from typing import List
 from datetime import datetime, timedelta
 from utils.model import StockModelDo
 from utils.database import Detail
+from utils.http_client import http
 
 
 headers = {
@@ -54,7 +54,7 @@ async def getStockFromSohu(datas: List, logger):
         for r in list(dataDict.keys()):
             s.append(f"cn_{r}")
         s_list = ",".join(s)
-        res = requests.get(f"https://q.stock.sohu.com/hisHq?code={s_list}&start={start_date}&end={current_day}", headers=headers)
+        res = await http.get(f"https://q.stock.sohu.com/hisHq?code={s_list}&start={start_date}&end={current_day}", headers=headers)
         if res.status_code == 200:
             res_json = json.loads(res.text)
             for d in res_json:
@@ -106,7 +106,7 @@ async def saveStockInfo(stockDo: StockModelDo):
 
 async def getAllStockData(code, logger):
     try:
-        res = requests.get(f"https://hq.stock.sohu.com/mkline/cn/{code[-3:]}/cn_{code}-10_2.html?_={int(time.time() * 1000)}", headers=headers)
+        res = await http.get(f"https://hq.stock.sohu.com/mkline/cn/{code[-3:]}/cn_{code}-10_2.html?_={int(time.time() * 1000)}", headers=headers)
         if res.status_code == 200:
             res_text = res.text[17:-1]
             res_json = json.loads(res_text)
@@ -171,7 +171,7 @@ async def getAllStockData(code, logger):
 async def update_stock_turnover_rate(code, logger):
     try:
         current_day = time.strftime("%Y%m%d")
-        res = requests.get(f"https://q.stock.sohu.com/hisHq?code=cn_{code}&start=20250901&end={current_day}", headers=headers)
+        res = await http.get(f"https://q.stock.sohu.com/hisHq?code=cn_{code}&start=20250901&end={current_day}", headers=headers)
         if res.status_code == 200:
             res_json = json.loads(res.text)
             if len(res_json) < 1:
@@ -201,7 +201,7 @@ async def getStockFundFlow(code, logger):
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     try:
         url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery1123016147749948325607_{int(time.time() * 1000)}'
-        res = requests.get(url, headers=header)
+        res = await http.get(url, headers=header)
         res_json = json.loads(res.text.split('(')[1].split(')')[0])
         klines = res_json['data']['klines']
         for k in klines:
@@ -217,7 +217,7 @@ async def getStockFundFlow(code, logger):
                 await Detail.update((code, day), fund=money)
                 logger.info(f"fund: {day} - {code} - {money}")
             except:
-                logger.error(f"Error fund - {code}")
+                logger.error(f"Error fund - {code} - {day}")
     except:
         logger.error(traceback.format_exc())
 

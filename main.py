@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from litestar import Litestar, Request, Router, Controller, get, post
 from litestar.openapi import OpenAPIConfig
 from litestar.response import Template
@@ -9,10 +11,9 @@ from litestar.openapi.plugins import SwaggerRenderPlugin
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
-from contextlib import asynccontextmanager
 from settings import PREFIX, HOST, PORT, checkout
 from utils.scheduler import scheduler
-from utils.database import Database
+from utils.database import Database, write_worker
 from utils.results import Result
 from utils import model, views
 
@@ -119,6 +120,16 @@ class StockController(Controller):
             result = await views.init_stock_data(code)
         return result
 
+    @get('/topic/list', summary="查询热门题材列表")
+    async def all_topic_list(self, request: Request, page: int = 1, pageSize: int = 20) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            query = model.SearchStockParam()
+            query.page = page
+            query.pageSize = pageSize
+            result = await views.all_topic_info(query)
+        return result
+
     @get('/test')
     async def test(self, request: Request, code: str) -> Result:
         result = await views.test(code)
@@ -140,21 +151,31 @@ async def stock_list() -> Template:
     return Template("stock.html", context={'prefix': PREFIX})
 
 
+@get("/topic")
+async def topic_list() -> Template:
+    return Template("topic.html", context={'prefix': PREFIX})
+
+
 @get("/home")
 async def home() -> Template:
     return Template("home.html", context={'prefix': PREFIX})
 
 
-route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[home, index, recommend, stock_list])]
+route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[home, index, recommend, stock_list, topic_list])]
 
 
 @asynccontextmanager
 async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
     scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
+    worker_task = asyncio.create_task(write_worker())
     yield
+    worker_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await worker_task
     scheduler.shutdown()
     await Database.dispose()
+
 
 render_file = SwaggerRenderPlugin(js_url=f'{PREFIX}/static/swagger-ui-bundle.js', css_url=f'{PREFIX}/static/swagger-ui.css', standalone_preset_js_url=f'{PREFIX}/static/swagger-ui-standalone-preset.js')
 openapi_config = OpenAPIConfig(title="Stock", version="1.0", description="This is API of Stock.", path=PREFIX + "/schema", render_plugins=[render_file])

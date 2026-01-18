@@ -178,3 +178,16 @@ class StockRealDo(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ToolsInfoList(BaseModel):
+    key: str
+    value: str
+    update_time: str
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_format(cls, obj):
+        return cls(key=obj.key, value=obj.value, update_time=obj.update_time.strftime("%Y-%m-%d %H:%M:%S"))

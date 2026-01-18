@@ -46,11 +46,30 @@ prompt = '''你是一个精通中国A股市场的短线交易员，擅长根据�
 code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线。所有数组字段按day时间顺序排列。
 这只股票最近每一天的数据如下：'''
 
+AIPrompt = '''你是一个精通中国A股市场的短线交易员，非常擅长根据技术指标分析股票，下面将给你一只股票的最近多日的数据，你需要全面分析各个指标，并判断是否应该可以买入股票。
+【输出要求】
+只输出最终判断结果，不要输出分析过程；返回单个JSON对象，格式是：{"code":"603128","buy":true,"reason":"说明核心判断依据"}
+【字段含义说明】
+code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线。所有数组字段按day时间顺序排列。
+这只股票的数据如下：
+'''
+
 
 async def queryGemini(msg: str, api_host: str, model: str, auth_code: str) -> dict:
     url = f"{api_host}/api/chat"
     header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
     data = {"model": model, "messages": [{"role": "user", "content": prompt + msg}]}
+    res = await http.post(url=url, json_data=data, headers=header)
+    gemini_res = json.loads(res.text)
+    result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
+    res_json = json.loads(result_text.replace('```', '').replace('json', '').replace('\n', ''))
+    return res_json
+
+
+async def queryAI(msg: str, api_host: str, model: str, auth_code: str) -> dict:
+    url = f"{api_host}/api/chat"
+    header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
+    data = {"model": model, "messages": [{"role": "user", "content": AIPrompt + msg}]}
     res = await http.post(url=url, json_data=data, headers=header)
     gemini_res = json.loads(res.text)
     result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
