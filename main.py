@@ -17,21 +17,18 @@ from utils.results import Result
 from utils import model, views
 
 
-Database.init_db()  # 初始化数据库
-
-
 class StockController(Controller):
     path = ""
     tags = ['stock']
 
     @get("/list", summary="查询股票列表")
-    async def query_stock_list(self, request: Request, code: str = "", name: str = "", sortField: str = 'qrr-desc', page: int = 1, pageSize: int = 20) -> Result:
+    async def query_stock_list(self, request: Request, code: str = "", name: str = "", sortField: str = '-qrr', page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             query = model.SearchStockParam()
             query.code = code if code else ""
             query.name = name if name else ""
-            query.sortField = sortField if sortField else 'qrr-desc'
+            query.sortField = sortField if sortField else '-qrr'
             query.page = page
             query.pageSize = pageSize
             result = await views.queryStockList(query)
@@ -118,7 +115,7 @@ class StockController(Controller):
     @get('/stock/init', summary="初始化股票数据")
     async def init_stock_data(self, request: Request, code: str) -> Result:
         result = Result()
-        if checkout(request.headers.get('referered', '123')):
+        if not checkout(request.headers.get('referered', '123')):
             result = await views.init_stock_data(code)
         return result
 
@@ -153,9 +150,11 @@ route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(
 
 @asynccontextmanager
 async def lifespan(app: Litestar):
-    scheduler.start()
+    await Database.init_db()    # 初始化数据库
+    scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
     yield
     scheduler.shutdown()
+    await Database.dispose()
 
 render_file = SwaggerRenderPlugin(js_url=f'{PREFIX}/static/swagger-ui-bundle.js', css_url=f'{PREFIX}/static/swagger-ui.css', standalone_preset_js_url=f'{PREFIX}/static/swagger-ui-standalone-preset.js')
 openapi_config = OpenAPIConfig(title="Stock", version="1.0", description="This is API of Stock.", path=PREFIX + "/schema", render_plugins=[render_file])

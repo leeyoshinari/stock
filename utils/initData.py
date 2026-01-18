@@ -8,10 +8,8 @@ import traceback
 import requests
 from typing import List
 from datetime import datetime, timedelta
-from sqlalchemy import desc, asc
 from utils.model import StockModelDo
-from utils.database import Stock, Detail
-from utils.logging import logger
+from utils.database import Detail
 
 
 headers = {
@@ -45,7 +43,7 @@ def getStockRegionNum(code: str) -> str:
         return ""
 
 
-def getStockFromSohu(datas: List):
+async def getStockFromSohu(datas: List, logger):
     ''' datas = [{'002868': '*ST绿康'}] '''
     start_time = datetime.now() - timedelta(days=360)
     start_date = start_time.strftime("%Y%m%d")
@@ -72,7 +70,7 @@ def getStockFromSohu(datas: List):
                     for r in history_list_sorted:
                         stockDo.day = r[0].replace('-', '')
                         try:
-                            _ = Detail.get_one((stockDo.code, stockDo.day))
+                            _ = await Detail.get_one((stockDo.code, stockDo.day))
                             continue
                         except:
                             stockDo.current_price = float(r[2])
@@ -80,7 +78,7 @@ def getStockFromSohu(datas: List):
                             stockDo.volumn = int(r[7])
                             stockDo.max_price = float(r[6])
                             stockDo.min_price = float(r[5])
-                            saveStockInfo(stockDo)
+                            await saveStockInfo(stockDo)
                             logger.info(f"Sohu: {stockDo}")
                 except:
                     logger.error(f"Sohu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {d}")
@@ -92,22 +90,21 @@ def getStockFromSohu(datas: List):
         logger.error(traceback.format_exc())
 
 
-def saveStockInfo(stockDo: StockModelDo):
-    stock_price_obj = Detail.query_fields(columns=['current_price'], code=stockDo.code).order_by(asc(Detail.day)).all()
+async def saveStockInfo(stockDo: StockModelDo):
+    stock_price_obj = await Detail.query().select('current_price').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
     stock_price = [r[0] for r in stock_price_obj]
     stock_price.append(stockDo.current_price)
-    Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                  max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=0,
-                  ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20))
+    await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
+                        max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=0,
+                        ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20))
     if len(stock_price) > 4:
-        stock_volumn_obj = Detail.query_fields(columns=['volumn'], code=stockDo.code).order_by(asc(Detail.day)).all()
+        stock_volumn_obj = await Detail.query().select('volumn').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
         stock_volumn = [r[0] for r in stock_volumn_obj]
         average_volumn = sum(stock_volumn[-7: -2]) / 5
-        stockObj = Detail.get_one((stockDo.code, stockDo.day))
-        Detail.update(stockObj, qrr=round(stockDo.volumn / average_volumn, 2))
+        await Detail.update((stockDo.code, stockDo.day), qrr=round(stockDo.volumn / average_volumn, 2))
 
 
-def getAllStockData(code):
+async def getAllStockData(code, logger):
     try:
         res = requests.get(f"https://hq.stock.sohu.com/mkline/cn/{code[-3:]}/cn_{code}-10_2.html?_={int(time.time() * 1000)}", headers=headers)
         if res.status_code == 200:
@@ -162,8 +159,7 @@ def getAllStockData(code):
                     trix_list.pop(0)
                 trma = sum(trix_list) / 9
                 if item[0] >= '20250901':
-                    stock = Detail.get_one((code, item[0]))
-                    Detail.update(stock, emas=ema_s, emal=ema_l, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj, trix_ema_one=ema1, trix_ema_two=ema2, trix_ema_three=ema3, trix=trix, trma=trma)
+                    await Detail.update((code, item[0]), emas=ema_s, emal=ema_l, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj, trix_ema_one=ema1, trix_ema_two=ema2, trix_ema_three=ema3, trix=trix, trma=trma)
                     logger.info(f"{item[0]} - diff: {diff} - dea: {dea} - K: {kdjk} - D: {kdjd} - J: {kdjj} - TRIX: {trix} - TRMA: {trma}")
         else:
             logger.error(f"Update stock MACD/KDJ/TRIX data error - {code}")
@@ -172,7 +168,7 @@ def getAllStockData(code):
         logger.error(traceback.format_exc())
 
 
-def update_stock_turnover_rate(code):
+async def update_stock_turnover_rate(code, logger):
     try:
         current_day = time.strftime("%Y%m%d")
         res = requests.get(f"https://q.stock.sohu.com/hisHq?code=cn_{code}&start=20250901&end={current_day}", headers=headers)
@@ -186,11 +182,11 @@ def update_stock_turnover_rate(code):
             for k in datas:
                 day = k[0].replace('-', '')
                 try:
-                    stock = Detail.get_one((code, day))
+                    stock = await Detail.get_one((code, day))
                     tr = float(k[9].replace('%', ''))
                     if stock.turnover_rate is not None and stock.turnover_rate > 0:
                         continue
-                    Detail.update(stock, turnover_rate=tr)
+                    await Detail.update((code, day), turnover_rate=tr)
                     logger.info(f"turnover_rate: {day} - {code} - {tr}")
                 except:
                     logger.error(f"turnover_rate_error: {code} - {day} is not in table")
@@ -200,7 +196,7 @@ def update_stock_turnover_rate(code):
         logger.error(traceback.format_exc())
 
 
-def getStockFundFlow(code):
+async def getStockFundFlow(code, logger):
     '''从东方财富获取资金流向'''
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     try:
@@ -215,10 +211,10 @@ def getStockFundFlow(code):
                 continue
             money = round(float(datas[1]) / 10000, 2)
             try:
-                ss = Detail.get_one((code, day))
+                ss = await Detail.get_one((code, day))
                 if ss.fund is not None:
                     continue
-                Detail.update(ss, fund=money)
+                await Detail.update((code, day), fund=money)
                 logger.info(f"fund: {day} - {code} - {money}")
             except:
                 logger.error(f"Error fund - {code}")
@@ -226,9 +222,9 @@ def getStockFundFlow(code):
         logger.error(traceback.format_exc())
 
 
-def initStockData(code: str, name: str):
-    getStockFromSohu([{code: name}])    # update price and volume
-    getAllStockData(code)   # update MACD/KDJ
-    update_stock_turnover_rate(code)    # update turnover rate
-    getStockFundFlow(code)      # update fund
-    Detail.delete_where({"day": ("<", "20250901")})
+async def initStockData(code: str, name: str, logger):
+    await getStockFromSohu([{code: name}], logger)    # update price and volume
+    await getAllStockData(code, logger)   # update MACD/KDJ
+    await update_stock_turnover_rate(code, logger)    # update turnover rate
+    await getStockFundFlow(code, logger)      # update fund
+    await Detail.query().less(day='20250901').delete()

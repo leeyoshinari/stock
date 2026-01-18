@@ -16,7 +16,7 @@ from utils.logging import logger
 from utils.results import Result
 from utils.initData import initStockData
 from utils.metric import analyze_buy_signal
-from utils.database import Detail, Tools, Recommend, Stock, MinuteK
+from utils.database import Recommend, MinuteK, Stock, Detail, Tools
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE
 
 
@@ -96,7 +96,7 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
 async def queryByCode(code: str) -> Result:
     result = Result()
     try:
-        stockInfo = Detail.query(code=code).order_by(asc(Detail.create_time)).all()
+        stockInfo = await Detail.query().equal(code=code).order_by(Detail.create_time.asc()).all()
         data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate', 'fund']] for row in stockInfo]
         x = []
         volumn = []
@@ -133,7 +133,7 @@ async def queryByCode(code: str) -> Result:
             kdjj.append(round(stockInfo[index].kdjj, 3))
             trix.append(round(stockInfo[index].trix, 3))
             trma.append(round(stockInfo[index].trma, 3))
-        st = Stock.get_one(code)
+        st = await Stock.get_one(code)
         result.data = {
             'x': x, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry,
             'price': data, 'volumn': volumn, 'qrr': qrr, 'turnover_rate': turnover_rate,
@@ -153,34 +153,28 @@ async def queryByCode(code: str) -> Result:
 async def queryStockList(query: SearchStockParam) -> Result:
     result = Result()
     try:
-        tool = Tools.get_one("openDoor")
+        tool = await Tools.get_one("openDoor")
         day = tool.value
-        tool = Tools.get_one("openDoor2")
+        tool = await Tools.get_one("openDoor2")
         day2 = tool.value
         if query.code:
-            stockInfo = Detail.get((query.code, day))
+            stockInfo = await Detail.get((query.code, day))
             if not stockInfo:
-                stockInfo = Detail.get((query.code, day2))
+                stockInfo = await Detail.get((query.code, day2))
             stockList = [StockModelDo.model_validate(stockInfo).model_dump()] if stockInfo else []
         elif query.name:
-            stockInfo = Detail.filter_condition(equal_condition={"day": day}, like_condition={"name": query.name}).all()
+            stockInfo = await Detail.query().equal(day=day).like(name=query.name).all()
             if len(stockInfo) < 1:
-                stockInfo = Detail.filter_condition(equal_condition={"day": day2}, like_condition={"name": query.name}).all()
+                stockInfo = await Detail.query().equal(day=day2).like(name=query.name).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
         else:
             logger.info(query)
-            sort_key = query.sortField.split('-')[0]
-            sort_type = query.sortField.split('-')[1]
-            if sort_type == 'desc':
-                detail_sort = desc(getattr(Detail, sort_key))
-            else:
-                detail_sort = asc(getattr(Detail, sort_key))
             offset = (query.page - 1) * query.pageSize
-            total_num = Detail.query(day=day).count()
-            stockInfo = Detail.query(day=day).order_by(detail_sort).offset(offset).limit(query.pageSize).all()
+            total_num = await Detail.query().equal(day=day).count()
+            stockInfo = await Detail.query().equal(day=day).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
             if total_num < 1:
-                total_num = Detail.query(day=day2).count()
-                stockInfo = Detail.query(day=day2).order_by(detail_sort).offset(offset).limit(query.pageSize).all()
+                total_num = await Detail.query().equal(day=day2).count()
+                stockInfo = await Detail.query().equal(day=day2).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList
@@ -197,8 +191,8 @@ async def queryRecommendStockList(page: int = 1) -> Result:
     pageSize = 20
     try:
         offset = (page - 1) * pageSize
-        total_num = Recommend.query().count()
-        stockInfo = Recommend.query().order_by(desc(Recommend.create_time)).offset(offset).limit(pageSize).all()
+        total_num = await Recommend.query().count()
+        stockInfo = await Recommend.query().order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
         stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
@@ -215,7 +209,7 @@ async def queryStockMetric(code: str) -> Result:
     params = {"qrr_strong": 1.1, "diff_delta": 0.01, "trix_delta_min": 0.001, "down_price_pct": 0.98, "too_hot": 0.055, "min_score": 6}
     try:
         rr = []
-        stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(-35).all()
+        stockList = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(35).all()
         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
         stock_data.reverse()
         logger.info(stock_data[-30:])
@@ -243,7 +237,7 @@ async def calc_stock_return() -> Result:
         r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         x = []
         y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
-        stocks = Recommend.query().order_by(asc(Recommend.id)).all()
+        stocks = await Recommend.query().order_by(Recommend.id.asc()).all()
         for s in stocks:
             if s.code in ['300986']:
                 continue
@@ -311,15 +305,15 @@ async def calc_stock_return() -> Result:
 async def query_ai_stock(code: str) -> Result:
     result = Result()
     try:
-        tool = Tools.get_one("openDoor")
+        tool = await Tools.get_one("openDoor")
         day = tool.value
-        stockList = Detail.query(code=code).order_by(desc(Detail.day)).limit(10).all()
+        stockList = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
         is_stock = [item for item in stock_data if item['day'] == day]
         if not is_stock:
-            res_stock = query_stock_from_tencent(code, "-")
+            res_stock = await query_stock_from_tencent(code, "-")
             stockDo = res_stock.data[0]
-            stock_price_obj = Detail.query(code=code).order_by(desc(Detail.day)).limit(21).all()
+            stock_price_obj = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(21).all()
             stock_price = [r.current_price for r in stock_price_obj]
             high_price = [r.max_price for r in stock_price_obj]
             low_price = [r.min_price for r in stock_price_obj]
@@ -357,9 +351,9 @@ async def query_ai_stock(code: str) -> Result:
             stock_data.insert(0, stockDo)
         stock_data.reverse()
         post_data = detail2List(stock_data)
-        s_info = Stock.get_one(code)
-        tool = Tools.get_one("openDoor")
-        topic_info = Tools.get_one(tool.value)
+        s_info = await Stock.get_one(code)
+        tool = await Tools.get_one("openDoor")
+        topic_info = await Tools.get_one(tool.value)
         post_data['hot_topic'] = topic_info.value
         post_data['industry'] = s_info.industry
         post_data['concept'] = s_info.concept
@@ -382,7 +376,7 @@ async def calc_stock_real(code: str) -> Result:
         price = []
         volume = []
         pre_volume = 0
-        res = MinuteK.query(code=code).order_by(asc(MinuteK.create_time)).all()
+        res = await MinuteK.query().equal(code=code).order_by(MinuteK.create_time.asc()).all()
         for r in res:
             if r.minute == "09:30":
                 pre_volume = 0
@@ -391,7 +385,7 @@ async def calc_stock_real(code: str) -> Result:
             volume.append(max(r.volume - pre_volume, 0))
             pre_volume = r.volume
         volume[0] = 0
-        st = Stock.get_one(code)
+        st = await Stock.get_one(code)
         result.data = {'x': x, 'price': price, 'volume': volume, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'concept': st.concept}
         logger.info(f"query Recommend stock minute real data success - {code}")
     except Exception as e:
@@ -560,7 +554,7 @@ async def query_sina(query: RequestData) -> Result:
     return result
 
 
-def query_stock_from_tencent(code: str, name: str) -> Result:
+async def query_stock_from_tencent(code: str, name: str) -> Result:
     result = Result()
     try:
         r_list = []
@@ -589,7 +583,7 @@ def query_stock_from_tencent(code: str, name: str) -> Result:
                     stockDo.min_price = float(stockInfo[34])
                     stockDo.turnover_rate = float(stockInfo[38])
                     stockDo.day = stockInfo[30][:8]
-                    stockDo.fund = getStockZhuLiFundFromDongCai(stockInfo[2])
+                    stockDo.fund = await getStockZhuLiFundFromDongCai(stockInfo[2])
                     r_list.append(StockModelDo.model_validate(stockDo).model_dump())
                     logger.info(f"Tencent: {stockDo}")
                 except:
@@ -611,19 +605,17 @@ async def all_stock_info(query: SearchStockParam) -> Result:
     result = Result()
     try:
         if query.code:
-            stockInfo = Stock.get(query.code)
+            stockInfo = await Stock.get(query.code)
             stockList = [StockInfoList.from_orm_format(stockInfo).model_dump()]
         elif query.name or query.region or query.industry or query.concept or query.filter:
-            filter_dict = {"name": query.name, "region": query.region, "industry": query.industry, "concept": query.concept, "filter": query.filter}
-            like_condition = {k: v for k, v in filter_dict.items() if v != ""}
-            stockInfo = Stock.filter_condition(like_condition=like_condition).all()
+            stockInfo = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = len(stockList)
         else:
             logger.info(query)
             offset = (query.page - 1) * query.pageSize
-            total_num = Stock.query(running=1).count()
-            stockInfo = Stock.query(running=1).order_by(desc(Stock.create_time)).offset(offset).limit(query.pageSize).all()
+            total_num = await Stock.query().equal(running=1).count()
+            stockInfo = await Stock.query().equal(running=1).order_by(Stock.create_time.desc()).offset(offset).limit(query.pageSize).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList
@@ -638,14 +630,14 @@ async def all_stock_info(query: SearchStockParam) -> Result:
 async def set_stock_filter(code: str, filter: str, operate: int) -> Result:
     result = Result()
     try:
-        stock = Stock.get_one(code)
+        stock = await Stock.get_one(code)
         if operate == 1:
-            Stock.update(stock, filter=f"{stock.filter},{filter}")
+            await Stock.update(stock.code, filter=f"{stock.filter},{filter}")
             logger.info(f"设置股票标签成功 - {code} - {filter}")
         else:
             filter_list = stock.filter.split(',')
             res_list = [r for r in filter_list if r != filter]
-            Stock.update(stock, filter=",".join(res_list))
+            await Stock.update(stock.code, filter=",".join(res_list))
             logger.info(f"删除股票标签成功 - {code} - {filter}")
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -659,10 +651,10 @@ async def get_stock_info(code: str) -> Result:
     try:
         code_list = code.split(',')
         if len(code_list) == 1:
-            stock = Stock.get_one(code_list[0])
+            stock = await Stock.get_one(code_list[0])
             stockList = [StockInfoList.from_orm_format(stock).model_dump()]
         else:
-            stocks = Stock.filter_condition(in_condition={"code": code_list})
+            stocks = await Stock.query().isin(code=code_list).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stocks]
         result.data = stockList
         result.total = len(stockList)
@@ -677,8 +669,8 @@ async def get_stock_info(code: str) -> Result:
 async def init_stock_data(code: str) -> Result:
     result = Result()
     try:
-        stock = Stock.get_one(code)
-        initStockData(code, stock.name)
+        stock = await Stock.get_one(code)
+        await initStockData(code, stock.name, logger)
         logger.info(f"初始化股票数据成功 - {code} - {stock.name}")
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -690,12 +682,12 @@ async def init_stock_data(code: str) -> Result:
 async def test(code) -> Result:
     result = Result()
     try:
-        stock_volumn_obj = Detail.query(code=code).order_by(desc(Detail.day)).limit(6).all()
+        stock_volumn_obj = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(6).all()
         stock_volumn_obj.reverse()
         stock_volumn = detail2List(stock_volumn_obj)
-        s_info = Stock.get_one(code)
-        tool = Tools.get_one("openDoor")
-        topic_info = Tools.get_one(tool.value)
+        s_info = await Stock.get_one(code)
+        tool = await Tools.get_one("openDoor")
+        topic_info = await Tools.get_one(tool.value)
         stock_volumn['hot_topic'] = topic_info.value
         stock_volumn['industry'] = s_info.industry
         stock_volumn['concept'] = s_info.concept
@@ -717,7 +709,7 @@ def detail2List(data: list) -> dict:
         res['open_price'].append(d['open_price'])
         res['max_price'].append(d['max_price'])
         res['min_price'].append(d['min_price'])
-        res['volume'].append(d['volume'])
+        res['volume'].append(d['volumn'])
         res['turnover_rate'].append(f"{d['turnover_rate']}%")
         res['fund'].append(d['fund'])
         res['ma_five'].append(d['ma_five'])

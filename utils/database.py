@@ -2,187 +2,299 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
-from sqlalchemy import create_engine, Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint
-from sqlalchemy.orm import sessionmaker
+from typing import Iterable, Any
+from contextlib import asynccontextmanager
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import func
+from sqlalchemy.sql import and_
+from sqlalchemy import func, select, delete
 from datetime import datetime
 from settings import DB_URL, DB_POOL_SIZE
+from utils.writer_queue import writer_queue
 
 Base = declarative_base()
 
 
+async def write_worker():
+    while True:
+        writer = await writer_queue.get()
+        try:
+            await writer()
+        except:
+            raise
+        finally:
+            writer_queue.task_done()
+
+
 class Database:
-    engine = create_engine(DB_URL, echo=False, pool_size=DB_POOL_SIZE, max_overflow=DB_POOL_SIZE * 2, pool_timeout=30, pool_recycle=3600, pool_pre_ping=True, pool_use_lifo=True)
-    session_factory = sessionmaker(bind=engine)
+    engine = create_async_engine(DB_URL, echo=False, pool_size=DB_POOL_SIZE, max_overflow=DB_POOL_SIZE * 2, pool_timeout=30, pool_recycle=3600, pool_pre_ping=True)
+    session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
     @classmethod
-    def get_session(cls):
+    async def get_session(cls) -> AsyncSession:
         return cls.session_factory()
 
     @classmethod
-    def init_db(cls):
-        Base.metadata.create_all(bind=cls.engine)
+    async def init_db(cls):
+        async with cls.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    @classmethod
+    async def dispose(cls):
+        await cls.engine.dispose()
+
+
+class DBExecutor:
+    @staticmethod
+    @asynccontextmanager
+    async def session_scope():
+        session: AsyncSession = await Database.get_session()
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+class BaseQueryBuilder:
+    def __init__(self, model):
+        self.model = model
+        self._select_columns = None
+        self._conditions = []
+        self._group_by = []
+        self._order_by = []
+        self._limit = None
+        self._offset = None
+        self._with_count = False
+
+    # 查询指定的字段
+    def select(self, *columns: str):
+        self._select_columns = [getattr(self.model, c) for c in columns]
+        return self
+
+    # where 条件
+    def equal(self, **kwargs):
+        for k, v in kwargs.items():
+            self._conditions.append(getattr(self.model, k) == v)
+        return self
+
+    def not_equal(self, **kwargs):
+        for k, v in kwargs.items():
+            self._conditions.append(getattr(self.model, k) != v)
+        return self
+
+    def like(self, **kwargs):
+        for k, v in kwargs.items():
+            if v:
+                self._conditions.append(getattr(self.model, k).like(f"%{v}%"))
+        return self
+
+    def greater_equal(self, **kwargs):
+        for k, v in kwargs.items():
+            self._conditions.append(getattr(self.model, k) >= v)
+        return self
+
+    def greater(self, **kwargs):
+        for k, v in kwargs.items():
+            self._conditions.append(getattr(self.model, k) > v)
+        return self
+
+    def less_equal(self, **kwargs):
+        for k, v in kwargs.items():
+            self._conditions.append(getattr(self.model, k) <= v)
+        return self
+
+    def less(self, **kwargs):
+        for k, v in kwargs.items():
+            self._conditions.append(getattr(self.model, k) < v)
+        return self
+
+    def isin(self, **kwargs: dict[str, Iterable[Any]]):
+        for k, v in kwargs.items():
+            self._conditions.append(getattr(self.model, k).in_(v))
+        return self
+
+    def is_null(self, *columns: str):
+        for c in columns:
+            self._conditions.append(getattr(self.model, c).is_(None))
+        return self
+
+    def is_not_null(self, *columns: str):
+        for c in columns:
+            self._conditions.append(getattr(self.model, c).isnot(None))
+        return self
+
+    # group / order / limit
+    def group_by(self, *columns: str, with_count=True):
+        self._group_by = [getattr(self.model, c) for c in columns]
+        self._with_count = with_count
+        return self
+
+    def order_by(self, *clauses):
+        self._order_by.extend(clauses)
+        return self
+
+    def order_by_key(self, model, sort: str):
+        order_type = sort.startswith("-")
+        key = sort.lstrip("+-")
+        col = model.__sortable__.get(key.strip())
+        expr = col.desc() if order_type else col.asc()
+        self._order_by.append(expr)
+        return self
+
+    def limit(self, limit: int):
+        self._limit = limit
+        return self
+
+    def offset(self, offset: int):
+        self._offset = offset
+        return self
+
+    # build select
+    def _build_select(self):
+        if self._select_columns:
+            columns = list(self._select_columns)
+        else:
+            columns = [self.model]
+
+        if self._with_count:
+            columns.append(func.count("*").label("count"))
+
+        stmt = select(*columns)
+
+        if self._conditions:
+            stmt = stmt.where(and_(*self._conditions))
+
+        if self._group_by:
+            stmt = stmt.group_by(*self._group_by)
+
+        if self._order_by:
+            stmt = stmt.order_by(*self._order_by)
+
+        if self._limit is not None:
+            stmt = stmt.limit(self._limit)
+        if self._offset is not None:
+            stmt = stmt.offset(self._offset)
+
+        return stmt
+
+    # 执行（async）
+    async def all(self):
+        async with DBExecutor.session_scope() as session:
+            stmt = self._build_select()
+            result = await session.execute(stmt)
+            return result.scalars().all() if self._select_columns is None else result.all()
+
+    async def first(self):
+        async with DBExecutor.session_scope() as session:
+            stmt = self._build_select()
+            result = await session.execute(stmt)
+            row = result.first()
+            return row[0] if row else None
+
+    async def one(self):
+        async with DBExecutor.session_scope() as session:
+            stmt = self._build_select()
+            result = await session.execute(stmt)
+            return result.scalar_one()
+
+    async def count(self) -> int:
+        base_stmt = select(self.model)
+        if self._conditions:
+            base_stmt = base_stmt.where(*self._conditions)
+        if self._group_by:
+            base_stmt = base_stmt.group_by(*self._group_by)
+        stmt = select(func.count()).select_from(base_stmt.subquery())
+        async with DBExecutor.session_scope() as session:
+            result = await session.execute(stmt)
+            return result.scalar_one()
+
+    async def delete(self):
+        async with DBExecutor.session_scope() as session:
+            stmt = delete(self.model)
+            if self._conditions:
+                stmt = stmt.where(and_(*self._conditions))
+            result = await session.execute(stmt)
+            return result.rowcount
 
 
 class CRUDBase:
     @classmethod
-    def create(cls, **kwargs):
-        with Database.get_session() as session:
-            with session.begin():
-                instance = cls(**kwargs)
-                session.add(instance)
-            session.refresh(instance)
+    async def create2return(cls, **kwargs):
+        async with DBExecutor.session_scope() as session:
+            instance = cls(**kwargs)
+            session.add(instance)
+            await session.flush()
             return instance
 
     @classmethod
-    def get(cls, value):
-        """
-        user = User.get("cat001")
-        """
-        with Database.get_session() as session:
-            return session.get(cls, value)
+    async def create(cls, **kwargs):
+        async def _write():
+            async with DBExecutor.session_scope() as session:
+                instance = cls(**kwargs)
+                session.add(instance)
+                await session.flush()
+        await writer_queue.put(_write)
 
     @classmethod
-    def get_one(cls, value):
+    async def get(cls, value):
+        """
+        user = await User.get("cat001")
+        """
+        async with DBExecutor.session_scope() as session:
+            return await session.get(cls, value)
+
+    @classmethod
+    async def get_one(cls, value):
         """
         If not existed, raise NoResultFound
-        user = User.get_one("cat001")
+        user = await User.get_one("cat001")
         """
-        with Database.get_session() as session:
-            return session.get_one(cls, value)
+        async with DBExecutor.session_scope() as session:
+            return await session.get_one(cls, value)
 
     @classmethod
-    def all(cls):
+    def query(cls) -> BaseQueryBuilder:
         """
-        Query all datas.
-        users = User.all()
+        users = await User.query().equal(name="Documents", is_delete=0).all()
+        rows = await User.query().select("id", "name").equal(is_delete=0).all()
+        rows = await User.query().select("id", "name").equal(is_delete=0).group_by("id", "name", with_count=True).all()
+        count = await User.query().equal(status=0).greater(id=10).delete()
         """
-        with Database.get_session() as session:
-            return session.query(cls)
+        return BaseQueryBuilder(cls)
 
     @classmethod
-    def query(cls, **kwargs):
+    async def update2return(cls, pk, **kwargs):
         """
-        users = User.query(name="Documents", is_delete=0).all()
+        await User.update(user_id, name="New Name", is_backup=1)
         """
-        with Database.get_session() as session:
-            if kwargs:
-                return session.query(cls).filter_by(**kwargs)
-            else:
-                return session.query(cls)
+        async with DBExecutor.session_scope() as session:
+            instance = await session.get(cls, pk)
+            if not instance:
+                return None
+            for key, value in kwargs.items():
+                setattr(instance, key, value)
+            await session.flush()
+            return instance
 
     @classmethod
-    def query_fields(cls, columns: list, **kwargs):
+    async def update(cls, pk, **kwargs):
         """
-        users = User.query_fields(columns=['id', 'name'], name="Documents", is_delete=0).all()
+        await User.update(user_id, name="New Name", is_backup=1)
         """
-        with Database.get_session() as session:
-            column_attrs = [getattr(cls, col) for col in columns]
-            query = session.query(*column_attrs)
-            return query.filter_by(**kwargs)
-
-    @classmethod
-    def query_groupby(cls, columns: list, **kwargs):
-        """
-        users = User.query_groupby(columns=['id', 'name'], is_delete=0).all()
-        select id, name, count(*) as count from user where is_delete=0 group by id, name;
-        """
-        with Database.get_session() as session:
-            column_attrs = [getattr(cls, col) for col in columns]
-            column_attrs.append(func.count('*').label('count'))
-            group_by_attrs = [getattr(cls, col) for col in columns]
-            query = session.query(*column_attrs)
-            if kwargs:
-                query = query.filter_by(**kwargs)
-            return query.group_by(*group_by_attrs)
-
-    @classmethod
-    def filter_condition(cls, equal_condition: dict = None, not_equal_condition: dict = None, like_condition: dict = None, greater_equal_condition: dict = None, less_equal_condition: dict = None, in_condition: dict = None, is_null_condition: list = None, is_not_null_condition: list = None):
-        """
-        users = User.filter_condition(equal_condition={'status': 1, 'name': '222'}, not_equal_condition={'description': 'temp'})
-        SELECT * FROM catuseralog WHERE status = 1 AND name = '222' AND description != 'temp';
-        """
-        with Database.get_session() as session:
-            query = session.query(cls)
-            if equal_condition:
-                for column, value in equal_condition.items():
-                    query = query.filter(getattr(cls, column) == value)
-            if like_condition:
-                for column, value in like_condition.items():
-                    query = query.filter(getattr(cls, column).like(f'%{value}%'))
-            if not_equal_condition:
-                for column, value in not_equal_condition.items():
-                    query = query.filter(getattr(cls, column) != value)
-            if greater_equal_condition:
-                for column, value in greater_equal_condition.items():
-                    query = query.filter(getattr(cls, column) >= value)
-            if less_equal_condition:
-                for column, value in less_equal_condition.items():
-                    query = query.filter(getattr(cls, column) <= value)
-            if in_condition:
-                for column, value in in_condition.items():
-                    query = query.filter(getattr(cls, column).in_(value))
-            if is_null_condition:
-                for column in is_null_condition:
-                    query = query.filter(getattr(cls, column).is_(None))
-            if is_not_null_condition:
-                for column in is_not_null_condition:
-                    query = query.filter(getattr(cls, column).isnot(None))
-            return query
-
-    @classmethod
-    def update(cls, instance, **kwargs):
-        """
-        updated_user = User.update(user, name="New Name", is_backup=1)
-        """
-        with Database.get_session() as session:
-            with session.begin():
-                if instance in session:
-                    current_instance = instance
-                else:
-                    current_instance = session.merge(instance, load=False)
+        async def _write():
+            async with DBExecutor.session_scope() as session:
+                instance = await session.get(cls, pk)
+                if not instance:
+                    return None
                 for key, value in kwargs.items():
-                    setattr(current_instance, key, value)
-            session.refresh(current_instance)
-            return current_instance
-
-    @classmethod
-    def delete(cls, instance):
-        """
-        User.delete(user)
-        """
-        with Database.get_session() as session:
-            current_instance = session.get(cls, instance.id)
-            session.delete(current_instance)
-
-    @classmethod
-    def delete_where(cls, where: dict):
-        with Database.get_session() as session:
-            with session.begin():
-                query = session.query(cls)
-                for key, value in where.items():
-                    col = getattr(cls, key)
-                    if isinstance(value, tuple) and len(value) == 2:
-                        op, val = value
-                        if op == ">":
-                            query = query.filter(col > val)
-                        elif op == "<":
-                            query = query.filter(col < val)
-                        elif op == ">=":
-                            query = query.filter(col >= val)
-                        elif op == "<=":
-                            query = query.filter(col <= val)
-                        elif op in ("!=", "<>"):
-                            query = query.filter(col != val)
-                        elif op == "in":
-                            query = query.filter(col.in_(val))
-                        else:
-                            raise ValueError(f"不支持的操作符: {op}")
-                    else:
-                        query = query.filter(col == val)
-                count = query.delete(synchronize_session=False)
-                return count
+                    setattr(instance, key, value)
+                await session.flush()
+        await writer_queue.put(_write)
 
 
 class Stock(Base, CRUDBase):
@@ -234,6 +346,10 @@ class Detail(Base, CRUDBase):
     turnover_rate = Column(Float, nullable=True, comment="换手率")
     fund = Column(Float, nullable=True, comment="主力资金")
     create_time = Column(DateTime, default=datetime.now)
+
+    __sortable__ = {
+        'volumn': volumn, 'qrr': qrr, 'turnover_rate': turnover_rate, 'fund': fund, 'create_time': create_time
+    }
 
 
 class Recommend(Base, CRUDBase):
