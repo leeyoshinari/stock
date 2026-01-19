@@ -84,7 +84,17 @@ async def queryOpenAi(msg: str, api_host: str, model: str, auth_code: str) -> di
     return json.loads(res)
 
 
+async def webSearch(q: str, prompts: str, api_host: str, auth_code: str) -> str:
+    url = f"{api_host}/api/search/ai"
+    header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
+    data = {"q": q, "dateRestrict": "d", "prompts": prompts}
+    res = await http.post(url=url, json_data=data, headers=header)
+    gemini_res = json.loads(res.text)
+    result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
+    return result_text
+
+
 if __name__ == '__main__':
     msg = []
-    queryGemini(json.dumps(msg), 'https://asdf.com', 'gemini-2.5-pro', '123456')
-    queryOpenAi(json.dumps(msg), 'https://asdf.com', 'gpt-5', '123456')
+    queryGemini(json.dumps(msg), 'http://localhost:3000', 'gemini-2.5-pro', '123')
+    queryOpenAi(json.dumps(msg), 'http://localhost:3000', 'gpt-5', '123')

@@ -23,8 +23,8 @@
         </div>
         <div class="stock-list">
             <div class="item-header">
-                <div>日期</div>
-                <div>热门题材</div>
+                <div style="flex:none;width:20%;">日期</div>
+                <div style="flex:none;width:80%;">热门题材</div>
             </div>
             <div class="list"></div>
         </div>
@@ -62,7 +62,7 @@
             .then(data => {
                 let s = ""
                 data.data.forEach(item => {
-                    s += `<div id="${item.key}" class="item-list"><div>${item.key}</div><div>${item.value}</div></div>`;
+                    s += `<div id="${item.key}" class="item-list"><div style="flex:none;width:20%;">${item.key}</div><div style="flex:none;width:80%;">${item.value}</div></div>`;
                 })
                 document.getElementsByClassName("list")[0].innerHTML = s;
                 if (page === parseInt((data.total + pageSize -1) / pageSize)) {

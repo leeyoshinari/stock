@@ -19,11 +19,11 @@ from utils.writer_queue import writer_queue
 from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
-from utils.ai_model import queryGemini, queryOpenAi
+from utils.ai_model import queryGemini, queryOpenAi, webSearch
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
-from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent, getStockTopicFromTongHuaShun
+from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
 from utils.database import Stock, Detail, Tools, Recommend, MinuteK, write_worker
 from utils.logging_getstock import logger
 
@@ -906,7 +906,6 @@ async def checkTradeDay():
                     break
             else:
                 logger.error(f"获取 SH600519 数据异常，状态码: {res.status_code}")
-            await getStockTopic()
         except:
             logger.error(traceback.format_exc())
         await asyncio.sleep(3)
@@ -1396,8 +1395,10 @@ async def setAllSZStock():
 async def getStockTopic():
     try:
         global current_topic
-        res = await getStockTopicFromTongHuaShun()
-        res_list = [r['conceptName'] for r in res]
+        t = time.strftime("%Y-%m-%d")
+        prompts = f'你需要从【联网搜索资料】中找出 {t} 的内容，然后总结出强势热点题材有哪些？你需要忽略下跌或者弱势的题材，直接给出强势热点题材，用,分隔，不要分析原因。'
+        res = await webSearch(f'{t} A股市场热点题材', prompts, API_URL, AUTH_CODE)
+        res_list = [r.replace('。', '').strip() for r in res.split(',')]
         tool = await Tools.get_one("openDoor")
         current_day = tool.value
         try:
@@ -1405,7 +1406,7 @@ async def getStockTopic():
             await Tools.update(tool.key, value=',' .join(res_list))
         except NoResultFound:
             await Tools.create(key=current_day, value=',' .join(res_list))
-        logger.info(f"Current hot topic is {res_list}")
+        logger.info(f"Current hot topic is {res}")
         current_topic = [normalize_topic(r) for r in res_list]
         logger.info(f"Normalized topic: {current_topic}")
     except:
@@ -1428,6 +1429,7 @@ async def clearStockData():
     for s in stockInfos:
         await MinuteK.query().equal(code=s.code).less_equal(create_time=t).delete()
         logger.info(f"delete my stock data success, {s.code} - {s.name}")
+    await getStockTopic()
 
 
 async def main():
