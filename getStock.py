@@ -1384,9 +1384,12 @@ async def setAllSZStock():
                     logger.info(f"正在处理SZ第 {p + 1} 页...")
                     await asyncio.sleep(6)
                 await updateStockBanKuai(ban=1)
-                await getStockTopic()
                 if (len(resubmit_list) > 0):
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{','.join(resubmit_list)}，请检查数据～")
+                tool = await Tools.get_one("openDoor")
+                current_day = tool.value
+                if current_day == time.strftime("%Y%m%d"):
+                    await getStockTopic()
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
@@ -1425,11 +1428,14 @@ async def stopTask():
 
 async def clearStockData():
     t = time.strftime("%Y-%m-%d") + " 14:35:00"
-    stockInfos = await Stock.query().like(filter='myself').all()
-    for s in stockInfos:
-        await MinuteK.query().equal(code=s.code).less_equal(create_time=t).delete()
-        logger.info(f"delete my stock data success, {s.code} - {s.name}")
-    await getStockTopic()
+    tool = await Tools.get_one("openDoor")
+    current_day = tool.value
+    if current_day == time.strftime("%Y%m%d"):
+        stockInfos = await Stock.query().like(filter='myself').all()
+        for s in stockInfos:
+            await MinuteK.query().equal(code=s.code).less_equal(create_time=t).delete()
+            logger.info(f"delete my stock data success, {s.code} - {s.name}")
+        await getStockTopic()
 
 
 async def main():
