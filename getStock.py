@@ -1289,6 +1289,8 @@ async def setAllSHStock():
                                     s = await Stock.get_one(code)
                                     is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
+                                        if s.filter and 'myself' in s.filter:
+                                            continue
                                         await Stock.update(s.code, running=0, name=name)
                                         logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 处于退市状态, 忽略掉...")
                                         continue
@@ -1355,7 +1357,7 @@ async def setAllSZStock():
                                     s = await Stock.get_one(code)
                                     is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
-                                        if 'myself' in s.filter:
+                                        if s.filter and 'myself' in s.filter:
                                             continue
                                         await Stock.update(s.code, running=0, name=name)
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 处于退市状态, 忽略掉...")
