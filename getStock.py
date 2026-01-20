@@ -19,7 +19,7 @@ from utils.writer_queue import writer_queue
 from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
-from utils.ai_model import queryGemini, queryOpenAi, webSearch
+from utils.ai_model import queryGemini, queryOpenAi, webSearchTopic
 from utils.metric import analyze_buy_signal, analyze_buy_signal_new
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
@@ -1090,7 +1090,7 @@ async def selectStockMetric():
 
             if len(send_msg) > 0:
                 msg = '\n'.join(send_msg)
-                sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, f'{day} 股票推荐', msg)
+                sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, f'{day} 股票推荐', msg)
                 logger.info('Email send success ~')
             else:
                 logger.info('No stock recommended.')
@@ -1398,10 +1398,9 @@ async def setAllSZStock():
 async def getStockTopic():
     try:
         global current_topic
-        t = time.strftime("%Y-%m-%d")
-        prompts = f'你需要从【联网搜索资料】中找出 {t} 的内容，然后总结出强势热点题材有哪些？你需要忽略下跌或者弱势的题材，直接给出强势热点题材，用,分隔，不要分析原因。'
-        res = await webSearch(f'{t} A股市场热点题材', prompts, API_URL, AUTH_CODE)
-        res_list = [r.replace('。', '').strip() for r in res.split(',')]
+        res = await webSearchTopic(API_URL, AUTH_CODE)
+        data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].strip().split("\n")[0]
+        res_list = [r.replace('。', '').strip() for r in data.split(',')]
         tool = await Tools.get_one("openDoor")
         current_day = tool.value
         try:
@@ -1427,7 +1426,7 @@ async def stopTask():
 
 
 async def clearStockData():
-    t = time.strftime("%Y-%m-%d") + " 14:35:00"
+    t = time.strftime("%Y-%m-%d") + " 14:40:00"
     tool = await Tools.get_one("openDoor")
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
@@ -1449,7 +1448,7 @@ async def main():
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)  # 收盘后更新数据
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50, misfire_grace_time=10)    # 更新推荐股票的价格
-    scheduler.add_job(clearStockData, 'cron', hour=17, minute=20, second=20, misfire_grace_time=10)    # 删除数据
+    scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)    # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
     scheduler.start()
     await asyncio.sleep(2)

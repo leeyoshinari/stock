@@ -10,7 +10,7 @@ from typing import List
 from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList
 from utils.selectStock import getStockZhuLiFundFromDongCai
-from utils.ai_model import queryAI
+from utils.ai_model import queryAI, webSearchTopic
 from utils.logging import logger
 from utils.results import Result
 from utils.initData import initStockData
@@ -629,6 +629,18 @@ async def all_topic_info(query: SearchStockParam) -> Result:
         result.total = total_num
         result.data = topicList
         logger.info(f"查询股票列表成功, 查询参数: {query}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def get_current_topic() -> Result:
+    result = Result()
+    try:
+        result.data = await webSearchTopic(API_URL, AUTH_CODE)
+        logger.info(f"Current Topic is: {result.data}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

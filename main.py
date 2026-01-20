@@ -130,6 +130,13 @@ class StockController(Controller):
             result = await views.all_topic_info(query)
         return result
 
+    @get('/topic/get', summary="查询实时热门题材")
+    async def get_current_topic(self, request: Request) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.get_current_topic()
+        return result
+
     @get('/test')
     async def test(self, request: Request, code: str) -> Result:
         result = await views.test(code)

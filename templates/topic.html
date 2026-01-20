@@ -14,6 +14,9 @@
         <div class="header">
             <div class="header-filter">
                 <div>
+                    <button id="hot-topic" onclick="getCurrentTopic();">热点题材</button>
+                </div>
+                <div>
                     <button id="pre-page">上一页</button>
                 </div>
                 <div>
@@ -28,6 +31,8 @@
             </div>
             <div class="list"></div>
         </div>
+        <div class="stock-data"><div id="data-tips"></div></div>
+        <div class="modal_cover"><div class="modal_gif"></div></div>
     </div>
 </body>
 <script>
@@ -62,7 +67,7 @@
             .then(data => {
                 let s = ""
                 data.data.forEach(item => {
-                    s += `<div id="${item.key}" class="item-list"><div style="flex:none;width:20%;">${item.key}</div><div style="flex:none;width:80%;">${item.value}</div></div>`;
+                    s += `<div id="${item.key}" class="item-list"><div style="flex:none;width:20%;">${item.key}</div><div id="topic-${item.key}" style="flex:none;width:80%;" onclick="show_concept('${item.key}')">${item.value}</div></div>`;
                 })
                 document.getElementsByClassName("list")[0].innerHTML = s;
                 if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -70,8 +75,37 @@
                 }
             })
     }
+
+    function getCurrentTopic() {
+        show_modal_cover();
+        let url = prefix + `/topic/get`;
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("data-tips").style.width = '80%';
+                document.getElementById("data-tips").innerText = data.data;
+                document.getElementsByClassName("stock-data")[0].style.display = "flex";
+            })
+            .finally(() => {close_modal_cover();})
+    }
+
+    function show_concept(code) {
+        let codeEle = document.getElementById('topic-' + code);
+        document.getElementById("data-tips").style.width = '';
+        document.getElementById("data-tips").innerText = code + '\n' + codeEle.innerText;
+        document.getElementsByClassName("stock-data")[0].style.display = "flex";
+    }
+
     document.getElementById("pre-page").disabled = 'true';
     getStockList();
+
+    const overlay_data = document.querySelector('.stock-data');
+    overlay_data.addEventListener('click', function(event) {
+        if (event.target === overlay_data) {overlay_data.style.display = 'none';}
+    });
+
+    function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}
+    function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'none';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'none';}
 
 </script>
 </html>

@@ -3,6 +3,7 @@
 # Author: leeyoshinari
 
 import json
+import time
 from openai import AsyncOpenAI
 from utils.http_client import http
 
@@ -89,9 +90,29 @@ async def webSearch(q: str, prompts: str, api_host: str, auth_code: str) -> str:
     header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
     data = {"q": q, "dateRestrict": "d", "prompts": prompts}
     res = await http.post(url=url, json_data=data, headers=header)
-    gemini_res = json.loads(res.text)
-    result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
-    return result_text
+    try:
+        gemini_res = json.loads(res.text)
+        result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
+        return result_text
+    except:
+        return res.text
+
+
+async def webSearchTopic(api_host: str, auth_code: str) -> str:
+    t = time.strftime("%Y年%m月%d日")
+    q = f'{t} 中国A股市场的热门题材和热门板块'
+    prompts = f'你需要从【联网搜索资料】中找出 {t} 的内容，然后分析当前市场热点题材，将筛选出的热点信息，按照“事件/政策催化 -> 市场资金反应 -> 板块表现”的逻辑链进行组织，同时还要注意风险信息。请按照热点题材汇总(热点题材用,分隔)、热点题材逻辑链分析(和热点题材汇总中的题材数量要完全一样)、风险提示的顺序给出回答，不要输出没用的内容。'
+    url = f"{api_host}/api/search/ai"
+    header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
+    data = {"q": q, "dateRestrict": "d", "prompts": prompts}
+    res = await http.post(url=url, json_data=data, headers=header)
+    try:
+        gemini_res = json.loads(res.text)
+        result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
+        data = result_text.replace("#", "").replace("*", "").replace("-", "")
+        return data
+    except:
+        return res.text
 
 
 if __name__ == '__main__':

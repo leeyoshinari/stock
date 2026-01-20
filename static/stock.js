@@ -163,8 +163,8 @@ function query_stock_ai(code, name) {
                 document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
                 document.getElementsByClassName("stock-data")[0].style.display = "flex";
             }
-            close_modal_cover();
         })
+        .finally(() => {close_modal_cover();})
 }
 
 function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}
