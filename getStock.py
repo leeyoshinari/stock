@@ -1413,6 +1413,8 @@ async def getStockTopic():
         logger.info(f"Current hot topic is {res}")
         current_topic = [normalize_topic(r) for r in res_list]
         logger.info(f"Normalized topic: {current_topic}")
+        with open(current_day + '.txt', 'w', encoding='utf-8') as f:
+            f.write(res)
     except:
         logger.error(traceback.format_exc())
         logger.error("数据更新异常...")

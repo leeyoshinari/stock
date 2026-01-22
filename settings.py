@@ -36,6 +36,7 @@ def get_config(key):
 
 sync_with_dotenv()  # 更新配置
 load_dotenv()   # 加载配置
+FILE_PATH = "files"
 PREFIX = get_config("backEndPrefix")
 HOST = get_config("host")
 PORT = int(get_config("port"))
@@ -67,3 +68,7 @@ def checkout(pwd: str) -> bool:
             return False
     else:
         return True
+
+
+if not os.path.exists(FILE_PATH):
+    os.mkdir(FILE_PATH)

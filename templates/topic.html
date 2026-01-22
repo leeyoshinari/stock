@@ -31,7 +31,7 @@
             </div>
             <div class="list"></div>
         </div>
-        <div class="stock-data"><div id="data-tips"></div></div>
+        <div class="stock-data"><div id="data-content" style="max-height:80%;overflow-y:auto;top:43%;left:50%;position:relative;transform: translate(-50%,-50%);background-color:white;box-shadow:0 4px 10px rgba(0, 0, 0, 0.3);;"></div></div>
         <div class="modal_cover"><div class="modal_gif"></div></div>
     </div>
 </body>
@@ -61,7 +61,7 @@
     })
 
     function getStockList() {
-        let url = prefix + `/topic/list?pageSize=20&page=${page}`;
+        let url = `${prefix}/topic/list?pageSize=20&page=${page}`;
         fetch(url)
             .then(res => res.json())
             .then(data => {
@@ -78,22 +78,26 @@
 
     function getCurrentTopic() {
         show_modal_cover();
-        let url = prefix + `/topic/get`;
+        let url = `${prefix}/topic/get`;
         fetch(url)
             .then(res => res.json())
             .then(data => {
-                document.getElementById("data-tips").style.width = '80%';
-                document.getElementById("data-tips").innerText = data.data;
+                document.getElementById("data-content").style.width = '80%';
+                document.getElementById("data-content").innerText = data.data;
                 document.getElementsByClassName("stock-data")[0].style.display = "flex";
             })
             .finally(() => {close_modal_cover();})
     }
 
     function show_concept(code) {
-        let codeEle = document.getElementById('topic-' + code);
-        document.getElementById("data-tips").style.width = '';
-        document.getElementById("data-tips").innerText = code + '\n' + codeEle.innerText;
-        document.getElementsByClassName("stock-data")[0].style.display = "flex";
+        let url = `${prefix}/topic/file?code=${code}`;
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("data-content").style.width = '80%';
+                document.getElementById("data-content").innerText = data.data;
+                document.getElementsByClassName("stock-data")[0].style.display = "flex";
+            })
     }
 
     document.getElementById("pre-page").disabled = 'true';

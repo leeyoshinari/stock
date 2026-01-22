@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import os
 import time
 import json
 import traceback
@@ -16,7 +17,7 @@ from utils.results import Result
 from utils.initData import initStockData
 from utils.metric import analyze_buy_signal
 from utils.database import Recommend, MinuteK, Stock, Detail, Tools
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE, FILE_PATH
 
 
 alpha_trix = 2.0 / (12 + 1)
@@ -641,6 +642,22 @@ async def get_current_topic() -> Result:
     try:
         result.data = await webSearchTopic(API_URL, AUTH_CODE)
         logger.info(f"Current Topic is: {result.data}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def get_topic_file(code: str) -> Result:
+    result = Result()
+    try:
+        file_path = os.path.join(FILE_PATH, f"{code}.txt")
+        if not os.path.exists(file_path):
+            return result
+        with open(file_path, 'r', encoding='utf-8') as f:
+            result.data = f.read()
+        logger.info(f"{code} Topic is: {result.data}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

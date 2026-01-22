@@ -359,6 +359,8 @@ class Detail(Base, CRUDBase):
     trma = Column(Float, nullable=True, comment="MA_TRIX")
     turnover_rate = Column(Float, nullable=True, comment="换手率")
     fund = Column(Float, nullable=True, comment="主力资金")
+    # bollinger_upper = Column(Float, nullable=True, comment="Bollinger upper")
+    # bollinger_down = Column(Float, nullable=True, comment="Bollinger down")
     create_time = Column(DateTime, default=datetime.now)
 
     __sortable__ = {

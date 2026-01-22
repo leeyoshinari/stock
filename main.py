@@ -137,6 +137,13 @@ class StockController(Controller):
             result = await views.get_current_topic()
         return result
 
+    @get('/topic/file', summary="查询完整题材分析")
+    async def get_topic_file(self, request: Request, code: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.get_topic_file(code)
+        return result
+
     @get('/test')
     async def test(self, request: Request, code: str) -> Result:
         result = await views.test(code)

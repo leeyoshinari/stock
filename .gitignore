@@ -205,6 +205,7 @@ common.py
 pid
 migrate.txt
 sqlite3.db
+files/
 # Marimo
 marimo/_static/
 marimo/_lsp/
