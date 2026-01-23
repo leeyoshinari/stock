@@ -1,7 +1,8 @@
-function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund) {
+function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund, boll_up, boll_low) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
-  let startValue = x.length > 80 ? (1 - 80 / x.length) * 100 : 0;
+  total_len = parseInt(100 / 720 * document.body.clientWidth * 0.8);
+  let startValue = x.length > total_len ? (1 - total_len / x.length) * 100 : 0;
   let option;
   myChart.clear();
   myChart.setOption(
@@ -34,6 +35,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         link: [{xAxisIndex: 'all'}],
         label: {backgroundColor: '#777'}
       },
+      // legend: [{ x: 'center', y: 40 }],
       grid: [
         {
           left: '10px',
@@ -59,11 +61,6 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           left: '30px',
           right: '30px',
           top: '520px',
-          height: '40px'
-        },{
-          left: '30px',
-          right: '30px',
-          top: '570px',
           height: '40px'
         }
       ],
@@ -120,17 +117,6 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           axisLabel: { show: false },
           min: 'dataMin',
           max: 'dataMax'
-        },{
-          type: 'category',
-          gridIndex: 5,
-          data: x,
-          boundaryGap: false,
-          axisLine: { onZero: true },
-          axisTick: { show: false },
-          splitLine: { show: false },
-          axisLabel: { show: false },
-          min: 'dataMin',
-          max: 'dataMax'
         }
       ],
       yAxis: [{
@@ -175,36 +161,40 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         },{
           scale: true,
           gridIndex: 3,
-          splitNumber: 3,
+          splitNumber: 2,
           axisLabel: { show: false },
-          axisLine: { show: true, onZero: true },
+          axisLine: { show: false, onZero: true },
           axisTick: { show: false },
           splitLine: { show: false }
         },{
           scale: true,
           gridIndex: 4,
+          splitNumber: 2,
           axisLabel: { show: false },
-          axisLine: { show: true, onZero: true },
+          axisLine: { show: false, onZero: true },
           axisTick: { show: false },
-          splitLine: { show: false }
+          splitLine: { show: false },
+          position: 'left'
         },{
           scale: true,
-          gridIndex: 5,
+          gridIndex: 4,
+          splitNumber: 2,
           axisLabel: { show: false },
-          axisLine: { show: true, onZero: true },
+          axisLine: { show: false, onZero: true },
           axisTick: { show: false },
-          splitLine: { show: false }
+          splitLine: { show: false },
+          position: 'right'
         }
       ],
       dataZoom: [{
           type: 'inside',
-          xAxisIndex: [0, 1, 2, 3, 4, 5],
+          xAxisIndex: [0, 1, 2, 3, 4],
           start: startValue,
           end: 100
         },
         {
           show: false,
-          xAxisIndex: [0, 1, 2, 3, 4, 5],
+          xAxisIndex: [0, 1, 2, 3, 4],
           type: 'slider',
           start: startValue,
           end: 100
@@ -227,21 +217,40 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: ma5,
           smooth: true,
           showSymbol: false,
-          lineStyle: { color: 'blue', opacity: 0.5 }
+          itemStyle: { color: 'blue' },
+          lineStyle: { color: 'blue', opacity: 0.9, width: 1 }
         },{
           name: 'MA10',
           type: 'line',
           data: ma10,
           smooth: true,
           showSymbol: false,
-          lineStyle: { color: 'orange', opacity: 0.5 }
+          itemStyle: { color: 'orange' },
+          lineStyle: { color: 'orange', opacity: 0.9, width: 1 }
         },{
           name: 'MA20',
           type: 'line',
           data: ma20,
           smooth: true,
           showSymbol: false,
-          lineStyle: { color: 'gray', opacity: 0.5 }
+          itemStyle: { color: 'DarkGreen' },
+          lineStyle: { color: 'DarkGreen', opacity: 0.9, width: 1 }
+        },{
+          name: 'BOLL UP',
+          type: 'line',
+          data: boll_up,
+          smooth: true,
+          showSymbol: false,
+          itemStyle: { color: 'purple' },
+          lineStyle: { color: 'purple', opacity: 0.9, width: 1 }
+        },{
+          name: 'BOLL LOW',
+          type: 'line',
+          data: boll_low,
+          smooth: true,
+          showSymbol: false,
+          itemStyle: { color: 'lime' },
+          lineStyle: { color: 'lime', opacity: 0.9, width: 1 }
         },{
           name: 'Volume',
           type: 'bar',
@@ -262,7 +271,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: qrr,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'blue', opacity: 0.5},
+          lineStyle: {color: 'blue', opacity: 0.9, width: 1},
           itemStyle: { color: 'blue' }
         },{
           name: 'Fund',
@@ -283,7 +292,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: turnover_rate,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'blue', opacity: 0.5},
+          lineStyle: {color: 'blue', opacity: 0.9, width: 1},
           itemStyle: { color: 'blue' }
         },{
           name: 'MACD',
@@ -304,7 +313,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: diff,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'blue', opacity: 0.5},
+          lineStyle: {color: 'blue', opacity: 0.9, width: 1},
           itemStyle: { color: 'blue' }
         },{
           name: 'DEA',
@@ -314,7 +323,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: dea,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'orange', opacity: 0.5},
+          lineStyle: {color: 'orange', opacity: 0.9, width: 1},
           itemStyle: { color: 'orange' }
         },{
           name: 'K',
@@ -324,7 +333,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: kdjk,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'blue', opacity: 0.5},
+          lineStyle: {color: 'blue', opacity: 0.9, width: 1},
           itemStyle: { color: 'blue' }
         },{
           name: 'D',
@@ -334,7 +343,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: kdjd,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'orange', opacity: 0.5},
+          lineStyle: {color: 'orange', opacity: 0.9, width: 1},
           itemStyle: { color: 'orange' }
         },{
           name: 'J',
@@ -344,28 +353,28 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: kdjj,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'purple', opacity: 0.5},
+          lineStyle: {color: 'purple', opacity: 0.9, width: 1},
           itemStyle: { color: 'purple' }
         },{
           name: 'TRIX',
           type: 'line',
-          xAxisIndex: 5,
+          xAxisIndex: 4,
           yAxisIndex: 7,
           data: trix,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'blue', opacity: 0.5},
-          itemStyle: { color: 'blue' }
+          lineStyle: {color: 'chocolate', opacity: 0.9, width: 1},
+          itemStyle: { color: 'chocolate' }
         },{
           name: 'MATRIX',
           type: 'line',
-          xAxisIndex: 5,
+          xAxisIndex: 4,
           yAxisIndex: 7,
           data: trma,
           smooth: true,
           showSymbol: false,
-          lineStyle: {color: 'orange', opacity: 0.5},
-          itemStyle: { color: 'orange' }
+          lineStyle: {color: 'CornflowerBlue', opacity: 0.9, width: 1},
+          itemStyle: { color: 'CornflowerBlue' }
         }
       ]
     }),

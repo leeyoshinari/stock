@@ -2,17 +2,18 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
-import asyncio
+import os
 import json
 import time
 import random
+import asyncio
 import traceback
 from typing import List
 from contextlib import suppress
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from settings import BATCH_SIZE, All_STOCK_DATA_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, HTTP_HOST1, HTTP_HOST2
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE, FILE_PATH
 from utils.model import StockModelDo, StockDataList, AiModelStockList
 from utils.scheduler import scheduler
 from utils.writer_queue import writer_queue
@@ -20,7 +21,7 @@ from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
 from utils.ai_model import queryGemini, queryOpenAi, webSearchTopic
-from utils.metric import analyze_buy_signal, analyze_buy_signal_new
+from utils.metric import analyze_buy_signal, analyze_buy_signal_new, bollinger_bands
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
 from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
@@ -1400,11 +1401,14 @@ async def setAllSZStock():
 async def getStockTopic():
     try:
         global current_topic
-        res = await webSearchTopic(API_URL, AUTH_CODE)
-        data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].strip().split("\n")[0]
-        res_list = [r.replace('。', '').strip() for r in data.split(',')]
         tool = await Tools.get_one("openDoor")
         current_day = tool.value
+        res = await webSearchTopic(API_URL, AUTH_CODE)
+        file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(res)
+        data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].strip().split("\n")[0]
+        res_list = [r.replace('。', '').strip() for r in data.split(',')]
         try:
             tool = await Tools.get_one(current_day)
             await Tools.update(tool.key, value=',' .join(res_list))
@@ -1413,8 +1417,6 @@ async def getStockTopic():
         logger.info(f"Current hot topic is {res}")
         current_topic = [normalize_topic(r) for r in res_list]
         logger.info(f"Normalized topic: {current_topic}")
-        with open(current_day + '.txt', 'w', encoding='utf-8') as f:
-            f.write(res)
     except:
         logger.error(traceback.format_exc())
         logger.error("数据更新异常...")

@@ -66,11 +66,12 @@ function get_stock_figure(code) {
             if (data.success) {
                 let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
+                figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
                 figure.style.height = '';
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund);
+                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })

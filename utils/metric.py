@@ -265,15 +265,15 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
     }
 
 
-def bollinger_bands(prices, n=20, k=2):
+def bollinger_bands(prices, middle, n=20, k=2):
     # ALTER TABLE detail ADD COLUMN bollinger_upper FLOAT;
     # ALTER TABLE detail ADD COLUMN bollinger_down FLOAT;
     if len(prices) < n:
-        return None, None, None
+        return middle, middle
     window = prices[-n:]
-    mb = sum(window) / n
-    variance = sum((p - mb) ** 2 for p in window) / n
+    data_len = len(window)
+    variance = sum((p - middle) ** 2 for p in window) / data_len
     std = math.sqrt(variance)
-    up = mb + k * std
-    dn = mb - k * std
-    return mb, up, dn
+    up = middle + k * std
+    dn = middle - k * std
+    return up, dn

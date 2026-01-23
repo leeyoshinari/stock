@@ -15,7 +15,7 @@ from utils.ai_model import queryAI, webSearchTopic
 from utils.logging import logger
 from utils.results import Result
 from utils.initData import initStockData
-from utils.metric import analyze_buy_signal
+from utils.metric import analyze_buy_signal, bollinger_bands
 from utils.database import Recommend, MinuteK, Stock, Detail, Tools
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE, FILE_PATH
 
@@ -98,6 +98,7 @@ async def queryByCode(code: str) -> Result:
     try:
         stockInfo = await Detail.query().equal(code=code).order_by(Detail.create_time.asc()).all()
         data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate', 'fund']] for row in stockInfo]
+        bollinger = []
         x = []
         volumn = []
         qrr = []
@@ -114,7 +115,10 @@ async def queryByCode(code: str) -> Result:
         kdjj = []
         trix = []
         trma = []
+        boll_up = []
+        boll_low = []
         for index, d in enumerate(data):
+            bollinger.append(d[1])
             x.append(stockInfo[index].day)
             volumn.append(d[4])
             qrr.append(d[5])
@@ -133,13 +137,16 @@ async def queryByCode(code: str) -> Result:
             kdjj.append(round(stockInfo[index].kdjj, 3))
             trix.append(round(stockInfo[index].trix, 3))
             trma.append(round(stockInfo[index].trma, 3))
+            up, dn = bollinger_bands(bollinger, stockInfo[index].ma_twenty)
+            boll_up.append(round(up, 2))
+            boll_low.append(round(dn, 2))
         st = await Stock.get_one(code)
         result.data = {
             'x': x, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry,
             'price': data, 'volumn': volumn, 'qrr': qrr, 'turnover_rate': turnover_rate,
-            'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty,
+            'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up,
             'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'concept': st.concept,
-            'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma
+            'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma, 'boll_low': boll_low
         }
         result.total = len(result.data)
         logger.info(f"查询信息成功, 代码: {code}")
