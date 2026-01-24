@@ -266,8 +266,6 @@ def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, A
 
 
 def bollinger_bands(prices, middle, n=20, k=2):
-    # ALTER TABLE detail ADD COLUMN bollinger_upper FLOAT;
-    # ALTER TABLE detail ADD COLUMN bollinger_down FLOAT;
     if len(prices) < n:
         return middle, middle
     window = prices[-n:]

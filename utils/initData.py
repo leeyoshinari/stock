@@ -4,6 +4,7 @@
 
 import json
 import time
+import math
 import traceback
 from typing import List
 from datetime import datetime, timedelta
@@ -41,6 +42,18 @@ def getStockRegionNum(code: str) -> str:
         return "0"
     else:
         return ""
+
+
+def bollinger_bands(prices, middle, n=20, k=2):
+    if len(prices) < n:
+        return middle, middle
+    window = prices[-n:]
+    data_len = len(window)
+    variance = sum((p - middle) ** 2 for p in window) / data_len
+    std = math.sqrt(variance)
+    up = middle + k * std
+    dn = middle - k * std
+    return up, dn
 
 
 async def getStockFromSohu(datas: List, logger):
@@ -94,9 +107,10 @@ async def saveStockInfo(stockDo: StockModelDo):
     stock_price_obj = await Detail.query().select('current_price').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
     stock_price = [r[0] for r in stock_price_obj]
     stock_price.append(stockDo.current_price)
+    up, dn = bollinger_bands(stock_price, calc_MA(stock_price, 20))
     await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                        max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=0,
-                        ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20))
+                        max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=0, boll_up=round(up, 2),
+                        ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), boll_low=round(dn, 2))
     if len(stock_price) > 4:
         stock_volumn_obj = await Detail.query().select('volumn').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
         stock_volumn = [r[0] for r in stock_volumn_obj]
@@ -223,8 +237,9 @@ async def getStockFundFlow(code, logger):
 
 
 async def initStockData(code: str, name: str, logger):
+    await Detail.query().equal(code=code).delete()
     await getStockFromSohu([{code: name}], logger)    # update price and volume
     await getAllStockData(code, logger)   # update MACD/KDJ
     await update_stock_turnover_rate(code, logger)    # update turnover rate
     await getStockFundFlow(code, logger)      # update fund
-    await Detail.query().less(day='20250901').delete()
+    await Detail.query().equal(code=code).less(day='20250901').delete()

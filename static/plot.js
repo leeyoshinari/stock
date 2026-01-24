@@ -121,7 +121,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
       ],
       yAxis: [{
           scale: true,
-          splitArea: {show: true}
+          splitArea: {show: true},
+          min: 'dataMin'
         },{
           scale: true,
           gridIndex: 1,
@@ -202,7 +203,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
       ],
       series: [
         {
-          name: 'Price index',
+          name: 'Price',
           type: 'candlestick',
           data: price,
           itemStyle: {
@@ -249,8 +250,8 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           data: boll_low,
           smooth: true,
           showSymbol: false,
-          itemStyle: { color: 'lime' },
-          lineStyle: { color: 'lime', opacity: 0.9, width: 1 }
+          itemStyle: { color: 'Tomato' },
+          lineStyle: { color: 'Tomato', opacity: 0.9, width: 1 }
         },{
           name: 'Volume',
           type: 'bar',

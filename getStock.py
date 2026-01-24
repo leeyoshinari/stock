@@ -101,7 +101,7 @@ def calc_MA(data: List, window: int) -> float:
 def detail2List(data: list) -> dict:
     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-           'd': [], 'j': [], 'trix': [], 'trma': []}
+           'd': [], 'j': [], 'trix': [], 'trma': [], 'boll_up': [], 'boll_low': []}
     for d in data:
         res['code'] = d.code
         res['day'].append(d.day)
@@ -515,14 +515,17 @@ async def saveStockInfo(stockDo: StockModelDo):
             trix_ema_three = stockDo.current_price
         average_volumn = sum(volume_list) / volume_len
         average_volumn = average_volumn if average_volumn > 0 else stockDo.volumn
+        ma_twenty = calc_MA(stock_price, 20)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
+        boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
         await Detail.update((stockDo.code, stockDo.day), current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_five=calc_MA(stock_price, 5),
-                            ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2), emas=macd['emas'],
+                            ma_ten=calc_MA(stock_price, 10), ma_twenty=ma_twenty, qrr=round(stockDo.volumn / average_volumn, 2), emas=macd['emas'],
                             emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'], fund=0.0,
-                            trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate)
+                            trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate,
+                            boll_up=round(boll_up, 2), boll_low=round(boll_low, 2))
     except NoResultFound:
         stock_price.insert(0, stockDo.current_price)
         high_price.insert(0, stockDo.max_price)
@@ -540,14 +543,17 @@ async def saveStockInfo(stockDo: StockModelDo):
         trix_ema_three = stock_price_obj[0].trix_ema_three if len(stock_price_obj) > 0 else stockDo.current_price
         average_volumn = sum(volume_list) / volume_len
         average_volumn = average_volumn if average_volumn > 0 else stockDo.volumn
+        ma_twenty = calc_MA(stock_price, 20)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
+        boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
         await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=stockDo.last_price, fund=0.0,
-                            ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), qrr=round(stockDo.volumn / average_volumn, 2),
+                            ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=ma_twenty, qrr=round(stockDo.volumn / average_volumn, 2),
                             emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'],
-                            trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate)
+                            trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate,
+                            boll_up=round(boll_up, 2), boll_low=round(boll_low, 2))
 
 
 async def setAvailableStock():
@@ -1443,6 +1449,18 @@ async def clearStockData():
         await getStockTopic()
 
 
+async def updateStockBoll():
+    stock = await Stock.query().equal(running=1).all()
+    for s in stock:
+        stockInfo = await Detail.query().equal(code=s.code).order_by(Detail.day.asc()).all()
+        price = []
+        for st in stockInfo:
+            price.append(st.current_price)
+            up, dn = bollinger_bands(price, st.ma_twenty)
+            await Detail.update((st.code, st.day), boll_up=round(up, 2), boll_low=round(dn, 2))
+        logger.info(f"{s.code} - update success~")
+
+
 async def main():
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)    # 启动任务
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 中午更新股票信息
@@ -1456,6 +1474,7 @@ async def main():
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50, misfire_grace_time=10)    # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)    # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
+    scheduler.add_job(updateStockBoll, 'cron', hour=12, minute=25, second=20)
     scheduler.start()
     await asyncio.sleep(2)
 

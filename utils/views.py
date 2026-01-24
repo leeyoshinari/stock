@@ -96,7 +96,7 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
 async def queryByCode(code: str) -> Result:
     result = Result()
     try:
-        stockInfo = await Detail.query().equal(code=code).order_by(Detail.create_time.asc()).all()
+        stockInfo = await Detail.query().equal(code=code).order_by(Detail.day.asc()).all()
         data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate', 'fund']] for row in stockInfo]
         bollinger = []
         x = []
@@ -137,9 +137,8 @@ async def queryByCode(code: str) -> Result:
             kdjj.append(round(stockInfo[index].kdjj, 3))
             trix.append(round(stockInfo[index].trix, 3))
             trma.append(round(stockInfo[index].trma, 3))
-            up, dn = bollinger_bands(bollinger, stockInfo[index].ma_twenty)
-            boll_up.append(round(up, 2))
-            boll_low.append(round(dn, 2))
+            boll_up.append(stockInfo[index].boll_up)
+            boll_low.append(stockInfo[index].boll_low)
         st = await Stock.get_one(code)
         result.data = {
             'x': x, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry,
@@ -208,31 +207,6 @@ async def queryRecommendStockList(page: int = 1) -> Result:
         logger.error(traceback.format_exc())
         result.success = False
         result.msg = str(e)
-    return result
-
-
-async def queryStockMetric(code: str) -> Result:
-    result = Result()
-    params = {"qrr_strong": 1.1, "diff_delta": 0.01, "trix_delta_min": 0.001, "down_price_pct": 0.98, "too_hot": 0.055, "min_score": 6}
-    try:
-        rr = []
-        stockList = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(35).all()
-        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
-        stock_data.reverse()
-        logger.info(stock_data[-30:])
-        for i in range(6, len(stock_data) - 1):
-            sub = stock_data[: i + 1]
-            res = analyze_buy_signal(sub, params)
-            next_day_ret = (max(stock_data[i + 1]["current_price"], stock_data[i + 1]["max_price"]) / stock_data[i]["current_price"] - 1)
-            res["next_day_return"] = next_day_ret
-            if res["buy"]: logger.info(f"{code} - {res['day']} - {res['buy']} - {res['score']} - {next_day_ret > 0} - {res['reasons']}")
-            rr.append(res)
-        result.data = rr
-        logger.info(f"query {code} successful")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.msg = str(e)
-        result.success = False
     return result
 
 
@@ -745,7 +719,7 @@ async def test(code) -> Result:
 def detail2List(data: list) -> dict:
     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-           'd': [], 'j': [], 'trix': [], 'trma': []}
+           'd': [], 'j': [], 'trix': [], 'trma': [], 'boll_up': [], 'boll_low': []}
     for d in data:
         res['code'] = d['code']
         res['day'].append(d['day'])
