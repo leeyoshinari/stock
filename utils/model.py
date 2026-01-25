@@ -62,6 +62,8 @@ class StockDataList(BaseModel):
     j: float = None
     trix: float = None
     trma: float = None
+    boll_up: float = None
+    boll_low: float = None
 
     class Config:
         from_attributes = True
@@ -71,7 +73,8 @@ class StockDataList(BaseModel):
         return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price,
                    open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, fund=obj.fund,
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=obj.emas - obj.emal,
-                   dea=obj.dea, k=obj.kdjk, d=obj.kdjd, j=obj.kdjj, trix=obj.trix, trma=obj.trma, turnover_rate=obj.turnover_rate)
+                   dea=obj.dea, k=obj.kdjk, d=obj.kdjd, j=obj.kdjj, trix=obj.trix, trma=obj.trma, turnover_rate=obj.turnover_rate,
+                   boll_up=obj.boll_up, boll_low=obj.boll_low)
 
 
 class AiModelStockList(BaseModel):
@@ -96,13 +99,15 @@ class AiModelStockList(BaseModel):
     j: float = None
     trix: float = None
     trma: float = None
+    boll_up: float = None
+    boll_low: float = None
 
     class Config:
         from_attributes = True
 
     @classmethod
     def from_orm_format(cls, obj):
-        return cls(code=obj.code, day=obj.day, current_price=obj.current_price, last_price=obj.last_price, fund=obj.fund,
+        return cls(code=obj.code, day=obj.day, current_price=obj.current_price, last_price=obj.last_price, fund=obj.fund, boll_up=obj.boll_up, boll_low=obj.boll_low,
                    open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, turnover_rate=f"{obj.turnover_rate}%",
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=round(obj.emas - obj.emal, 4),
                    dea=round(obj.dea, 4), k=round(obj.kdjk, 4), d=round(obj.kdjd, 4), j=round(obj.kdjj, 4), trix=round(obj.trix, 4), trma=round(obj.trma, 4))

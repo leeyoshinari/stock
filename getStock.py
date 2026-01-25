@@ -32,7 +32,6 @@ from utils.logging_getstock import logger
 queryTask = asyncio.Queue()
 recommendTask = asyncio.Queue()
 running_job_id = "interval_stock_data"
-is_trade_day = False
 current_topic = []
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
@@ -124,6 +123,8 @@ def detail2List(data: list) -> dict:
         res['j'].append(round(d.kdjj, 4))
         res['trix'].append(round(d.trix, 4))
         res['trma'].append(round(d.trma, 4))
+        res['boll_up'].append(d.boll_up)
+        res['boll_low'].append(d.boll_low)
     return res
 
 
@@ -557,10 +558,9 @@ async def saveStockInfo(stockDo: StockModelDo):
 
 
 async def setAvailableStock():
-    global is_trade_day
-    if not is_trade_day:
-        logger.info("不在交易时间...")
-    else:
+    tool = await Tools.get_one("openDoor")
+    current_day = tool.value
+    if current_day == time.strftime("%Y%m%d"):
         try:
             total_cnt = await Stock.query().equal(running=1).count()
             total_batch = int((total_cnt + BATCH_SIZE - 1) / BATCH_SIZE)
@@ -810,14 +810,11 @@ async def getStockFromSinaReal(a):
 
 
 async def queryRecommendStockData():
-    global is_trade_day
     now = datetime.now().time()
     start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
     end_time = datetime.strptime("13:00:00", "%H:%M:%S").time()
     if start_time <= now <= end_time:
         logger.info("中午休市, 暂不执行...")
-    elif not is_trade_day:
-        logger.info("不在交易时间...")
     else:
         try:
             stockList = []
@@ -840,10 +837,9 @@ async def queryRecommendStockData():
 
 
 async def startSelectStock():
-    global is_trade_day
-    if not is_trade_day:
-        logger.info("不在交易时间...")
-    else:
+    tool = await Tools.get_one("openDoor")
+    current_day = tool.value
+    if current_day == time.strftime("%Y%m%d"):
         try:
             try:
                 stockInfos = await getStockOrderByFundFromDongCai()
@@ -879,7 +875,6 @@ async def startSelectStock():
 
 
 async def checkTradeDay():
-    global is_trade_day
     while True:
         today = datetime.today()
         if today.weekday() >= 5:
@@ -894,7 +889,6 @@ async def checkTradeDay():
                     v1 = res_list[0].split('~')[6]
                     v2 = res_list[1].split('~')[6]
                     if int(v1) > 2 or int(v2) > 2:
-                        is_trade_day = True
                         scheduler.add_job(queryRecommendStockData, "interval", minutes=1, next_run_time=datetime.now() + timedelta(seconds=7), id=running_job_id)
                         try:
                             _ = await Tools.get_one("openDoor")
@@ -904,11 +898,9 @@ async def checkTradeDay():
                         logger.info("查询任务已启动, 任务: queryRecommendStockData")
                         break
                     else:
-                        is_trade_day = False
                         logger.info("未开市, 跳过1...")
                         break
                 else:
-                    is_trade_day = False
                     logger.info("未开市, 跳过...")
                     break
             else:
@@ -919,9 +911,10 @@ async def checkTradeDay():
 
 
 async def calcStockMetric():
-    global is_trade_day
     try:
-        if is_trade_day:
+        tool = await Tools.get_one("openDoor")
+        current_day = tool.value
+        if current_day == time.strftime("%Y%m%d"):
             stock_metric = []   # 非买入信号的策略选股
             day = ''
             stockInfos = await Stock.query().equal(running=1).all()
@@ -992,14 +985,13 @@ async def calcStockMetric():
 
 
 async def selectStockMetric():
-    global is_trade_day
     global current_topic
     try:
-        if is_trade_day:
+        tool = await Tools.get_one("openDoor")
+        current_day = tool.value
+        if current_day == time.strftime("%Y%m%d"):
             stock_metric = []   # 非买入信号的策略选股
             day = ''
-            tool = await Tools.get_one("openDoor")
-            current_day = tool.value
             stockInfos = await Detail.query().equal(day=current_day).all()
             for s in stockInfos:
                 try:
@@ -1022,7 +1014,6 @@ async def selectStockMetric():
                     logger.error(traceback.format_exc())
 
             send_msg = []
-            logger.info(f"select stocks: {stock_metric}")
             ai_model_list = stock_metric[: 500]
             has_index = 0
             for i in range(len(ai_model_list)):
@@ -1047,8 +1038,6 @@ async def selectStockMetric():
                 stock_data_list = await Detail.query().equal(code=stock_code_id).order_by(Detail.day.desc()).limit(6).all()
                 stock_data_list.reverse()
                 stockData = detail2List(stock_data_list)
-                # stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
-                # stockData.reverse()
                 try:
                     fflow = await getStockZhuLiFundFromDongCai(stock_code_id)
                 except:
@@ -1059,7 +1048,6 @@ async def selectStockMetric():
                         logger.error(traceback.format_exc())
                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
                         fflow = 0.0
-                # stockData[-1]['fund'] = fflow
                 stockData['fund'][-1] = fflow
                 # 请求大模型
                 try:
@@ -1115,13 +1103,12 @@ async def saveStockFund(day: str, code: str, fund: float):
 
 
 async def updateStockFund(a=1):
-    global is_trade_day
     try:
-        h = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-        if is_trade_day:
+        tool = await Tools.get_one("openDoor")
+        day = tool.value
+        if day == time.strftime("%Y%m%d"):
+            h = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
             total_page = 100
-            tool = await Tools.get_one("openDoor")
-            day = tool.value
             if a == 1:
                 try:
                     current_time = int(time.time() * 1000)
@@ -1196,13 +1183,12 @@ async def checkUpdateStockFund():
 
 
 async def updateRecommendPrice():
-    global is_trade_day
     try:
-        if is_trade_day:
+        tool = await Tools.get_one("openDoor")
+        new_day = tool.value
+        if new_day == time.strftime("%Y%m%d"):
             # 更新最新收盘价
             try:
-                tool = await Tools.get_one("openDoor")
-                new_day = tool.value
                 new_stocks = await Recommend.query().less_equal(price=0.02).all()
                 for r in new_stocks:
                     s = await Detail.get_one((r.code, new_day))
@@ -1233,12 +1219,6 @@ async def updateRecommendPrice():
                 except:
                     sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, "更新推荐股票的价格报错，请抽时间核对")
                     logger.error(traceback.format_exc())
-
-            # 更新交易标识
-            now = datetime.now().time()
-            stop_time = datetime.strptime("15:30:00", "%H:%M:%S").time()
-            if now > stop_time:
-                is_trade_day = False
         else:
             logger.info("不在交易时间。。。")
     except:
@@ -1264,8 +1244,9 @@ async def updateStockBanKuai(ban=0):
 
 
 async def setAllSHStock():
-    today = datetime.today()
-    if today.weekday() < 5:
+    tool = await Tools.get_one("openDoor")
+    current_day = tool.value
+    if current_day == time.strftime("%Y%m%d"):
         try:
             t = int(time.time() * 1000)
             page = 1
@@ -1334,8 +1315,9 @@ async def setAllSHStock():
 
 
 async def setAllSZStock():
-    today = datetime.today()
-    if today.weekday() < 5:
+    tool = await Tools.get_one("openDoor")
+    current_day = tool.value
+    if current_day == time.strftime("%Y%m%d"):
         try:
             t = int(time.time() * 1000)
             page = 1
@@ -1429,8 +1411,7 @@ async def getStockTopic():
 
 
 async def stopTask():
-    global is_trade_day
-    if is_trade_day and scheduler.get_job(running_job_id):
+    if scheduler.get_job(running_job_id):
         scheduler.remove_job(running_job_id)
         logger.info("查询任务已停止...")
     else:
@@ -1449,18 +1430,6 @@ async def clearStockData():
         await getStockTopic()
 
 
-async def updateStockBoll():
-    stock = await Stock.query().equal(running=1).all()
-    for s in stock:
-        stockInfo = await Detail.query().equal(code=s.code).order_by(Detail.day.asc()).all()
-        price = []
-        for st in stockInfo:
-            price.append(st.current_price)
-            up, dn = bollinger_bands(price, st.ma_twenty)
-            await Detail.update((st.code, st.day), boll_up=round(up, 2), boll_low=round(dn, 2))
-        logger.info(f"{s.code} - update success~")
-
-
 async def main():
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)    # 启动任务
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 中午更新股票信息
@@ -1474,7 +1443,6 @@ async def main():
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50, misfire_grace_time=10)    # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)    # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
-    scheduler.add_job(updateStockBoll, 'cron', hour=12, minute=25, second=20)
     scheduler.start()
     await asyncio.sleep(2)
 

@@ -237,7 +237,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           itemStyle: { color: 'DarkGreen' },
           lineStyle: { color: 'DarkGreen', opacity: 0.9, width: 1 }
         },{
-          name: 'BOLL UP',
+          name: 'UP',
           type: 'line',
           data: boll_up,
           smooth: true,
@@ -245,7 +245,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           itemStyle: { color: 'purple' },
           lineStyle: { color: 'purple', opacity: 0.9, width: 1 }
         },{
-          name: 'BOLL LOW',
+          name: 'LOW',
           type: 'line',
           data: boll_low,
           smooth: true,

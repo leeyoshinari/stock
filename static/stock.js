@@ -160,10 +160,8 @@ function query_stock_ai(code, name) {
     fetch(prefix + `/query/ai?code=${code}`)
         .then(res => res.json())
         .then(data => {
-            if (data.success) {
-                document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
-                document.getElementsByClassName("stock-data")[0].style.display = "flex";
-            }
+            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
         .finally(() => {close_modal_cover();})
 }

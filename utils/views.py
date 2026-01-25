@@ -293,6 +293,7 @@ async def query_ai_stock(code: str) -> Result:
         is_stock = [item for item in stock_data if item['day'] == day]
         if not is_stock:
             res_stock = await query_stock_from_tencent(code, "-")
+            logger.info(res_stock)
             stockDo = res_stock.data[0]
             stock_price_obj = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(21).all()
             stock_price = [r.current_price for r in stock_price_obj]
@@ -330,11 +331,14 @@ async def query_ai_stock(code: str) -> Result:
             stockDo.update({'trix': trix['trix']})
             stockDo.update({'trma': trix['trma']})
             stockDo.update({'volume': stockDo['volumn']})
+            up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
+            stockDo.update({'boll_up': round(up, 2)})
+            stockDo.update({'boll_low': round(dn, 2)})
             stock_data.insert(0, stockDo)
         stock_data.reverse()
         post_data = detail2List(stock_data)
         stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL, AUTH_CODE)
-        result.data = stock_dict['reason']
+        result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -742,4 +746,6 @@ def detail2List(data: list) -> dict:
         res['j'].append(round(d['j'], 4))
         res['trix'].append(round(d['trix'], 4))
         res['trma'].append(round(d['trma'], 4))
+        res['boll_up'].append(d['boll_up']) 
+        res['boll_low'].append(d['boll_low'])
     return res
