@@ -746,6 +746,6 @@ def detail2List(data: list) -> dict:
         res['j'].append(round(d['j'], 4))
         res['trix'].append(round(d['trix'], 4))
         res['trma'].append(round(d['trma'], 4))
-        res['boll_up'].append(d['boll_up']) 
+        res['boll_up'].append(d['boll_up'])
         res['boll_low'].append(d['boll_low'])
     return res
