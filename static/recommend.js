@@ -39,7 +39,7 @@ function getStockList() {
             let s = ""
             data.data.forEach(item => {
                 let region = getStockRegion(item.code);
-                s += `<div id="${item.code}" class="item-list" style="height:70px;"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="show_reason('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div><a style="cursor:pointer;" onclick="get_stock_real_figure('${item.code}');">${item.price}</a></div><div class="three-price"><span>${item.create_time}</span><span><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">筹码分布</a></span></div><div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
+                s += `<div id="${item.code}" class="item-list" style="height:70px;"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="show_reason('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div><a style="cursor:pointer;" onclick="get_stock_real_figure('${item.code}');">${item.price}</a><img id="ai-${item.code}" src="${prefix}/static/ai.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" /></div><div class="three-price"><span>${item.create_time}</span><span><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">筹码分布</a></span></div><div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_two_price>0 ? "red" : item.last_two_price<0 ? "green" : "black"};">收:${item.last_two_price}%</span><span style="color:${item.last_two_high>0 ? "red" : item.last_two_high<0 ? "green" : "black"};">高:${item.last_two_high}%</span><span style="color:${item.last_two_low>0 ? "red" : item.last_two_low<0 ? "green" : "black"};">低:${item.last_two_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_three_price>0 ? "red" : item.last_three_price<0 ? "green" : "black"};">收:${item.last_three_price}%</span><span style="color:${item.last_three_high>0 ? "red" : item.last_three_high<0 ? "green" : "black"};">高:${item.last_three_high}%</span><span style="color:${item.last_three_low>0 ? "red" : item.last_three_low<0 ? "green" : "black"};">低:${item.last_three_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_four_price>0 ? "red" : item.last_four_price<0 ? "green" : "black"};">收:${item.last_four_price}%</span><span style="color:${item.last_four_high>0 ? "red" : item.last_four_high<0 ? "green" : "black"};">高:${item.last_four_high}%</span><span style="color:${item.last_four_low>0 ? "red" : item.last_four_low<0 ? "green" : "black"};">低:${item.last_four_low}%</span></div>
@@ -94,6 +94,17 @@ function get_stock_real_figure(code) {
         })
 }
 
+function query_stock_ai(code, name) {
+    show_modal_cover();
+    fetch(prefix + `/sell/stock?price=&t=&code=${code}`)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
+        })
+        .finally(() => {close_modal_cover();})
+}
+
 function show_reason(code) {
     fetch(prefix + `/stock/info?code=${code}`)
         .then(res => res.json())
@@ -137,6 +148,10 @@ document.getElementById("stock-return-line").addEventListener('click', () => {
             }
         })
 })
+
+function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}
+function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'none';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'none';}
+
 const overlay_data = document.querySelector('.stock-data');
 const overlay_chart = document.querySelector('.stock-chart');
 document.getElementById("pre-page").disabled = 'true';

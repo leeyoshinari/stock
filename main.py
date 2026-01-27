@@ -64,11 +64,18 @@ class StockController(Controller):
         result = await views.query_sina(data)
         return result
 
-    @get('/query/ai')
+    @get('/query/ai', summary="询问AI股票走势")
     async def stock_ai_data(self, request: Request, code: str) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.query_ai_stock(code)
+        return result
+
+    @get('/sell/stock', summary="AI股票卖出判断")
+    async def sell_stock(self, request: Request, code: str, price: str, t: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.sell_stock(code, price, t)
         return result
 
     @get('/query/stock/return', summary="查询选出来的股票的收益")

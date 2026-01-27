@@ -13,7 +13,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from settings import BATCH_SIZE, All_STOCK_DATA_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, HTTP_HOST1, HTTP_HOST2
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE, FILE_PATH
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
 from utils.model import StockModelDo, StockDataList, AiModelStockList
 from utils.scheduler import scheduler
 from utils.writer_queue import writer_queue
@@ -1064,7 +1064,7 @@ async def selectStockMetric():
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
-                            stock_dict = await queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+                            stock_dict = await queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE)
                             logger.info(f"AI-model-Gemini: {stock_dict}")
                             reason = reason + f"\n\nGemini: {stock_dict['reason']}"
                             if stock_dict and stock_dict['buy']:
@@ -1111,6 +1111,7 @@ async def updateStockFund(a=1):
             total_page = 100
             if a == 1:
                 try:
+                    logger.info("使用东方财富网更新主力资金～")
                     current_time = int(time.time() * 1000)
                     url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery1123022029913423580905_{current_time}&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
                     res = await http.get(url, headers=h)
@@ -1136,6 +1137,7 @@ async def updateStockFund(a=1):
                     await updateStockFund(2)
             else:
                 try:
+                    logger.info("使用腾讯财经更新主力资金～")
                     page_size = 50
                     url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset=0&count={page_size}'
                     res = await http.get(url, headers=h)

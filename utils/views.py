@@ -17,7 +17,7 @@ from utils.results import Result
 from utils.initData import initStockData
 from utils.metric import analyze_buy_signal, bollinger_bands
 from utils.database import Recommend, MinuteK, Stock, Detail, Tools
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AUTH_CODE, FILE_PATH
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
 
 
 alpha_trix = 2.0 / (12 + 1)
@@ -292,52 +292,42 @@ async def query_ai_stock(code: str) -> Result:
         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
         is_stock = [item for item in stock_data if item['day'] == day]
         if not is_stock:
-            res_stock = await query_stock_from_tencent(code, "-")
-            logger.info(res_stock)
-            stockDo = res_stock.data[0]
-            stock_price_obj = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(21).all()
-            stock_price = [r.current_price for r in stock_price_obj]
-            high_price = [r.max_price for r in stock_price_obj]
-            low_price = [r.min_price for r in stock_price_obj]
-            trix_list = [r.trix for r in stock_price_obj]
-            stock_price.insert(0, stockDo['current_price'])
-            high_price.insert(0, stockDo['max_price'])
-            low_price.insert(0, stockDo['min_price'])
-            trix_list.insert(0, 0)
-            volume_list = [r.volumn for r in stock_price_obj[: 5]]
-            volume_len = min(max(len(volume_list), 1), 5)
-            emas = stock_price_obj[0].emas
-            emal = stock_price_obj[0].emal
-            dea = stock_price_obj[0].dea
-            kdjk = stock_price_obj[0].kdjk
-            kdjd = stock_price_obj[0].kdjd
-            trix_ema_one = stock_price_obj[0].trix_ema_one
-            trix_ema_two = stock_price_obj[0].trix_ema_two
-            trix_ema_three = stock_price_obj[0].trix_ema_three
-            average_volumn = sum(volume_list) / volume_len
-            average_volumn = average_volumn if average_volumn > 0 else stockDo['volumn']
-            macd = calc_macd(stockDo['current_price'], emas, emal, dea)
-            kdj = calc_kdj(stockDo['current_price'], high_price, low_price, kdjk, kdjd)
-            trix = calc_trix(stockDo['current_price'], trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
-            stockDo.update({'ma_five': calc_MA(stock_price, 5)})
-            stockDo.update({'ma_ten': calc_MA(stock_price, 10)})
-            stockDo.update({'ma_twenty': calc_MA(stock_price, 20)})
-            stockDo.update({'qrr': round(stockDo['volumn'] / average_volumn, 2)})
-            stockDo.update({'diff': macd['emas'] - macd['emal']})
-            stockDo.update({'dea': macd['dea']})
-            stockDo.update({'k': kdj['k']})
-            stockDo.update({'d': kdj['d']})
-            stockDo.update({'j': kdj['j']})
-            stockDo.update({'trix': trix['trix']})
-            stockDo.update({'trma': trix['trma']})
-            stockDo.update({'volume': stockDo['volumn']})
-            up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
-            stockDo.update({'boll_up': round(up, 2)})
-            stockDo.update({'boll_low': round(dn, 2)})
+            logger.info(f"query newest data - {code}")
+            stockDo = await calc_stock_real_data(code)
             stock_data.insert(0, stockDo)
         stock_data.reverse()
         post_data = detail2List(stock_data)
-        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL, AUTH_CODE)
+        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE)
+        result.data = stock_dict['reason'].replace("#", "").replace("*", "")
+        logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def sell_stock(code: str, price: str = None, t: str = None) -> Result:
+    result = Result()
+    try:
+        tool = await Tools.get_one("openDoor")
+        day = tool.value
+        stockList = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
+        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
+        is_stock = [item for item in stock_data if item['day'] == day]
+        if not is_stock:
+            logger.info(f"query newest data - {code}")
+            stockDo = await calc_stock_real_data(code)
+            stock_data.insert(0, stockDo)
+        stock_data.reverse()
+        post_data = detail2List(stock_data)
+        if price and t:
+            pass
+        else:
+            r = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
+            price = r.price
+            t = r.create_time.strftime("%Y%m%d")
+        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, price, t)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
     except Exception as e:
@@ -700,6 +690,52 @@ async def init_stock_data(code: str) -> Result:
         result.success = False
         result.msg = str(e)
     return result
+
+
+async def calc_stock_real_data(code: str) -> dict:
+    res_stock = await query_stock_from_tencent(code, "-")
+    logger.info(res_stock)
+    stockDo = res_stock.data[0]
+    stock_price_obj = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(21).all()
+    stock_price = [r.current_price for r in stock_price_obj]
+    high_price = [r.max_price for r in stock_price_obj]
+    low_price = [r.min_price for r in stock_price_obj]
+    trix_list = [r.trix for r in stock_price_obj]
+    stock_price.insert(0, stockDo['current_price'])
+    high_price.insert(0, stockDo['max_price'])
+    low_price.insert(0, stockDo['min_price'])
+    trix_list.insert(0, 0)
+    volume_list = [r.volumn for r in stock_price_obj[: 5]]
+    volume_len = min(max(len(volume_list), 1), 5)
+    emas = stock_price_obj[0].emas
+    emal = stock_price_obj[0].emal
+    dea = stock_price_obj[0].dea
+    kdjk = stock_price_obj[0].kdjk
+    kdjd = stock_price_obj[0].kdjd
+    trix_ema_one = stock_price_obj[0].trix_ema_one
+    trix_ema_two = stock_price_obj[0].trix_ema_two
+    trix_ema_three = stock_price_obj[0].trix_ema_three
+    average_volumn = sum(volume_list) / volume_len
+    average_volumn = average_volumn if average_volumn > 0 else stockDo['volumn']
+    macd = calc_macd(stockDo['current_price'], emas, emal, dea)
+    kdj = calc_kdj(stockDo['current_price'], high_price, low_price, kdjk, kdjd)
+    trix = calc_trix(stockDo['current_price'], trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
+    stockDo.update({'ma_five': calc_MA(stock_price, 5)})
+    stockDo.update({'ma_ten': calc_MA(stock_price, 10)})
+    stockDo.update({'ma_twenty': calc_MA(stock_price, 20)})
+    stockDo.update({'qrr': round(stockDo['volumn'] / average_volumn, 2)})
+    stockDo.update({'diff': macd['emas'] - macd['emal']})
+    stockDo.update({'dea': macd['dea']})
+    stockDo.update({'k': kdj['k']})
+    stockDo.update({'d': kdj['d']})
+    stockDo.update({'j': kdj['j']})
+    stockDo.update({'trix': trix['trix']})
+    stockDo.update({'trma': trix['trma']})
+    stockDo.update({'volume': stockDo['volumn']})
+    up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
+    stockDo.update({'boll_up': round(up, 2)})
+    stockDo.update({'boll_low': round(dn, 2)})
+    return stockDo
 
 
 async def test(code) -> Result:

@@ -8,6 +8,8 @@ from openai import AsyncOpenAI
 from utils.http_client import http
 
 
+max_retry = 5
+
 # prompt = '''你是一个精通中国A股股票市场的交易员，你特别擅长做短线交易，有着足够股票交易知识，精通分析股票的数据来判断是否应该买入股票，特别擅长基于 价格站上5日/10日/20日均线、当日主力资金净流入、成交量大于昨日、换手率正常、MACD金叉或柱变长、KDJ金叉或向上、TRIX向上 等策略选股，下面将会给你1只股票的数据，你需要知道每个指标的含义并深入仔细严谨地分析各种指标数据，要重点分析最近连续几日的价格、均线价格、主力资金净流入情况、MACD、KDJ、TRIX指标，你需要判断股票所在的行业、概念是否是最近热门题材，然后判断每只股票是否处于强势上涨阶段且属于热门题材，你需要在强势上涨阶段买入股票，对于上涨趋势很弱的股票，不应该买入，你需要尽可能识别出最近几日高开低走、上下波动巨大、主力诱多、假金叉、较长的上影线、超买高位钝化、上涨动能很弱、主力出货(高换手率+小阳线/上影线)、单日暴涨但量能异常放大、均线系统未修复等这种假信号，你需要综合观察最近3-5日的数据变化趋势，而不仅仅是最后一天。请你直接返回一个判断结果列表的JSON，格式是{"code": "603128", "buy": true/false, "reason": ""}，buy表示是否买入，reason表示判断的简单依据，你直接输出结果，不要输出你的判断过程。\n
 # 股票数据每个字段的含义如下：code：股票代码，day：交易日期，current_price：当前价，last_price：前一天的收盘价，open_price：当天的开盘价，max_price：当天最高价，min_price：当天最低价，volume：当天成交量，fund：主力资金净流入，单位是万，turnover_rate：换手率，ma_five：5日均线价，ma_ten：10日均线价，ma_twenty：20日均线价，qrr：量比，diff：MACD指标的DIFF值，dea：MACD指标的DEA值，k：KDJ指标的K值，d：KDJ指标的D值，j：KDJ指标的J值，trix：TRIX指标的TRIX的值，trma：TRIX指标的MATRIX值。每个字段的数组值按照day的时间顺序排序。\n
 # 这只股票的每一天的数据如下：'''
@@ -47,7 +49,7 @@ prompt = '''你是一个精通中国A股市场的短线交易员，擅长根据�
 code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序排列。
 这只股票最近每一天的数据如下：'''
 
-AIPrompt = '''你是一个精通中国A股市场的短线交易员，非常擅长根据技术指标分析股票，下面将给你一只股票的最近多日的数据，你需要全面分析各个指标，并判断是否应该可以买入股票。
+buyPrompt = '''你是一个精通中国A股市场的短线交易员，非常擅长根据技术指标分析股票，下面将给你一只股票的最近多日的数据，你需要全面分析各个指标，并判断是否应该可以买入股票。
 【输出要求】
 请输出分析过程和最终判断结果；返回单个JSON对象，格式是：{"code":"603128","buy":true,"reason":"分析过程和最终判断结果"}
 【字段含义说明】
@@ -55,27 +57,52 @@ code：股票代码；day：交易日期；current_price：当日收盘价；las
 这只股票的数据如下：
 '''
 
+sellPrompt = '''你是一个精通中国A股市场的短线交易员，非常擅长根据技术指标分析股票，下面将给你一只股票的买入时间、持仓成本和最近多日的数据（包括当天的实时数据），你需要全面分析各个指标，判断是否应该卖出股票。你的核心目标是保证尽可能多的盈利和尽可能少的亏损。
+【输出要求】
+请输出分析过程和最终判断结果；返回单个JSON对象，格式是：{{"code":"603128","sell":true,"reason":"分析过程和最终判断结果"}}
+【字段含义说明】
+code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序排列。
+这只股票的买入时间是{}，持仓成本是{}，最近数据如下：{}
+'''
 
-async def queryGemini(msg: str, api_host: str, model: str, auth_code: str) -> dict:
+
+async def queryGemini(msg: str, api_host: str, model: str, model25: str, auth_code: str) -> dict:
     url = f"{api_host}/api/chat"
     header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
     data = {"model": model, "messages": [{"role": "user", "content": prompt + msg}]}
-    res = await http.post(url=url, json_data=data, headers=header)
-    gemini_res = json.loads(res.text)
-    result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
-    res_json = json.loads(result_text.replace('```', '').replace('json', '').replace('\n', ''))
-    return res_json
+    for attempt in range(max_retry):
+        try:
+            if attempt > 2:
+                data = {"model": model25, "messages": [{"role": "user", "content": prompt + msg}]}
+            res = await http.post(url=url, json_data=data, headers=header)
+            gemini_res = json.loads(res.text)
+            result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
+            res_json = json.loads(result_text.replace('```', '').replace('json', '').replace('\n', ''))
+            return res_json
+        except:
+            sleep_time = 2 ** attempt
+            time.sleep(sleep_time)
+    raise RuntimeError("Gemini 服务持续繁忙")
 
 
-async def queryAI(msg: str, api_host: str, model: str, auth_code: str) -> dict:
+async def queryAI(msg: str, api_host: str, model: str, auth_code: str, buyPrice: str = None, buyDate: str = None) -> dict:
     url = f"{api_host}/api/chat"
     header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
-    data = {"model": model, "messages": [{"role": "user", "content": AIPrompt + msg}]}
-    res = await http.post(url=url, json_data=data, headers=header)
-    gemini_res = json.loads(res.text)
-    result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
-    res_json = json.loads(result_text.replace('```', '').replace('json', '').replace('\n', ''))
-    return res_json
+    if buyPrice and buyDate:
+        data = {"model": model, "messages": [{"role": "user", "content": sellPrompt.format(buyDate, buyPrice, msg)}]}
+    else:
+        data = {"model": model, "messages": [{"role": "user", "content": buyPrompt + msg}]}
+    for attempt in range(max_retry):
+        try:
+            res = await http.post(url=url, json_data=data, headers=header)
+            gemini_res = json.loads(res.text)
+            result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
+            res_json = json.loads(result_text.replace('```', '').replace('json', '').replace('\n', ''))
+            return res_json
+        except:
+            sleep_time = 2 ** attempt
+            time.sleep(sleep_time)
+    raise RuntimeError("Gemini 服务持续繁忙")
 
 
 async def queryOpenAi(msg: str, api_host: str, model: str, auth_code: str) -> dict:
@@ -113,9 +140,3 @@ async def webSearchTopic(api_host: str, auth_code: str) -> str:
         return data
     except:
         return res.text
-
-
-if __name__ == '__main__':
-    msg = []
-    queryGemini(json.dumps(msg), 'http://localhost:3000', 'gemini-2.5-pro', '123')
-    queryOpenAi(json.dumps(msg), 'http://localhost:3000', 'gpt-5', '123')
