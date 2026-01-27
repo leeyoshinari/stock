@@ -21,7 +21,7 @@ from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
 from utils.ai_model import queryGemini, queryOpenAi, webSearchTopic
-from utils.metric import analyze_buy_signal, analyze_buy_signal_new, bollinger_bands
+from utils.metric import analyze_buy_signal, analyze_buy_signal_new, bollinger_bands, real_traded_minutes
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
 from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
@@ -488,6 +488,7 @@ async def saveStockInfo(stockDo: StockModelDo):
     high_price = [r.max_price for r in stock_price_obj]
     low_price = [r.min_price for r in stock_price_obj]
     trix_list = [r.trix for r in stock_price_obj]
+    real_trade_time = real_traded_minutes()
     try:
         _ = await Detail.get_one((stockDo.code, stockDo.day))
         stock_price[0] = stockDo.current_price
@@ -514,7 +515,7 @@ async def saveStockInfo(stockDo: StockModelDo):
             trix_ema_one = stockDo.current_price
             trix_ema_two = stockDo.current_price
             trix_ema_three = stockDo.current_price
-        average_volumn = sum(volume_list) / volume_len
+        average_volumn = (sum(volume_list) / volume_len) * (real_trade_time / 240)
         average_volumn = average_volumn if average_volumn > 0 else stockDo.volumn
         ma_twenty = calc_MA(stock_price, 20)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
@@ -542,7 +543,7 @@ async def saveStockInfo(stockDo: StockModelDo):
         trix_ema_one = stock_price_obj[0].trix_ema_one if len(stock_price_obj) > 0 else stockDo.current_price
         trix_ema_two = stock_price_obj[0].trix_ema_two if len(stock_price_obj) > 0 else stockDo.current_price
         trix_ema_three = stock_price_obj[0].trix_ema_three if len(stock_price_obj) > 0 else stockDo.current_price
-        average_volumn = sum(volume_list) / volume_len
+        average_volumn = (sum(volume_list) / volume_len) * (real_trade_time / 240)
         average_volumn = average_volumn if average_volumn > 0 else stockDo.volumn
         ma_twenty = calc_MA(stock_price, 20)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)

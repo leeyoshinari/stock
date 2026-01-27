@@ -15,7 +15,7 @@ from utils.ai_model import queryAI, webSearchTopic
 from utils.logging import logger
 from utils.results import Result
 from utils.initData import initStockData
-from utils.metric import analyze_buy_signal, bollinger_bands
+from utils.metric import real_traded_minutes, bollinger_bands
 from utils.database import Recommend, MinuteK, Stock, Detail, Tools
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
 
@@ -705,6 +705,7 @@ async def calc_stock_real_data(code: str) -> dict:
     high_price.insert(0, stockDo['max_price'])
     low_price.insert(0, stockDo['min_price'])
     trix_list.insert(0, 0)
+    real_trade_time = real_traded_minutes()
     volume_list = [r.volumn for r in stock_price_obj[: 5]]
     volume_len = min(max(len(volume_list), 1), 5)
     emas = stock_price_obj[0].emas
@@ -715,7 +716,7 @@ async def calc_stock_real_data(code: str) -> dict:
     trix_ema_one = stock_price_obj[0].trix_ema_one
     trix_ema_two = stock_price_obj[0].trix_ema_two
     trix_ema_three = stock_price_obj[0].trix_ema_three
-    average_volumn = sum(volume_list) / volume_len
+    average_volumn = (sum(volume_list) / volume_len) * (real_trade_time / 240)
     average_volumn = average_volumn if average_volumn > 0 else stockDo['volumn']
     macd = calc_macd(stockDo['current_price'], emas, emal, dea)
     kdj = calc_kdj(stockDo['current_price'], high_price, low_price, kdjk, kdjd)
