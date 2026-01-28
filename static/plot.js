@@ -423,7 +423,7 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
         end: 100
       },
       {
-        show: true,
+        show: false,
         xAxisIndex: [0],
         type: 'slider',
         start: 0,

@@ -295,8 +295,12 @@ async def query_ai_stock(code: str) -> Result:
             logger.info(f"query newest data - {code}")
             stockDo = await calc_stock_real_data(code)
             stock_data.insert(0, stockDo)
+        else:
+            fflow = await getStockZhuLiFundFromDongCai(code)
+            stock_data[0]['fund'] = fflow
         stock_data.reverse()
         post_data = detail2List(stock_data)
+        logger.info(json.dumps(post_data, ensure_ascii=False))
         stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
@@ -319,6 +323,9 @@ async def sell_stock(code: str, price: str = None, t: str = None) -> Result:
             logger.info(f"query newest data - {code}")
             stockDo = await calc_stock_real_data(code)
             stock_data.insert(0, stockDo)
+        else:
+            fflow = await getStockZhuLiFundFromDongCai(code)
+            stock_data[0]['fund'] = fflow
         stock_data.reverse()
         post_data = detail2List(stock_data)
         if price and t:
@@ -327,6 +334,7 @@ async def sell_stock(code: str, price: str = None, t: str = None) -> Result:
             r = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
             price = r.price
             t = r.create_time.strftime("%Y%m%d")
+        logger.info(json.dumps(post_data, ensure_ascii=False))
         stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, price, t)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
@@ -733,6 +741,7 @@ async def calc_stock_real_data(code: str) -> dict:
     stockDo.update({'trix': trix['trix']})
     stockDo.update({'trma': trix['trma']})
     stockDo.update({'volume': stockDo['volumn']})
+    stockDo.update({'fund': stockDo['fund']})
     up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
     stockDo.update({'boll_up': round(up, 2)})
     stockDo.update({'boll_low': round(dn, 2)})
