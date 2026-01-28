@@ -1107,7 +1107,7 @@ async def updateStockFund(a=1):
     try:
         tool = await Tools.get_one("openDoor")
         day = tool.value
-        if day == '20260127': #time.strftime("%Y%m%d"):
+        if day == time.strftime("%Y%m%d"):
             h = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
             total_page = 100
             if a == 1:
@@ -1120,7 +1120,7 @@ async def updateStockFund(a=1):
                     res_json = json.loads(res.text.split('(')[1].split(')')[0])
                     total_page = int((res_json['data']['total'] + 49) / 50)
                     for k in res_json['data']['diff']:
-                        code = k['12']
+                        code = k['f12']
                         fund = round(k['f62'] / 10000, 2)
                         await saveStockFund(day, code, fund)
                     for p in range(1, total_page):
@@ -1130,7 +1130,7 @@ async def updateStockFund(a=1):
                         res = await http.get(url, headers=h)
                         res_json = json.loads(res.text.split('(')[1].split(')')[0])
                         for k in res_json['data']['diff']:
-                            code = k['12']
+                            code = k['f12']
                             fund = round(k['f62'] / 10000, 2)
                             await saveStockFund(day, code, fund)
                         await asyncio.sleep(5)
