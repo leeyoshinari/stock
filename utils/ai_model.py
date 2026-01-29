@@ -92,7 +92,6 @@ async def queryAI(msg: str, api_host: str, model: str, auth_code: str, current_t
         data = {"model": model, "messages": [{"role": "user", "content": sellPrompt.format(buyDate, buyPrice, current_time, msg)}]}
     else:
         data = {"model": model, "messages": [{"role": "user", "content": buyPrompt.format(current_time, msg)}]}
-    print(data)
     for attempt in range(max_retry):
         try:
             res = await http.post(url=url, json_data=data, headers=header)

@@ -7,7 +7,6 @@ input:-webkit-autofill:focus {
 
 .container {
     max-width: 1100px;
-    font-family: cursive;
 }
 
 .header {
@@ -34,18 +33,15 @@ input:-webkit-autofill:focus {
 .header-filter>div>input {
     height: 28px;
     width: 142px;
-    font-family: cursive;
 }
 .header-filter>div>select {
     height: 34px;
     width: 150px;
     appearance: none;
-    font-family: cursive;
 }
 
 .header>div>input {
     height: 28px;
-    font-family: cursive;
 }
 
 .header-actions {
@@ -57,7 +53,6 @@ button {
     height: 30px;
     width: 88px;
     cursor: pointer;
-    font-family: cursive;
 }
 
 .stock-list {
@@ -80,7 +75,7 @@ button {
 
 .item-headers {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1.5fr 3fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1.5fr 3fr;
     height: 36px;
     align-items: center;
     font-weight: bold;
@@ -101,7 +96,7 @@ button {
 
 .lists>div {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1.5fr 3fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1.5fr 3fr;
     align-items: center;
     height: 36px;
 }
@@ -214,7 +209,7 @@ button {
     display: flex;
     flex-direction: column;
     justify-content: space-around;
-    font-family: cursive;
+    font-family: monospace;
 }
 
 .three-price span {
