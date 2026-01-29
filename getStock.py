@@ -1121,7 +1121,13 @@ async def updateStockFund(a=1):
                     total_page = int((res_json['data']['total'] + 49) / 50)
                     for k in res_json['data']['diff']:
                         code = k['f12']
-                        fund = round(k['f62'] / 10000, 2)
+                        try:
+                            fund = round(k['f62'] / 10000, 2)
+                        except:
+                            try:
+                                fund = round(float(k['f62']) / 10000, 2)
+                            except:
+                                fund = 0.0
                         await saveStockFund(day, code, fund)
                     for p in range(1, total_page):
                         if p % 5 == 0:
@@ -1131,7 +1137,13 @@ async def updateStockFund(a=1):
                         res_json = json.loads(res.text.split('(')[1].split(')')[0])
                         for k in res_json['data']['diff']:
                             code = k['f12']
-                            fund = round(k['f62'] / 10000, 2)
+                            try:
+                                fund = round(k['f62'] / 10000, 2)
+                            except:
+                                try:
+                                    fund = round(float(k['f62']) / 10000, 2)
+                                except:
+                                    fund = 0.0
                             await saveStockFund(day, code, fund)
                         await asyncio.sleep(5)
                 except:

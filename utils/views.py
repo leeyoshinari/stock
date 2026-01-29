@@ -8,6 +8,7 @@ import json
 import traceback
 import requests
 from typing import List
+from datetime import datetime
 from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList
 from utils.selectStock import getStockZhuLiFundFromDongCai
@@ -301,7 +302,12 @@ async def query_ai_stock(code: str) -> Result:
         stock_data.reverse()
         post_data = detail2List(stock_data)
         logger.info(json.dumps(post_data, ensure_ascii=False))
-        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE)
+        date_obj = datetime.strptime(day, "%Y%m%d")
+        open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        if current_time > open_date:
+            current_time = open_date
+        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, current_time)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
     except Exception as e:
@@ -335,7 +341,12 @@ async def sell_stock(code: str, price: str = None, t: str = None) -> Result:
             price = r.price
             t = r.create_time.strftime("%Y%m%d")
         logger.info(json.dumps(post_data, ensure_ascii=False))
-        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, price, t)
+        date_obj = datetime.strptime(day, "%Y%m%d")
+        open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        if current_time > open_date:
+            current_time = open_date
+        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
     except Exception as e:

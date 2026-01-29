@@ -81,7 +81,7 @@ function getStockList() {
                     setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" />`;
                 }
                 s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a>${setFlag}${myself}</div><div><a target="_blank" href="https://quote.eastmoney.com/concept/${getStockRegion(item.code) + item.code}.html#chart-k-cyq">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
-                      <div>${item.region}<img id="ai-${item.code}" src="${prefix}/static/ai.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" /></div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
+                      <div><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:18px;" />${item.region}<img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:18px;" /></div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -137,12 +137,16 @@ function click_stock_code(code) {
 function show_stock_filter(code) {
     let s = `<div class="header">${code}</div><div><div class="title"><label>标签：</label><input type="text" id="filter-values" placeholder="" autocomplete="off"></div><div><button onclick="set_stock_filter('${code}', 1);">设置</button><button onclick="set_stock_filter('${code}', 0);">删除</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
+    document.getElementById("data-tips").style.width = "auto";
+    document.getElementById("data-tips").style.transform = 'translate(100%,0%)';
     document.getElementsByClassName("stock-data")[0].style.display = "flex";
 }
 
 function show_concept(code) {
     let codeEle = document.getElementById('concept-' + code);
     document.getElementById("data-tips").innerText = code + '\n' + codeEle.innerText;
+    document.getElementById("data-tips").style.width = '70%';
+    document.getElementById("data-tips").style.transform = 'translate(15%,0%)';
     document.getElementsByClassName("stock-data")[0].style.display = "flex";
 }
 
@@ -155,12 +159,38 @@ function set_stock_filter(code, value) {
         })
 }
 
+function show_sell_stock_window(code, name) {
+    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>买入时间：</label><input type="text" id="buy-time" placeholder="20260521" autocomplete="off"></div><div class="title"><label>买入成本：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div style="margin-top:10px;"><button style="float:right;" onclick="sell_stock_ai('${code}', '${name}');">确定</button></div></div>`;
+    document.getElementById("data-tips").innerHTML = s;
+    document.getElementById("data-tips").style.width = "auto";
+    document.getElementById("data-tips").style.transform = 'translate(100%,0%)';
+    document.getElementsByClassName("stock-data")[0].style.display = "flex";
+}
+
+function sell_stock_ai(code, name) {
+    document.getElementsByClassName("stock-data")[0].style.display = "none";
+    let buy_time = document.getElementById("buy-time").value;
+    let buy_price = document.getElementById("buy-price").value;
+    show_modal_cover();
+    fetch(prefix + `/sell/stock?code=${code}&price=${buy_price}&t=${buy_time}`)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
+            document.getElementById("data-tips").style.width = '70%';
+            document.getElementById("data-tips").style.transform = 'translate(15%,0%)';
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
+        })
+        .finally(() => {close_modal_cover();})
+}
+
 function query_stock_ai(code, name) {
     show_modal_cover();
     fetch(prefix + `/query/ai?code=${code}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
+            document.getElementById("data-tips").style.width = '70%';
+            document.getElementById("data-tips").style.transform = 'translate(15%,0%)';
             document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
         .finally(() => {close_modal_cover();})

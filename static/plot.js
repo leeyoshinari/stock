@@ -14,6 +14,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
         top: 0,
         textStyle: {
           fontSize: 13,
+          fontFamily: 'cursive',
           fontWeight: 'bold'
         }
       },
@@ -392,6 +393,7 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
       top: 10,
       textStyle: {
         fontSize: 13,
+        fontFamily: 'cursive',
         fontWeight: 'bold'
       }
     },
@@ -405,15 +407,15 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
     ],
     tooltip: {
       trigger: 'axis',
-      axisPointer: {
-        type: 'cross'
-      }
+      axisPointer: {type: 'cross'},
+      textStyle: {color: '#000', fontFamily: 'cursive'},
     },
     legend: [
       {
         data: ['第一天收盘价', '第一天最高价', '第一天最低价', '第二天收盘价', '第二天最高价', '第二天最低价', '第三天收盘价', '第三天最高价', '第三天最低价', '第四天收盘价', '第四天最高价', '第四天最低价', '第五天收盘价', '第五天最高价', '第五天最低价'],
         x: 'center',
-        y: 40
+        y: 40,
+        textStyle: { fontFamily: 'cursive' }
       }
     ],
     dataZoom: [{
@@ -451,6 +453,7 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
         gridIndex: 0,
         name: '收益',
         type: 'value',
+        nameTextStyle: { fontFamily: 'cursive' }
       }
     ],
     series: [
@@ -595,6 +598,7 @@ function plot_minute_line(myChart, title, x, price, volume) {
         top: 0,
         textStyle: {
           fontSize: 13,
+          fontFamily: 'cursive',
           fontWeight: 'bold'
         }
       },
