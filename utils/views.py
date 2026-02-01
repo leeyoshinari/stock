@@ -221,8 +221,6 @@ async def calc_stock_return() -> Result:
         y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
         stocks = await Recommend.query().order_by(Recommend.id.asc()).all()
         for s in stocks:
-            if s.code in ['300986']:
-                continue
             s_time = s.create_time.strftime("%Y-%m-%d")
             if s_time in x:
                 index = x.index(s_time)

@@ -129,6 +129,7 @@ button {
     width: 14px;
     margin-left: 4px;
     vertical-align: middle;
+    filter:hue-rotate(20deg) saturate(2.5);
 }
 
 .list>div>div>button {

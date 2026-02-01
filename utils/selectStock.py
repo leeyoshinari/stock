@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import asyncio
 import time
 import json
+import random
 from utils.http_client import http
 
 
@@ -89,8 +91,9 @@ async def getStockZhuLiFundFromDongCai(code: str) -> float:
     '''获取东方财富当前股票的主力净流入'''
     '''https://data.eastmoney.com/stockdata/000045.html'''
     current_time = int(time.time() * 1000)
+    rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-    url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={getStockRegionNum(code)}.{code}&fields=f469,f137,f193,f140,f194,f143,f195,f146,f196,f149,f197,f470,f434,f454,f435,f455,f436,f456,f437,f457,f438,f458,f471,f459,f460,f461,f462,f463,f464,f465,f466,f467,f468,f170,f119,f291&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery112303607637191727675_{current_time}&_={current_time + 1}'
+    url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={getStockRegionNum(code)}.{code}&fields=f469,f137,f193,f140,f194,f143,f195,f146,f196,f149,f197,f470,f434,f454,f435,f455,f436,f456,f437,f457,f438,f458,f471,f459,f460,f461,f462,f463,f464,f465,f466,f467,f468,f170,f119,f291&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{current_time}&_={current_time + 1}'
     res = await http.get(url, headers=header)
     res_json = json.loads(res.text.split('(')[1].split(')')[0])
     return round(res_json['data']['f137'] / 10000, 2)
@@ -127,43 +130,40 @@ async def getStockFundFlowFromDongCai(stockCode: str) -> dict:
     return fflow
 
 
-async def getStockOrderByFundFromDongCai():
+async def getStockOrderByFundFromDongCai(p):
     '''从东方财富获取股票资金净流入排序'''
     '''https://data.eastmoney.com/zjlx/detail.html'''
     fflow = []
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
     current_time = int(time.time() * 1000)
-    for p in range(15):
-        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery1123022029913423580905_{current_time}&fid=f62&po=1&pz=50&pn={p + 1}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
-        res = await http.get(url, headers=header)
-        res_json = json.loads(res.text.split('(')[1].split(')')[0])
-        diffs = res_json['data']['diff']
-        for k in diffs:
-            if 1 <= k['f3'] <= 9 and getStockType(k['f12']) and k['f2'] < 51 and k['f2'] > 5:
-                fflow.append({'code': k['f12'], 'name': k['f14'], 'pcnt': k['f3'], 'fund': round(k['f62'] / 10000, 2), 'ratio': k['f184']})
-            if k['f62'] < 100:
-                break
-        time.sleep(1)
+    url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn={p + 1}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+    res = await http.get(url, headers=header)
+    res_json = json.loads(res.text.split('(')[1].split(')')[0])
+    diffs = res_json['data']['diff']
+    for k in diffs:
+        if 1 <= k['f3'] <= 9 and getStockType(k['f12']) and k['f2'] < 51 and k['f2'] > 5:
+            fflow.append({'code': k['f12'], 'name': k['f14'], 'pcnt': k['f3'], 'fund': round(k['f62'] / 10000, 2), 'ratio': k['f184']})
+        if k['f62'] < 100:
+            break
     return fflow
 
 
-async def getStockOrderByFundFromTencent():
+async def getStockOrderByFundFromTencent(p):
     '''从腾讯获取股票资金净流入排序'''
     '''网页：https://stockapp.finance.qq.com/mstats/#mod=list&id=hs_hsj&module=hs&type=hsj&sort=6&page=1&max=20'''
     fflow = []
     page_size = 50
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-    for p in range(15):
-        url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset={page_size * p}&count={page_size}'
-        res = await http.get(url, headers=header)
-        res_json = json.loads(res.text)
-        for k in res_json['data']['rank_list']:
-            change_ratio = float(k['zdf'])
-            if 1 <= change_ratio <= 9 and getStockType(k['code'][2:]) and float(k['zxj']) < 51 and float(k['zxj']) > 5:
-                fflow.append({'code': k['code'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': float(k['zljlr']), 'ratio': 0})
-            if float(k['zljlr']) < 1:
-                break
-        time.sleep(1)
+    url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset={page_size * p}&count={page_size}'
+    res = await http.get(url, headers=header)
+    res_json = json.loads(res.text)
+    for k in res_json['data']['rank_list']:
+        change_ratio = float(k['zdf'])
+        if 1 <= change_ratio <= 9 and getStockType(k['code'][2:]) and float(k['zxj']) < 51 and float(k['zxj']) > 5:
+            fflow.append({'code': k['code'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': float(k['zljlr']), 'ratio': 0})
+        if float(k['zljlr']) < 1:
+            break
     return fflow
 
 
@@ -179,7 +179,7 @@ async def getStockOrderByFundFromSinaBackUp():
             change_ratio = round(float(k['changeratio']) * 100, 2)
             if 1 <= change_ratio <= 7 and getStockType(k['symbol'][2:]) and float(k['trade']) < 51:
                 fflow.append({'code': k['symbol'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': round(float(k['r0_net']) / 10000, 2), 'ratio': round(float(k['r0_ratio']) * 100, 2)})
-        time.sleep(1)
+        await asyncio.sleep(1)
     return fflow
 
 
@@ -197,7 +197,7 @@ async def getStockOrderByFundFromSina():
             change_ratio = round(float(k['percent']), 2)
             if 1 <= change_ratio <= 7 and getStockType(k['symbol'][2:]) and float(k['price']) < 51:
                 fflow.append({'code': k['symbol'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': round(float(k['rp_net']) / 10000, 2), 'ratio': 0})
-        time.sleep(1)
+        await asyncio.sleep(1)
     return fflow
 
 
@@ -288,12 +288,13 @@ async def getBanKuaiFundFlowFromDongCai(ban: str, page: int = 1) -> dict:
     '''https://quote.eastmoney.com/center/hsbk.html'''
     current_time = str(int(time.time() * 1000))
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
+    rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
     if ban == 'concept':
-        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery1123030598726898456863_{current_time}&fid=f62&po=1&pz=50&pn={page}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A3&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn={page}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A3&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
     elif ban == 'industry':
-        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery112303362322416527074_{current_time}&fid=f62&po=1&pz=50&pn={page}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn={page}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
     else:
-        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery112303362322416527074_{current_time}&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A1&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A1&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
     res = await http.get(url, headers=header)
     res_json = json.loads(res.text.split(current_time + '(')[1][: -2])
     return res_json['data']['diff']

@@ -122,6 +122,11 @@ class BaseQueryBuilder:
             self._conditions.append(getattr(self.model, k).in_(v))
         return self
 
+    def notin(self, **kwargs: dict[str, Iterable[Any]]):
+        for k, v in kwargs.items():
+            self._conditions.append(getattr(self.model, k).notin_(v))
+        return self
+
     def is_null(self, *columns: str):
         for c in columns:
             self._conditions.append(getattr(self.model, c).is_(None))

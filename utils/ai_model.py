@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import asyncio
 import json
 import time
 from openai import AsyncOpenAI
@@ -81,7 +82,7 @@ async def queryGemini(msg: str, api_host: str, model: str, model25: str, auth_co
             return res_json
         except:
             sleep_time = 2 ** attempt
-            time.sleep(sleep_time)
+            await asyncio.sleep(sleep_time)
     raise RuntimeError("Gemini 服务持续繁忙")
 
 
@@ -101,7 +102,7 @@ async def queryAI(msg: str, api_host: str, model: str, auth_code: str, current_t
             return res_json
         except:
             sleep_time = 2 ** attempt
-            time.sleep(sleep_time)
+            await asyncio.sleep(sleep_time)
     raise RuntimeError("Gemini 服务持续繁忙")
 
 

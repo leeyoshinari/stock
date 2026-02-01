@@ -842,28 +842,26 @@ async def startSelectStock():
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
         try:
-            try:
-                stockInfos = await getStockOrderByFundFromDongCai()
-            except:
-                logger.error(traceback.format_exc())
-                stockInfos = await getStockOrderByFundFromTencent()
-            stockList = []
-            for s in stockInfos:
+            for p in range(15):
                 try:
-                    s_info = await Stock.get_one(s['code'])
-                    if s_info.running == 1:
-                        stockList.append({s['code']: s['name'], f'{s['code']}count': 1})
+                    stockInfos = await getStockOrderByFundFromDongCai(p)
                 except:
                     logger.error(traceback.format_exc())
-            index = 0
-            one_batch_size = int(BATCH_SIZE / All_STOCK_DATA_SIZE)
-            for i in range(0, len(stockList), one_batch_size):
-                d = stockList[i: i + one_batch_size]
-                await queryTask.put(d)
-                index += 1
-                if index % All_STOCK_DATA_SIZE == 0:
-                    logger.info(f"正在更新选股的数据，当前是第 {index} 批，总数 {len(stockList)} 个")
-                    await asyncio.sleep(8)
+                    stockInfos = await getStockOrderByFundFromTencent(p)
+                stockList = []
+                for s in stockInfos:
+                    try:
+                        s_info = await Stock.get_one(s['code'])
+                        if s_info.running == 1:
+                            stockList.append({s['code']: s['name'], f'{s['code']}count': 1})
+                    except:
+                        logger.error(traceback.format_exc())
+                index = int(len(stockList) / 2)
+                await queryTask.put(stockList[: index])
+                await queryTask.put(stockList[index:])
+                logger.info(f"正在更新选股的数据，当前是第 {p + 1} 页，总数 {len(stockList)} 个")
+                await asyncio.sleep(5)
+            scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
             current_day = time.strftime("%Y%m%d")
             try:
                 _ = await Tools.get_one("openDoor2")
@@ -993,7 +991,9 @@ async def selectStockMetric():
         if current_day == time.strftime("%Y%m%d"):
             stock_metric = []   # 非买入信号的策略选股
             day = ''
-            stockInfos = await Detail.query().equal(day=current_day).all()
+            selected = await Recommend.query().is_null('last_three_price').all()
+            exclued_stock = [r.code for r in selected]
+            stockInfos = await Detail.query().equal(day=current_day).notin(code=exclued_stock).all()
             for s in stockInfos:
                 try:
                     stockList = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(5).all()
@@ -1452,7 +1452,7 @@ async def main():
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 中午更新股票信息
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=49, second=1, misfire_grace_time=10)  # 开始选股
     # scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
-    scheduler.add_job(selectStockMetric, 'cron', hour=14, minute=50, second=10, misfire_grace_time=10)    # 计算推荐股票
+    # scheduler.add_job(selectStockMetric, 'cron', hour=14, minute=50, second=10, misfire_grace_time=10)    # 计算推荐股票
     scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)   # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)  # 收盘后更新数据
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
