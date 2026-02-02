@@ -703,3 +703,139 @@ function findMin(arr) {
   }
   return max;
 }
+
+function plotkline(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund, boll_up, boll_low) {
+  const downColor = '#00da3c';
+  const upColor = '#ec0000';
+  total_len = parseInt(100 / 720 * document.body.clientWidth * 0.8);
+  let startValue = 20;
+  let option;
+  myChart.clear();
+  myChart.setOption(
+    (option = {
+      animation: false,
+      title: {
+        text: title,
+        left: 'center',
+        top: 0,
+        textStyle: {
+          fontSize: 13,
+          fontWeight: 'bold'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {type: 'cross'},
+        borderWidth: 1,
+        borderColor: '#ccc',
+        padding: 10,
+        textStyle: {color: '#000'},
+        extraCssText: `
+          width: auto; 
+          max-width: 800px;
+          column-count: 2;
+          column-gap: 20px;
+        `
+      },
+      axisPointer: {
+        link: [{xAxisIndex: 'all'}],
+        label: {backgroundColor: '#777'}
+      },
+      // legend: [{ x: 'center', y: 40 }],
+      grid: [
+        {
+          left: '10px',
+          right: '30px',
+          top: '20px',
+          height: '300px'
+        }
+      ],
+      xAxis: [{
+          type: 'category',
+          data: x,
+          boundaryGap: false,
+          axisLine: { onZero: false },
+          splitLine: { show: false },
+          min: 'dataMin',
+          max: 'dataMax',
+          axisPointer: {z: 100}
+        }
+      ],
+      yAxis: [{
+          scale: true,
+          splitArea: {show: true},
+          min: 'dataMin'
+        }
+      ],
+      dataZoom: [{
+          type: 'inside',
+          xAxisIndex: [0],
+          start: startValue,
+          end: 100
+        },
+        {
+          show: false,
+          xAxisIndex: [0],
+          type: 'slider',
+          start: startValue,
+          end: 100
+        }
+      ],
+      series: [
+        {
+          name: 'Price',
+          type: 'candlestick',
+          data: price,
+          itemStyle: {
+            color: upColor,
+            color0: downColor,
+            borderColor: undefined,
+            borderColor0: undefined
+          }
+        },{
+          name: 'MA5',
+          type: 'line',
+          data: ma5,
+          smooth: true,
+          showSymbol: false,
+          itemStyle: { color: 'blue' },
+          lineStyle: { color: 'blue', opacity: 0.9, width: 1 }
+        },{
+          name: 'MA10',
+          type: 'line',
+          data: ma10,
+          smooth: true,
+          showSymbol: false,
+          itemStyle: { color: 'orange' },
+          lineStyle: { color: 'orange', opacity: 0.9, width: 1 }
+        },{
+          name: 'MA20',
+          type: 'line',
+          data: ma20,
+          smooth: true,
+          showSymbol: false,
+          itemStyle: { color: 'DarkGreen' },
+          lineStyle: { color: 'DarkGreen', opacity: 0.9, width: 1 }
+        },{
+          name: 'UP',
+          type: 'line',
+          data: boll_up,
+          smooth: true,
+          showSymbol: false,
+          itemStyle: { color: 'purple' },
+          lineStyle: { color: 'purple', opacity: 0.9, width: 1 }
+        },{
+          name: 'LOW',
+          type: 'line',
+          data: boll_low,
+          smooth: true,
+          showSymbol: false,
+          itemStyle: { color: 'Tomato' },
+          lineStyle: { color: 'Tomato', opacity: 0.9, width: 1 }
+        }
+      ]
+    }),
+    true
+  );
+  option && myChart.setOption(option);
+};

@@ -852,6 +852,8 @@ async def startSelectStock():
                 for s in stockInfos:
                     try:
                         s_info = await Stock.get_one(s['code'])
+                        if s_info.industry in ["航空机场", "证券", "房地产开发", "房地产服务", "珠宝首饰", "汽车整车", "水泥建材", "多元金融", "燃气", "银行"]:
+                            continue
                         if s_info.running == 1:
                             stockList.append({s['code']: s['name'], f'{s['code']}count': 1})
                     except:
@@ -868,7 +870,6 @@ async def startSelectStock():
                 await Tools.update("openDoor2", value=current_day)
             except NoResultFound:
                 await Tools.create(key="openDoor2", value=current_day)
-            await getStockTopic()
         except:
             logger.error(traceback.format_exc())
 
@@ -991,7 +992,8 @@ async def selectStockMetric():
         if current_day == time.strftime("%Y%m%d"):
             stock_metric = []   # 非买入信号的策略选股
             day = ''
-            selected = await Recommend.query().is_null('last_three_price').all()
+            trunc_time = time.strftime("%Y-%m-%d") + " 14:20:20"
+            selected = await Recommend.query().is_null('last_three_price').greater(create_time=trunc_time).all()
             exclued_stock = [r.code for r in selected]
             stockInfos = await Detail.query().equal(day=current_day).notin(code=exclued_stock).all()
             for s in stockInfos:
@@ -1007,7 +1009,7 @@ async def selectStockMetric():
                     stockData.reverse()
                     stockMetric = analyze_buy_signal_new(stockData)
                     day = stockMetric['day']
-                    logger.info(f"Auto Select Stock - {s.code} - {s.name} : - : {stockMetric}")
+                    logger.info(f"Auto Select Stock - {s.code} - {s.name} : {stockMetric}")
                     if stockMetric['buy']:
                         stock_metric.append(stockMetric)
                 except:
@@ -1089,6 +1091,7 @@ async def selectStockMetric():
                 sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, f'{day} 股票推荐', msg)
                 logger.info('Email send success ~')
             else:
+                sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, f'{day} 股票推荐', "今天没有选出股票 (No stock recommended.)")
                 logger.info('No stock recommended.')
         else:
             logger.info("不在交易时间。。。")
@@ -1451,6 +1454,7 @@ async def main():
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 中午更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 中午更新股票信息
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=49, second=1, misfire_grace_time=10)  # 开始选股
+    scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)    # 获取热门题材
     # scheduler.add_job(calcStockMetric, 'cron', hour=14, minute=50, second=10)    # 计算推荐股票
     # scheduler.add_job(selectStockMetric, 'cron', hour=14, minute=50, second=10, misfire_grace_time=10)    # 计算推荐股票
     scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)   # 停止任务
