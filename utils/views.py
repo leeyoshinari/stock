@@ -302,8 +302,8 @@ async def query_ai_stock(code: str) -> Result:
         logger.info(json.dumps(post_data, ensure_ascii=False))
         date_obj = datetime.strptime(day, "%Y%m%d")
         open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        if current_time > open_date:
+        current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}，最新日期的所有数据都是截至当前时间实时计算出来的，不一定是一整天的数据，不能和其他日期的数据弄混了'
+        if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
             current_time = open_date
         stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, current_time)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
@@ -341,8 +341,8 @@ async def sell_stock(code: str, price: str = None, t: str = None) -> Result:
         logger.info(json.dumps(post_data, ensure_ascii=False))
         date_obj = datetime.strptime(day, "%Y%m%d")
         open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        if current_time > open_date:
+        current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}，最新日期的所有数据都是截至当前时间实时计算出来的，不一定是一整天的数据，不能和其他日期的数据弄混了'
+        if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
             current_time = open_date
         stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
