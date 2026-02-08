@@ -68,7 +68,7 @@ async def getStockHqFromTencent(host: str, datas: list[dict], logger: Logger) ->
     '''
     从腾讯获取股票实时行情数据
     '''
-    result = {'data': None, 'error': None}
+    result = {'data': [], 'error': []}
     try:
         error_list = []
         data_list = []
@@ -125,7 +125,7 @@ async def getStockHqFromXueQiu(host: str, datas: list[dict], logger: Logger) -> 
     '''
     从雪球获取股票实时行情数据
     '''
-    result = {'data': None, 'error': None}
+    result = {'data': [], 'error': []}
     try:
         error_list = []
         data_list = []
@@ -184,7 +184,7 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
     '''
     从新浪获取股票实时行情数据
     '''
-    result = {'data': None, 'error': None}
+    result = {'data': [], 'error': []}
     try:
         error_list = []
         data_list = []
@@ -213,7 +213,6 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
                     if code in data_dict:
                         stockDo: StockModelDo = data_dict[code]
                         if f"{code}_i" in line:
-                            logger.info(line)
                             if float(stockInfo[8]) < 0.5:
                                 logger.info(f"Sina({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                                 continue
@@ -235,7 +234,6 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
                         stockDo = StockModelDo()
                         stockDo.code = code
                         if f"{code}_i" in line:
-                            logger.info(line)
                             if float(stockInfo[8]) < 0.5:
                                 logger.info(f"Sina({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                                 continue

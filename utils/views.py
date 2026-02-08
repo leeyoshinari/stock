@@ -116,7 +116,7 @@ async def queryByCode(code: str, site: str = None) -> Result:
         st: Stock = await Stock.get_one(code)
         recommends: list[Recommend] = await Recommend.query().select('create_time', 'price').equal(code=code).order_by(Recommend.create_time.asc()).all()
         coords = [['R', r[0].strftime("%Y%m%d"), r[0].strftime("%Y-%m-%d %H:%M:%S"), r[1]] for r in recommends]
-        if x[-1] == day:
+        if x[-1] != day:
             stockDo: dict = await calc_stock_real_data(code, site)
             x.append(day)
             data.append([stockDo['open_price'], stockDo['current_price'], stockDo['min_price'], stockDo['max_price'], stockDo['volume'], stockDo['qrr'], 0, 0, stockDo['dea'], stockDo['turnover_rate'], stockDo['fund']])
