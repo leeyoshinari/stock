@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
+import os
 import asyncio
 from contextlib import asynccontextmanager, suppress
 from litestar import Litestar, Request, Router, Controller, get, post
@@ -11,11 +12,17 @@ from litestar.openapi.plugins import SwaggerRenderPlugin
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
-from settings import PREFIX, HOST, PORT, checkout
+from settings import PREFIX, HOST, PORT, BASE_PATH, checkout
 from utils.scheduler import scheduler
+from utils.backup import zip_file
+from utils.logging import logger
 from utils.database import Database, write_worker
 from utils.results import Result
 from utils import model, views
+
+
+db_path = os.path.join(BASE_PATH, 'sqlite3.db')
+zip_path = os.path.join(BASE_PATH, 'static', 'db.zip')
 
 
 class StockController(Controller):
@@ -49,18 +56,25 @@ class StockController(Controller):
             result = await views.queryRecommendStockList(page)
         return result
 
-    @get('/query/ai', summary="询问AI股票走势")
+    @get('/query/ai', summary="询问AI股票走势 - 通用")
     async def stock_ai_data(self, request: Request, code: str, site: str = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.query_ai_stock(code, site)
         return result
 
-    @get('/sell/stock', summary="AI股票卖出判断")
+    @get('/sell/stock', summary="AI股票卖出判断 - 通用")
     async def sell_stock(self, request: Request, code: str, price: str, t: str, site: str = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.sell_stock(code, price, t, site)
+        return result
+
+    @get('/ai/sell', summary="AI股票卖出策略")
+    async def ai_sell_stock(self, request: Request, code: str, site: str = None) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.ai_sell(code, site)
         return result
 
     @get('/query/stock/return', summary="查询选出来的股票的收益")
@@ -173,6 +187,7 @@ route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(
 @asynccontextmanager
 async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
+    scheduler.add_job(zip_file, 'cron', hour=21, minute=20, second=20, args=[[db_path], zip_path, logger], misfire_grace_time=10)  # 备份数据库
     scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
     worker_task = asyncio.create_task(write_worker())
     yield

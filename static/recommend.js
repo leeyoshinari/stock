@@ -104,7 +104,7 @@ function get_stock_real_figure(code) {
 function query_stock_ai(code, name) {
     show_modal_cover();
     let site = localStorage.getItem('site');
-    fetch(`${prefix}/sell/stock?price=&t=&site=${site}&code=${code}`)
+    fetch(`${prefix}/ai/sell?site=${site}&code=${code}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;

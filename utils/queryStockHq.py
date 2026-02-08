@@ -294,7 +294,7 @@ async def getMinuteKFromTencent(host: str, code: str, logger: Logger) -> list[St
                     if d[0] > '1500': continue
                     stockDo = StockMinuteDo()
                     stockDo.code = code
-                    stockDo.minute = d[0]
+                    stockDo.time = d[0]
                     stockDo.price = float(d[1])
                     stockDo.volume = int(d[2]) - pre_volume
                     result.append(stockDo)
@@ -329,9 +329,10 @@ async def getMinuteKFromTongHuaShun(host: str, code: str, logger: Logger) -> lis
                     if d[0].strip() > '1500': continue
                     stockDo = StockMinuteDo()
                     stockDo.code = code
-                    stockDo.minute = d[0].strip()
+                    stockDo.time = d[0].strip()
                     stockDo.price = float(d[1])
                     stockDo.volume = int(int(d[4]) / 100)
+                    stockDo.price_avg = round(float(d[3]), 2)
                     result.append(stockDo)
                 logger.info(f"TongHuaShun-minute({host}) - {code}")
             else:
@@ -367,9 +368,10 @@ async def getMinuteKFromSina(host: str, code: str, logger: Logger) -> list[Stock
                     if m > '1500': continue
                     stockDo = StockMinuteDo()
                     stockDo.code = code
-                    stockDo.minute = m
+                    stockDo.time = m
                     stockDo.price = float(s['p'])
                     stockDo.volume = int(int(s['v']) / 100)
+                    stockDo.price_avg = round(float(s['avg_p']), 2)
                     result.append(stockDo)
                 logger.info(f"Sina-minute({host}) - {code}")
             else:

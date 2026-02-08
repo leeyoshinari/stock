@@ -172,8 +172,9 @@ class StockInfoList(BaseModel):
 
 class StockMinuteDo(BaseModel):
     code: str = None
-    minute: str = None
+    time: str = None
     price: float = None
+    price_avg: float = None
     volume: int = None
 
     class Config:

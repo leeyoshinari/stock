@@ -11,6 +11,7 @@ from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinu
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList
 from utils.selectStock import getStockZhuLiFundFromDongCai
 from utils.ai_model import queryAI, webSearchTopic
+from utils.saleStock import sellAI
 from utils.logging import logger
 from utils.results import Result
 from utils.initData import initStockData
@@ -298,13 +299,13 @@ async def query_ai_stock(code: str, site: str = None) -> Result:
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
         post_data = detail2List(stock_data)
-        logger.info(json.dumps(post_data, ensure_ascii=False))
         date_obj = datetime.strptime(day, "%Y%m%d")
         open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
         current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}，最新日期的所有数据都是截至当前时间实时计算出来的，不一定是一整天的数据，不能和其他日期的数据弄混了'
         if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
             current_time = open_date
-        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, current_time)
+        day_line = await getMinuteKFromTongHuaShun('', code, logger)
+        stock_dict = await queryAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, None, None, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
     except Exception as e:
@@ -337,15 +338,51 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
             r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
             price = r.price
             t = r.create_time.strftime("%Y%m%d")
-        logger.info(json.dumps(post_data, ensure_ascii=False))
         date_obj = datetime.strptime(day, "%Y%m%d")
         open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
         current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}，最新日期的所有数据都是截至当前时间实时计算出来的，不一定是一整天的数据，不能和其他日期的数据弄混了'
         if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
             current_time = open_date
-        stock_dict = await queryAI(json.dumps(post_data, ensure_ascii=False), API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t)
+        day_line = await getMinuteKFromTongHuaShun('', code, logger)
+        stock_dict = await queryAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def ai_sell(code: str, site: str = None) -> Result:
+    result = Result()
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        day = tool.value
+        stockList: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
+        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
+        is_stock = [item for item in stock_data if item['day'] == day]
+        if not is_stock:
+            logger.info(f"query newest data - {code}")
+            stockDo: dict = await calc_stock_real_data(code, site)
+            stock_data.insert(0, stockDo)
+        else:
+            fflow = await getStockZhuLiFundFromDongCai(code)
+            stock_data[0]['fund'] = fflow
+        stock_data.reverse()
+        post_data = detail2List(stock_data)
+        r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
+        price = r.price
+        t = r.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        date_obj = datetime.strptime(day, "%Y%m%d")
+        open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        if current_time > open_date:
+            current_time = open_date
+        day_line = await getMinuteKFromTongHuaShun('', code, logger)
+        stock_dict = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
+        result.data = stock_dict['reason'].replace("#", "").replace("*", "")
+        logger.info(f"sell stock AI suggestion successfully, code: {code}, result: {result.data}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -361,12 +398,10 @@ async def calc_stock_real(code: str, site: str = None) -> Result:
         volume = []
         if site == 'sina':
             res: list[StockMinuteDo] = await getMinuteKFromSina('', code, logger)
-        elif site == 'tencent':
-            res: list[StockMinuteDo] = await getMinuteKFromTencent('', code, logger)
         else:
             res: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
         for r in res:
-            x.append(r.minute)
+            x.append(r.time)
             price.append(r.price)
             volume.append(r.volume)
         st = await Stock.get_one(code)
@@ -601,4 +636,14 @@ def detail2List(data: list) -> dict:
         res['trma'].append(round(d['trma'], 4))
         res['boll_up'].append(d['boll_up'])
         res['boll_low'].append(d['boll_low'])
+    return res
+
+
+def minute2List(data: list[StockMinuteDo]) -> dict:
+    res = {'code': data[0].code, 'time': [], 'price': [], 'price_avg': [], 'volume': []}
+    for d in data:
+        res['time'].append(d.time)
+        res['price'].append(d.price)
+        res['price_avg'].append(d.price_avg)
+        res['volume'].append(d.volume)
     return res
