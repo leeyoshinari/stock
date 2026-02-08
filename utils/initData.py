@@ -5,6 +5,7 @@
 import json
 import time
 import math
+import random
 import traceback
 from typing import List
 from datetime import datetime, timedelta
@@ -214,7 +215,8 @@ async def getStockFundFlow(code, logger):
     '''从东方财富获取资金流向'''
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     try:
-        url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery1123016147749948325607_{int(time.time() * 1000)}'
+        rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
+        url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{int(time.time() * 1000)}'
         res = await http.get(url, headers=header)
         res_json = json.loads(res.text.split('(')[1].split(')')[0])
         klines = res_json['data']['klines']

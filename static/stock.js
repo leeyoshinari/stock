@@ -72,16 +72,12 @@ function getStockList() {
         .then(data => {
             let s = "";
             data.data.forEach(item => {
-                let myself = ``;
-                if (item.filter.indexOf("myself") > -1) {
-                    myself = `<img onclick="click_stock_code('${item.code}');" id="trend-${item.code}" src="${prefix}/static/trend.svg" alt="" />`;
-                }
                 let setFlag = ``;
                 if (showFlag) {
                     setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" />`;
                 }
-                s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a>${setFlag}${myself}</div><div><a target="_blank" href="https://quote.eastmoney.com/concept/${getStockRegion(item.code) + item.code}.html#chart-k-cyq">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
-                      <div><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:20px;margin-right:8%;" /><img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:20px;" /></div>
+                s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a>${setFlag}</div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
+                      <div><img id="dc-${item.code}" src="${prefix}/static/dc.ico" alt="" onclick="window.open('https://quote.eastmoney.com/concept/${getStockRegion(item.code) + item.code}.html#chart-k-cyq');" style="width:18px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:20px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:20px;" /></div>
                       <div>${item.region}</div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
@@ -101,7 +97,9 @@ function getStockList() {
 function change_select() {page = 1;getStockList();}
 
 function get_stock_figure(code) {
-    fetch(prefix + `/get?code=${code}`)
+    show_modal_cover();
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/get?code=${code}&site=${site}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
@@ -112,27 +110,32 @@ function get_stock_figure(code) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low);
+                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
+        .finally(() => {close_modal_cover();})
 }
 
-function click_stock_code(code) {
-    fetch(prefix + `/query/recommend/real?code=${code}`)
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
-            let figure = document.getElementById("figure");
-            figure.style.height = '500px';
-            figure.removeAttribute("_echarts_instance_")
-            figure.innerHTML = '';
-            let stockChart = echarts.init(figure);
-            plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.volume);
-            document.getElementsByClassName("stock-chart")[0].style.display = "flex";
-        }
-    })
+function get_stock_real_figure(code) {
+    show_modal_cover();
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/query/day/k?code=${code}&site=${site}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
+                let figure = document.getElementById("figure");
+                figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
+                figure.style.height = '500px';
+                figure.removeAttribute("_echarts_instance_")
+                figure.innerHTML = '';
+                let stockChart = echarts.init(figure);
+                plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.volume);
+                document.getElementsByClassName("stock-chart")[0].style.display = "flex";
+            }
+        })
+        .finally(() => {close_modal_cover();})
 }
 
 function show_stock_filter(code) {
@@ -153,7 +156,7 @@ function show_concept(code) {
 
 function set_stock_filter(code, value) {
     let filter = document.getElementById("filter-values").value;
-    fetch(prefix + `/stock/setFilter?code=${code}&filter=${filter}&operate=${value}`)
+    fetch(`${prefix}/stock/setFilter?code=${code}&filter=${filter}&operate=${value}`)
         .then(res => res.json())
         .then(data => {
             if (!data.success) {alert(data.msg);}
@@ -172,8 +175,9 @@ function sell_stock_ai(code, name) {
     document.getElementsByClassName("stock-data")[0].style.display = "none";
     let buy_time = document.getElementById("buy-time").value;
     let buy_price = document.getElementById("buy-price").value;
+    let site = localStorage.getItem('site');
     show_modal_cover();
-    fetch(prefix + `/sell/stock?code=${code}&price=${buy_price}&t=${buy_time}`)
+    fetch(`${prefix}/sell/stock?code=${code}&price=${buy_price}&t=${buy_time}&site=${site}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
@@ -186,7 +190,8 @@ function sell_stock_ai(code, name) {
 
 function query_stock_ai(code, name) {
     show_modal_cover();
-    fetch(prefix + `/query/ai?code=${code}`)
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/query/ai?code=${code}&site=${site}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;

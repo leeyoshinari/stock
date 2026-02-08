@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
-from typing import Optional, List
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -27,7 +27,7 @@ class StockModelDo(BaseModel):
     open_price: float = None
     max_price: float = None
     min_price: float = None
-    volumn: int = None
+    volume: int = None
     turnover_rate: float = None
     fund: float = None
     ma_five: float = None
@@ -71,7 +71,7 @@ class StockDataList(BaseModel):
     @classmethod
     def from_orm_format(cls, obj):
         return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price,
-                   open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, fund=obj.fund,
+                   open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volume, fund=obj.fund,
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=obj.emas - obj.emal,
                    dea=obj.dea, k=obj.kdjk, d=obj.kdjd, j=obj.kdjj, trix=obj.trix, trma=obj.trma, turnover_rate=obj.turnover_rate,
                    boll_up=obj.boll_up, boll_low=obj.boll_low)
@@ -108,7 +108,7 @@ class AiModelStockList(BaseModel):
     @classmethod
     def from_orm_format(cls, obj):
         return cls(code=obj.code, day=obj.day, current_price=obj.current_price, last_price=obj.last_price, fund=obj.fund, boll_up=obj.boll_up, boll_low=obj.boll_low,
-                   open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volumn, turnover_rate=f"{obj.turnover_rate}%",
+                   open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volume, turnover_rate=f"{obj.turnover_rate}%",
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=round(obj.emas - obj.emal, 4),
                    dea=round(obj.dea, 4), k=round(obj.kdjk, 4), d=round(obj.kdjd, 4), j=round(obj.kdjj, 4), trix=round(obj.trix, 4), trma=round(obj.trma, 4))
 
@@ -147,10 +147,6 @@ class RecommendStockDataList(BaseModel):
                    last_four_high=obj.last_four_high, last_four_low=obj.last_four_low, last_five_price=obj.last_five_price, last_five_high=obj.last_five_high, last_five_low=obj.last_five_low, create_time=c)
 
 
-class RequestData(BaseModel):
-    data: List
-
-
 class StockInfoList(BaseModel):
     code: str
     name: str
@@ -174,9 +170,8 @@ class StockInfoList(BaseModel):
                    create_time=c, update_time=m, filter=filter)
 
 
-class StockRealDo(BaseModel):
+class StockMinuteDo(BaseModel):
     code: str = None
-    day: str = None
     minute: str = None
     price: float = None
     volume: int = None

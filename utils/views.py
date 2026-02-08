@@ -6,18 +6,18 @@ import os
 import time
 import json
 import traceback
-import requests
-from typing import List
 from datetime import datetime
-from utils.model import SearchStockParam, StockModelDo, RequestData, StockDataList
+from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList
 from utils.selectStock import getStockZhuLiFundFromDongCai
 from utils.ai_model import queryAI, webSearchTopic
 from utils.logging import logger
 from utils.results import Result
 from utils.initData import initStockData
+from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
+from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromTencent, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
-from utils.database import Recommend, MinuteK, Stock, Detail, Tools
+from utils.database import Recommend, Stock, Detail, Tools
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
 
 
@@ -30,36 +30,7 @@ headers = {
 }
 
 
-def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68"):
-        return "sh"
-    elif code.startswith("00") or code.startswith("30"):
-        return "sz"
-    else:
-        return ""
-
-
-def normalizeHourAndMinute():
-    local_time = time.localtime(time.time())
-    hour = local_time.tm_hour
-    minute = local_time.tm_min
-    remainder = minute % 10
-    if remainder != 0:
-        minute += (10 - remainder)
-        if minute >= 60:
-            minute -= 60
-            hour += 1
-    return f"{hour:02d}{minute:02d}"
-
-
-def generateStockCode(data: dict) -> str:
-    s = []
-    for r in list(data.keys()):
-        s.append(f"{getStockRegion(r)}{r}")
-    return ",".join(s)
-
-
-def calc_MA(data: List, window: int) -> float:
+def calc_MA(data: list, window: int) -> float:
     return round(sum(data[:window]) / len(data[:window]), 2)
 
 
@@ -94,14 +65,16 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
     return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
 
 
-async def queryByCode(code: str) -> Result:
+async def queryByCode(code: str, site: str = None) -> Result:
     result = Result()
     try:
-        stockInfo = await Detail.query().equal(code=code).order_by(Detail.day.asc()).all()
-        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volumn', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate', 'fund']] for row in stockInfo]
+        tool: Tools = await Tools.get_one("openDoor")
+        day = tool.value
+        stockInfo: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.asc()).all()
+        data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volume', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate', 'fund']] for row in stockInfo]
         bollinger = []
         x = []
-        volumn = []
+        volume = []
         qrr = []
         ma_five = []
         ma_ten = []
@@ -121,7 +94,7 @@ async def queryByCode(code: str) -> Result:
         for index, d in enumerate(data):
             bollinger.append(d[1])
             x.append(stockInfo[index].day)
-            volumn.append(d[4])
+            volume.append(d[4])
             qrr.append(d[5])
             ma_five.append(stockInfo[index].ma_five)
             ma_ten.append(stockInfo[index].ma_ten)
@@ -140,10 +113,33 @@ async def queryByCode(code: str) -> Result:
             trma.append(round(stockInfo[index].trma, 3))
             boll_up.append(stockInfo[index].boll_up)
             boll_low.append(stockInfo[index].boll_low)
-        st = await Stock.get_one(code)
+        st: Stock = await Stock.get_one(code)
+        recommends: list[Recommend] = await Recommend.query().select('create_time', 'price').equal(code=code).order_by(Recommend.create_time.asc()).all()
+        coords = [['R', r[0].strftime("%Y%m%d"), r[0].strftime("%Y-%m-%d %H:%M:%S"), r[1]] for r in recommends]
+        if x[-1] == day:
+            stockDo: dict = await calc_stock_real_data(code, site)
+            x.append(day)
+            data.append([stockDo['open_price'], stockDo['current_price'], stockDo['min_price'], stockDo['max_price'], stockDo['volume'], stockDo['qrr'], 0, 0, stockDo['dea'], stockDo['turnover_rate'], stockDo['fund']])
+            volume.append(stockDo['volume'])
+            qrr.append(stockDo['qrr'])
+            turnover_rate.append(stockDo['turnover_rate'])
+            ma_five.append(stockDo['ma_five'])
+            ma_ten.append(stockDo['ma_ten'])
+            ma_twenty.append(stockDo['ma_twenty'])
+            diff.append(round(stockDo['diff'], 3))
+            dea.append(round(stockDo['dea'], 3))
+            macd.append(round(stockDo['diff'] - stockDo['dea'], 3))
+            fund.append(stockDo['fund'])
+            kdjk.append(round(stockDo['k'], 3))
+            kdjd.append(round(stockDo['d'], 3))
+            kdjj.append(round(stockDo['j'], 3))
+            trix.append(round(stockDo['trix'], 3))
+            trma.append(round(stockDo['trma'], 3))
+            boll_up.append(stockDo['boll_up'])
+            boll_low.append(stockDo['boll_low'])
         result.data = {
-            'x': x, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry,
-            'price': data, 'volumn': volumn, 'qrr': qrr, 'turnover_rate': turnover_rate,
+            'x': x, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'coord': coords,
+            'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up,
             'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'concept': st.concept,
             'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma, 'boll_low': boll_low
@@ -160,28 +156,29 @@ async def queryByCode(code: str) -> Result:
 async def queryStockList(query: SearchStockParam) -> Result:
     result = Result()
     try:
-        tool = await Tools.get_one("openDoor")
+        tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
-        tool = await Tools.get_one("openDoor2")
+        tool: Tools = await Tools.get_one("openDoor2")
         day2 = tool.value
         if query.code:
-            stockInfo = await Detail.get((query.code, day))
+            stockInfo: Detail = await Detail.get((query.code, day))
             if not stockInfo:
                 stockInfo = await Detail.get((query.code, day2))
             stockList = [StockModelDo.model_validate(stockInfo).model_dump()] if stockInfo else []
         elif query.name:
-            stockInfo = await Detail.query().equal(day=day).like(name=query.name).all()
+            stockInfo: list[Detail] = await Detail.query().equal(day=day).like(name=query.name).all()
             if len(stockInfo) < 1:
-                stockInfo = await Detail.query().equal(day=day2).like(name=query.name).all()
+                stockInfo: list[Detail] = await Detail.query().equal(day=day2).like(name=query.name).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
         else:
             logger.info(query)
             offset = (query.page - 1) * query.pageSize
-            total_num = await Detail.query().equal(day=day).count()
-            stockInfo = await Detail.query().equal(day=day).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
+            total_num: int = await Detail.query().equal(day=day).count()
             if total_num < 1:
-                total_num = await Detail.query().equal(day=day2).count()
-                stockInfo = await Detail.query().equal(day=day2).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
+                total_num: int = await Detail.query().equal(day=day2).count()
+                stockInfo: list[Detail] = await Detail.query().equal(day=day2).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
+            else:
+                stockInfo: list[Detail] = await Detail.query().equal(day=day).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList
@@ -198,8 +195,8 @@ async def queryRecommendStockList(page: int = 1) -> Result:
     pageSize = 20
     try:
         offset = (page - 1) * pageSize
-        total_num = await Recommend.query().count()
-        stockInfo = await Recommend.query().order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
+        total_num: int = await Recommend.query().count()
+        stockInfo: list[Recommend] = await Recommend.query().order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
         stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
@@ -211,15 +208,17 @@ async def queryRecommendStockList(page: int = 1) -> Result:
     return result
 
 
-async def calc_stock_return() -> Result:
+async def calc_stock_return(fee) -> Result:
     result = Result()
     try:
         init_fund = 5000
         coupon = 13
+        if fee > 0:
+            coupon = 0
         r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         x = []
         y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
-        stocks = await Recommend.query().order_by(Recommend.id.asc()).all()
+        stocks: list[Recommend] = await Recommend.query().order_by(Recommend.id.asc()).all()
         for s in stocks:
             s_time = s.create_time.strftime("%Y-%m-%d")
             if s_time in x:
@@ -282,17 +281,17 @@ async def calc_stock_return() -> Result:
     return result
 
 
-async def query_ai_stock(code: str) -> Result:
+async def query_ai_stock(code: str, site: str = None) -> Result:
     result = Result()
     try:
-        tool = await Tools.get_one("openDoor")
+        tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
-        stockList = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
+        stockList: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
         is_stock = [item for item in stock_data if item['day'] == day]
         if not is_stock:
             logger.info(f"query newest data - {code}")
-            stockDo = await calc_stock_real_data(code)
+            stockDo: dict = await calc_stock_real_data(code, site)
             stock_data.insert(0, stockDo)
         else:
             fflow = await getStockZhuLiFundFromDongCai(code)
@@ -315,17 +314,17 @@ async def query_ai_stock(code: str) -> Result:
     return result
 
 
-async def sell_stock(code: str, price: str = None, t: str = None) -> Result:
+async def sell_stock(code: str, price: str = None, t: str = None, site: str = None) -> Result:
     result = Result()
     try:
-        tool = await Tools.get_one("openDoor")
+        tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
-        stockList = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
+        stockList: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
         is_stock = [item for item in stock_data if item['day'] == day]
         if not is_stock:
             logger.info(f"query newest data - {code}")
-            stockDo = await calc_stock_real_data(code)
+            stockDo: dict = await calc_stock_real_data(code, site)
             stock_data.insert(0, stockDo)
         else:
             fflow = await getStockZhuLiFundFromDongCai(code)
@@ -335,7 +334,7 @@ async def sell_stock(code: str, price: str = None, t: str = None) -> Result:
         if price and t:
             pass
         else:
-            r = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
+            r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
             price = r.price
             t = r.create_time.strftime("%Y%m%d")
         logger.info(json.dumps(post_data, ensure_ascii=False))
@@ -354,22 +353,22 @@ async def sell_stock(code: str, price: str = None, t: str = None) -> Result:
     return result
 
 
-async def calc_stock_real(code: str) -> Result:
+async def calc_stock_real(code: str, site: str = None) -> Result:
     result = Result()
     try:
         x = []
         price = []
         volume = []
-        pre_volume = 0
-        res = await MinuteK.query().equal(code=code).order_by(MinuteK.create_time.asc()).all()
+        if site == 'sina':
+            res: list[StockMinuteDo] = await getMinuteKFromSina('', code, logger)
+        elif site == 'tencent':
+            res: list[StockMinuteDo] = await getMinuteKFromTencent('', code, logger)
+        else:
+            res: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
         for r in res:
-            if r.minute == "09:30":
-                pre_volume = 0
-            x.append(f"{r.day} {r.minute}")
+            x.append(r.minute)
             price.append(r.price)
-            volume.append(max(r.volume - pre_volume, 0))
-            pre_volume = r.volume
-        volume[0] = 0
+            volume.append(r.volume)
         st = await Stock.get_one(code)
         result.data = {'x': x, 'price': price, 'volume': volume, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'concept': st.concept}
         logger.info(f"query Recommend stock minute real data success - {code}")
@@ -380,227 +379,21 @@ async def calc_stock_real(code: str) -> Result:
     return result
 
 
-async def query_tencent(query: RequestData) -> Result:
-    result = Result()
-    try:
-        r_list = []
-        error_list = []
-        datas = query.data
-        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-        stockCode = generateStockCode(dataDict)
-        res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
-        if res.status_code == 200:
-            res_list = res.text.split(';')
-            for s in res_list:
-                try:
-                    stockDo = StockModelDo()
-                    if len(s) < 30:
-                        continue
-                    stockInfo = s.split('~')
-                    stockDo.name = stockInfo[1]
-                    stockDo.code = stockInfo[2]
-                    stockDo.current_price = float(stockInfo[3])
-                    stockDo.last_price = float(stockInfo[4])
-                    stockDo.open_price = float(stockInfo[5])
-                    if int(stockInfo[6]) < 2:
-                        logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                        continue
-                    stockDo.volumn = int(int(stockInfo[6]))
-                    stockDo.max_price = float(stockInfo[33])
-                    stockDo.min_price = float(stockInfo[34])
-                    stockDo.turnover_rate = float(stockInfo[38])
-                    stockDo.day = stockInfo[30][:8]
-                    r_list.append(StockModelDo.model_validate(stockDo).model_dump())
-                    logger.info(f"Tencent: {stockDo}")
-                except:
-                    logger.error(f"Tencent - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                    logger.error(traceback.format_exc())
-                    key_stock = f"{stockDo.code}count"
-                    if dataCount[key_stock] < 5:
-                        error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-            result.data = {"data": r_list, "error": error_list}
-        else:
-            logger.error("Tencent - 请求未正常返回...")
-            result.success = False
-            result.msg = "请求未正常返回"
-    except:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = "请求失败, 请重试～"
-    return result
-
-
-async def query_xueqiu(query: RequestData) -> Result:
-    result = Result()
-    try:
-        r_list = []
-        error_list = []
-        datas = query.data
-        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-        stockCode = generateStockCode(dataDict)
-        res = requests.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
-        if res.status_code == 200:
-            res_json = json.loads(res.text)
-            if len(res_json['data']) > 0:
-                for s in res_json['data']:
-                    try:
-                        stockDo = StockModelDo()
-                        code = s['symbol'][2:]
-                        stockDo.name = dataDict[code]
-                        stockDo.code = code
-                        stockDo.current_price = s['current']
-                        stockDo.open_price = s['open']
-                        stockDo.last_price = s['last_close']
-                        stockDo.max_price = s['high']
-                        stockDo.min_price = s['low']
-                        stockDo.turnover_rate = s['turnover_rate']
-                        if not s['volume'] or s['volume'] < 2:
-                            logger.info(f"XueQiu - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                            continue
-                        stockDo.volumn = int(s['volume'] / 100)
-                        stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
-                        r_list.append(StockModelDo.model_validate(stockDo).model_dump())
-                        logger.info(f"XueQiu: {stockDo}")
-                    except:
-                        logger.error(f"XueQiu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                        logger.error(traceback.format_exc())
-                        key_stock = f"{stockDo.code}count"
-                        if dataCount[key_stock] < 5:
-                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-            else:
-                logger.error(f"XueQiu - 请求未正常返回...响应值: {res_json}")
-                result.success = False
-                result.msg = "请求未正常返回"
-            result.data = {"data": r_list, "error": error_list}
-        else:
-            logger.error("XueQiu - 请求未正常返回...")
-            result.success = False
-            result.msg = "请求未正常返回"
-    except:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = "请求失败, 请重试～"
-    return result
-
-
-async def query_sina(query: RequestData) -> Result:
-    result = Result()
-    try:
-        r_list = []
-        error_list = []
-        datas = query.data
-        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-        stockCode = generateStockCode(dataDict)
-        h = {
-            'Referer': 'https://finance.sina.com.cn',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
-        }
-        res = requests.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
-        if res.status_code == 200:
-            res_list = res.text.split(';')
-            for s in res_list:
-                try:
-                    stockDo = StockModelDo()
-                    if len(s) < 30:
-                        continue
-                    stockInfo = s.split(',')
-                    stockDo.name = stockInfo[0].split('"')[-1]
-                    stockDo.code = stockInfo[0].split('=')[0].split('_')[-1][2:]
-                    stockDo.current_price = float(stockInfo[3])
-                    stockDo.open_price = float(stockInfo[1])
-                    if int(stockInfo[8]) < 2:
-                        logger.info(f"Sina - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                        continue
-                    stockDo.volumn = int(int(stockInfo[8]) / 100)
-                    stockDo.last_price = float(stockInfo[2])
-                    stockDo.max_price = float(stockInfo[4])
-                    stockDo.min_price = float(stockInfo[5])
-                    stockDo.day = stockInfo[30].replace('-', '')
-                    r_list.append(StockModelDo.model_validate(stockDo).model_dump())
-                    logger.info(f"Sina: {stockDo}")
-                except:
-                    logger.error(f"Sina - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                    logger.error(traceback.format_exc())
-                    key_stock = f"{stockDo.code}count"
-                    if dataCount[key_stock] < 5:
-                        error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-            result.data = {"data": r_list, "error": error_list}
-        else:
-            logger.error("Sina - 请求未正常返回...")
-            result.success = False
-            result.msg = "请求未正常返回"
-    except:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = "请求失败, 请重试～"
-    return result
-
-
-async def query_stock_from_tencent(code: str, name: str) -> Result:
-    result = Result()
-    try:
-        r_list = []
-        datas = [{code: name}]
-        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-        stockCode = generateStockCode(dataDict)
-        res = requests.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
-        if res.status_code == 200:
-            res_list = res.text.split(';')
-            for s in res_list:
-                try:
-                    stockDo = StockModelDo()
-                    if len(s) < 30:
-                        continue
-                    stockInfo = s.split('~')
-                    stockDo.name = stockInfo[1]
-                    stockDo.code = stockInfo[2]
-                    stockDo.current_price = float(stockInfo[3])
-                    stockDo.last_price = float(stockInfo[4])
-                    stockDo.open_price = float(stockInfo[5])
-                    if int(stockInfo[6]) < 2:
-                        logger.info(f"Tencent - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                        continue
-                    stockDo.volumn = int(int(stockInfo[6]))
-                    stockDo.max_price = float(stockInfo[33])
-                    stockDo.min_price = float(stockInfo[34])
-                    stockDo.turnover_rate = float(stockInfo[38])
-                    stockDo.day = stockInfo[30][:8]
-                    stockDo.fund = await getStockZhuLiFundFromDongCai(stockInfo[2])
-                    r_list.append(StockModelDo.model_validate(stockDo).model_dump())
-                    logger.info(f"Tencent: {stockDo}")
-                except:
-                    logger.error(f"Tencent - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                    logger.error(traceback.format_exc())
-            result.data = r_list
-        else:
-            logger.error("Tencent - 请求未正常返回...")
-            result.success = False
-            result.msg = "请求未正常返回"
-    except:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = "请求失败, 请重试～"
-    return result
-
-
 async def all_stock_info(query: SearchStockParam) -> Result:
     result = Result()
     try:
         if query.code:
-            stockInfo = await Stock.get(query.code)
+            stockInfo: Stock = await Stock.get(query.code)
             stockList = [StockInfoList.from_orm_format(stockInfo).model_dump()]
         elif query.name or query.region or query.industry or query.concept or query.filter:
-            stockInfo = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).all()
+            stockInfo: list[Stock] = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = len(stockList)
         else:
             logger.info(query)
             offset = (query.page - 1) * query.pageSize
-            total_num = await Stock.query().equal(running=1).count()
-            stockInfo = await Stock.query().equal(running=1).order_by(Stock.create_time.desc()).offset(offset).limit(query.pageSize).all()
+            total_num: int = await Stock.query().equal(running=1).count()
+            stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.desc()).offset(offset).limit(query.pageSize).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList
@@ -616,8 +409,8 @@ async def all_topic_info(query: SearchStockParam) -> Result:
     result = Result()
     try:
         offset = (query.page - 1) * query.pageSize
-        total_num = await Tools.query().count()
-        topicInfo = await Tools.query().order_by(Tools.update_time.desc()).offset(offset).limit(query.pageSize).all()
+        total_num: int = await Tools.query().count()
+        topicInfo: list[Tools] = await Tools.query().order_by(Tools.update_time.desc()).offset(offset).limit(query.pageSize).all()
         topicList = [ToolsInfoList.from_orm_format(f).model_dump() for f in topicInfo if not f.key.startswith('openDoor')]
         result.total = total_num
         result.data = topicList
@@ -660,7 +453,7 @@ async def get_topic_file(code: str) -> Result:
 async def set_stock_filter(code: str, filter: str, operate: int) -> Result:
     result = Result()
     try:
-        stock = await Stock.get_one(code)
+        stock: Stock = await Stock.get_one(code)
         if operate == 1:
             await Stock.update(stock.code, filter=f"{stock.filter},{filter}")
             logger.info(f"设置股票标签成功 - {code} - {filter}")
@@ -681,10 +474,10 @@ async def get_stock_info(code: str) -> Result:
     try:
         code_list = code.split(',')
         if len(code_list) == 1:
-            stock = await Stock.get_one(code_list[0])
+            stock: Stock = await Stock.get_one(code_list[0])
             stockList = [StockInfoList.from_orm_format(stock).model_dump()]
         else:
-            stocks = await Stock.query().isin(code=code_list).all()
+            stocks: list[Stock] = await Stock.query().isin(code=code_list).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stocks]
         result.data = stockList
         result.total = len(stockList)
@@ -699,7 +492,7 @@ async def get_stock_info(code: str) -> Result:
 async def init_stock_data(code: str) -> Result:
     result = Result()
     try:
-        stock = await Stock.get_one(code)
+        stock: Stock = await Stock.get_one(code)
         await initStockData(code, stock.name, logger)
         logger.info(f"初始化股票数据成功 - {code} - {stock.name}")
     except Exception as e:
@@ -709,11 +502,15 @@ async def init_stock_data(code: str) -> Result:
     return result
 
 
-async def calc_stock_real_data(code: str) -> dict:
-    res_stock = await query_stock_from_tencent(code, "-")
-    logger.info(res_stock)
-    stockDo = res_stock.data[0]
-    stock_price_obj = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(21).all()
+async def calc_stock_real_data(code: str, site: str = None) -> dict:
+    if site == 'sina':
+        res_stock: dict = await getStockHqFromSina('', [{code: "-"}], logger)
+    elif site == 'xueqiu':
+        res_stock: dict = await getStockHqFromXueQiu('', [{code: "-"}], logger)
+    else:
+        res_stock: dict = await getStockHqFromTencent('', [{code: "-"}], logger)
+    stockDo = StockModelDo.model_validate(res_stock['data'][0]).model_dump()
+    stock_price_obj: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(21).all()
     stock_price = [r.current_price for r in stock_price_obj]
     high_price = [r.max_price for r in stock_price_obj]
     low_price = [r.min_price for r in stock_price_obj]
@@ -723,7 +520,7 @@ async def calc_stock_real_data(code: str) -> dict:
     low_price.insert(0, stockDo['min_price'])
     trix_list.insert(0, 0)
     real_trade_time = real_traded_minutes()
-    volume_list = [r.volumn for r in stock_price_obj[: 5]]
+    volume_list = [r.volume for r in stock_price_obj[: 5]]
     volume_len = min(max(len(volume_list), 1), 5)
     emas = stock_price_obj[0].emas
     emal = stock_price_obj[0].emal
@@ -733,15 +530,15 @@ async def calc_stock_real_data(code: str) -> dict:
     trix_ema_one = stock_price_obj[0].trix_ema_one
     trix_ema_two = stock_price_obj[0].trix_ema_two
     trix_ema_three = stock_price_obj[0].trix_ema_three
-    average_volumn = (sum(volume_list) / volume_len) * (real_trade_time / 240)
-    average_volumn = average_volumn if average_volumn > 0 else stockDo['volumn']
+    average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
+    average_volume = average_volume if average_volume > 0 else stockDo['volume']
     macd = calc_macd(stockDo['current_price'], emas, emal, dea)
     kdj = calc_kdj(stockDo['current_price'], high_price, low_price, kdjk, kdjd)
     trix = calc_trix(stockDo['current_price'], trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
     stockDo.update({'ma_five': calc_MA(stock_price, 5)})
     stockDo.update({'ma_ten': calc_MA(stock_price, 10)})
     stockDo.update({'ma_twenty': calc_MA(stock_price, 20)})
-    stockDo.update({'qrr': round(stockDo['volumn'] / average_volumn, 2)})
+    stockDo.update({'qrr': round(stockDo['volume'] / average_volume, 2)})
     stockDo.update({'diff': macd['emas'] - macd['emal']})
     stockDo.update({'dea': macd['dea']})
     stockDo.update({'k': kdj['k']})
@@ -749,27 +546,28 @@ async def calc_stock_real_data(code: str) -> dict:
     stockDo.update({'j': kdj['j']})
     stockDo.update({'trix': trix['trix']})
     stockDo.update({'trma': trix['trma']})
-    stockDo.update({'volume': stockDo['volumn']})
-    stockDo.update({'fund': stockDo['fund']})
+    stockDo.update({'volume': stockDo['volume']})
+    stockDo.update({'fund': await getStockZhuLiFundFromDongCai(code)})
     up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
     stockDo.update({'boll_up': round(up, 2)})
     stockDo.update({'boll_low': round(dn, 2)})
+    logger.info(stockDo)
     return stockDo
 
 
 async def test(code) -> Result:
     result = Result()
     try:
-        stock_volumn_obj = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(6).all()
-        stock_volumn_obj.reverse()
-        stock_volumn = detail2List(stock_volumn_obj)
+        stock_volume_obj: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(6).all()
+        stock_volume_obj.reverse()
+        stock_volume = detail2List(stock_volume_obj)
         s_info = await Stock.get_one(code)
         tool = await Tools.get_one("openDoor")
         topic_info = await Tools.get_one(tool.value)
-        stock_volumn['hot_topic'] = topic_info.value
-        stock_volumn['industry'] = s_info.industry
-        stock_volumn['concept'] = s_info.concept
-        result.data = stock_volumn
+        stock_volume['hot_topic'] = topic_info.value
+        stock_volume['industry'] = s_info.industry
+        stock_volume['concept'] = s_info.concept
+        result.data = stock_volume
     except:
         logger.error(traceback.format_exc())
     return result

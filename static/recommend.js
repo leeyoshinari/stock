@@ -32,7 +32,7 @@ function getStockRegion(code) {
 }
 
 function getStockList() {
-    let url = prefix + `/getRecommend?page=${page}`;
+    let url = `${prefix}/getRecommend?page=${page}`;
     fetch(url)
         .then(res => res.json())
         .then(data => {
@@ -60,7 +60,9 @@ function getStockList() {
 }
 
 function get_stock_figure(code) {
-    fetch(prefix + `/get?code=${code}`)
+    show_modal_cover();
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/get?code=${code}&site=${site}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
@@ -71,19 +73,23 @@ function get_stock_figure(code) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low);
+                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
+        .finally(() => {close_modal_cover();})
 }
 
 function get_stock_real_figure(code) {
-    fetch(prefix + `/query/recommend/real?code=${code}`)
+    show_modal_cover();
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/query/day/k?code=${code}&site=${site}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
                 let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
+                figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
                 figure.style.height = '500px';
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
@@ -92,11 +98,13 @@ function get_stock_real_figure(code) {
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
+        .finally(() => {close_modal_cover();})
 }
 
 function query_stock_ai(code, name) {
     show_modal_cover();
-    fetch(prefix + `/sell/stock?price=&t=&code=${code}`)
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/sell/stock?price=&t=&site=${site}&code=${code}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
@@ -108,7 +116,7 @@ function query_stock_ai(code, name) {
 }
 
 function show_reason(code) {
-    fetch(prefix + `/stock/info?code=${code}`)
+    fetch(`${prefix}/stock/info?code=${code}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
@@ -122,7 +130,8 @@ function show_reason(code) {
 }
 
 document.getElementById("stock-return").addEventListener('click', () => {
-    fetch(prefix + '/query/stock/return')
+    let fee = document.location.href.indexOf('fee');
+    fetch(`${prefix}/query/stock/return?fee=${fee}`)
         .then(res => res.json())
         .then(data => {
             let s = `<div class="header">每只股票买入5000元的收益</div><div><div class="return-table" style="font-weight:bold;"><span>时间</span><span>第一天</span><span>第二天</span><span>第三天</span><span>第四天</span><span>第五天</span></div>

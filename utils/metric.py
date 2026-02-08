@@ -4,10 +4,10 @@
 
 import math
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any
 
 
-def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = None) -> Dict[str, Any]:
+def analyze_buy_signal(stock_data_list: list[dict[str, Any]], params: dict = None) -> dict[str, Any]:
     """
     改进版买入信号分析器
     输入:
@@ -163,7 +163,7 @@ def analyze_buy_signal(stock_data_list: List[Dict[str, Any]], params: dict = Non
     }
 
 
-def analyze_buy_signal_new(stock_data_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+def analyze_buy_signal_new(stock_data_list: list[dict[str, Any]]) -> dict[str, Any]:
     """
     改进版买入信号分析器
     输入:

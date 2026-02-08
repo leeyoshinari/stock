@@ -8,7 +8,6 @@ import time
 import random
 import asyncio
 import traceback
-from typing import List
 from contextlib import suppress
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
@@ -21,11 +20,12 @@ from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
 from utils.ai_model import queryGemini, queryOpenAi, webSearchTopic
-from utils.metric import analyze_buy_signal, analyze_buy_signal_new, bollinger_bands, real_traded_minutes
+from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
+from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
 from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
-from utils.database import Stock, Detail, Tools, Recommend, MinuteK, write_worker
+from utils.database import Stock, Detail, Tools, Recommend, write_worker
 from utils.logging_getstock import logger
 
 
@@ -93,11 +93,11 @@ def generateStockCodeForSina(data: dict) -> str:
     return ",".join(s)
 
 
-def calc_MA(data: List, window: int) -> float:
+def calc_MA(data: list, window: int) -> float:
     return round(sum(data[:window]) / len(data[:window]), 2)
 
 
-def detail2List(data: list) -> dict:
+def detail2List(data: list[Detail]) -> dict:
     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
            'd': [], 'j': [], 'trix': [], 'trma': [], 'boll_up': [], 'boll_low': []}
@@ -109,7 +109,7 @@ def detail2List(data: list) -> dict:
         res['open_price'].append(d.open_price)
         res['max_price'].append(d.max_price)
         res['min_price'].append(d.min_price)
-        res['volume'].append(d.volumn)
+        res['volume'].append(d.volume)
         res['turnover_rate'].append(f"{d.turnover_rate}%")
         res['fund'].append(d.fund)
         res['ma_five'].append(d.ma_five)
@@ -128,60 +128,22 @@ def detail2List(data: list) -> dict:
     return res
 
 
-async def getStockFromTencent(a):
+async def getStockFromTencent(host):
     while True:
         try:
             datas = None
             datas = await queryTask.get()
             if datas == 'end': break
-            error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-            stockCode = generateStockCode(dataDict)
-            if a == "proxy":
-                param_data = {"url": f"https://qt.gtimg.cn/q={stockCode}", "method": "GET"}
-                res = await http.post(f'{HTTP_HOST2}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
-            else:
-                res = await http.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
-            if res.status_code == 200:
-                res_list = res.text.split(';')
-                for s in res_list:
-                    try:
-                        stockDo = StockModelDo()
-                        if len(s) < 30:
-                            continue
-                        stockInfo = s.split('~')
-                        stockDo.name = stockInfo[1]
-                        stockDo.code = stockInfo[2]
-                        stockDo.current_price = float(stockInfo[3])
-                        stockDo.last_price = float(stockInfo[4])
-                        stockDo.open_price = float(stockInfo[5])
-                        if int(stockInfo[6]) < 2:
-                            logger.info(f"Tencent({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                            continue
-                        stockDo.volumn = int(int(stockInfo[6]))
-                        stockDo.max_price = float(stockInfo[33])
-                        stockDo.min_price = float(stockInfo[34])
-                        stockDo.turnover_rate = float(stockInfo[38])
-                        stockDo.day = stockInfo[30][:8]
-                        await saveStockInfo(stockDo)
-                        logger.info(f"Tencent({a}): {stockDo}")
-                    except:
-                        logger.error(f"Tencent({a}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                        logger.error(traceback.format_exc())
-                        key_stock = f"{stockDo.code}count"
-                        if dataCount[key_stock] < 5:
-                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-                if len(error_list) > 0:
-                    await queryTask.put(error_list)
-                    await asyncio.sleep(3)
-            else:
-                logger.error(f"Tencent({a}) - 请求未正常返回... {datas}")
-                await queryTask.put(datas)
+            result: dict = await getStockHqFromTencent(host, datas, logger)
+            dataList: list[StockModelDo] = result['data']
+            errorList: list[dict] = result['error']
+            if len(errorList) > 0:
+                await queryTask.put(errorList)
                 await asyncio.sleep(3)
-            error_list = []
+            for d in dataList:
+                await saveStockInfo(d)
         except:
-            logger.error(f"Tencent({a}) - 出现异常...... {datas}")
+            logger.error(f"Tencent({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: await queryTask.put(datas)
             await asyncio.sleep(3)
@@ -189,63 +151,22 @@ async def getStockFromTencent(a):
             if datas: queryTask.task_done()
 
 
-async def getStockFromXueQiu(a):
+async def getStockFromXueQiu(host):
     while True:
         try:
             datas = None
             datas = await queryTask.get()
             if datas == 'end': break
-            error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-            stockCode = generateStockCode(dataDict)
-            if a == 'proxy':
-                param_data = {"url": f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", "method": "GET"}
-                res = await http.post(f'{HTTP_HOST2}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
-            else:
-                res = await http.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
-            if res.status_code == 200:
-                res_json = json.loads(res.text)
-                if len(res_json['data']) > 0:
-                    for s in res_json['data']:
-                        try:
-                            stockDo = StockModelDo()
-                            code = s['symbol'][2:]
-                            stockDo.name = dataDict[code]
-                            stockDo.code = code
-                            stockDo.current_price = s['current']
-                            stockDo.open_price = s['open']
-                            stockDo.last_price = s['last_close']
-                            stockDo.max_price = s['high']
-                            stockDo.min_price = s['low']
-                            stockDo.turnover_rate = s['turnover_rate']
-                            if not s['volume'] or s['volume'] < 2:
-                                logger.info(f"XueQiu({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                                continue
-                            stockDo.volumn = int(s['volume'] / 100)
-                            stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
-                            await saveStockInfo(stockDo)
-                            logger.info(f"XueQiu({a}): {stockDo}")
-                        except:
-                            logger.error(f"XueQiu({a}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                            logger.error(traceback.format_exc())
-                            key_stock = f"{stockDo.code}count"
-                            if dataCount[key_stock] < 5:
-                                error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-                else:
-                    logger.error(f"XueQiu({a}) - 请求未正常返回...响应值: {res_json}")
-                    await queryTask.put(datas)
-                    await asyncio.sleep(3)
-                if len(error_list) > 0:
-                    await queryTask.put(error_list)
-                    await asyncio.sleep(3)
-            else:
-                logger.error(f"XueQiu({a}) - 请求未正常返回... {datas}")
-                await queryTask.put(datas)
+            result: dict = await getStockHqFromXueQiu(host, datas, logger)
+            dataList: list[StockModelDo] = result['data']
+            errorList: list[dict] = result['error']
+            if len(errorList) > 0:
+                await queryTask.put(errorList)
                 await asyncio.sleep(3)
-            error_list = []
+            for d in dataList:
+                await saveStockInfo(d)
         except:
-            logger.error(f"XueQiu({a}) - 出现异常...... {datas}")
+            logger.error(f"XueQiu({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: await queryTask.put(datas)
             await asyncio.sleep(3)
@@ -253,63 +174,22 @@ async def getStockFromXueQiu(a):
             if datas: queryTask.task_done()
 
 
-async def getStockFromSina(a):
+async def getStockFromSina(host):
     while True:
         try:
             datas = None
             datas = await queryTask.get()
             if datas == 'end': break
-            error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-            stockCode = generateStockCode(dataDict)
-            h = {
-                'Referer': 'https://finance.sina.com.cn',
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
-            }
-            if a == 'proxy':
-                param_data = {"url": f"http://hq.sinajs.cn/list={stockCode}", "method": "GET", "headers": h}
-                res = await http.post(f'{HTTP_HOST2}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
-            else:
-                res = await http.get(f"http://hq.sinajs.cn/list={stockCode}", headers=h)
-            if res.status_code == 200:
-                res_list = res.text.split(';')
-                for s in res_list:
-                    try:
-                        stockDo = StockModelDo()
-                        if len(s) < 30:
-                            continue
-                        stockInfo = s.split(',')
-                        stockDo.name = stockInfo[0].split('"')[-1]
-                        stockDo.code = stockInfo[0].split('=')[0].split('_')[-1][2:]
-                        stockDo.current_price = float(stockInfo[3])
-                        stockDo.open_price = float(stockInfo[1])
-                        if int(stockInfo[8]) < 2:
-                            logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                            continue
-                        stockDo.volumn = int(int(stockInfo[8]) / 100)
-                        stockDo.last_price = float(stockInfo[2])
-                        stockDo.max_price = float(stockInfo[4])
-                        stockDo.min_price = float(stockInfo[5])
-                        stockDo.day = stockInfo[30].replace('-', '')
-                        await saveStockInfo(stockDo)
-                        logger.info(f"Sina({a}): {stockDo}")
-                    except:
-                        logger.error(f"Sina({a}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                        logger.error(traceback.format_exc())
-                        key_stock = f"{stockDo.code}count"
-                        if dataCount[key_stock] < 5:
-                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-                if len(error_list) > 0:
-                    await queryTask.put(error_list)
-                    await asyncio.sleep(3)
-            else:
-                logger.error(f"Sina({a}) - 请求未正常返回... {datas}")
-                await queryTask.put(datas)
+            result: dict = await getStockHqFromSina(host, datas, logger)
+            dataList: list[StockModelDo] = result['data']
+            errorList: list[dict] = result['error']
+            if len(errorList) > 0:
+                await queryTask.put(errorList)
                 await asyncio.sleep(3)
-            error_list = []
+            for d in dataList:
+                await saveStockInfo(d)
         except:
-            logger.error(f"Sina({a}) - 出现异常...... {datas}")
+            logger.error(f"Sina({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: await queryTask.put(datas)
             await asyncio.sleep(3)
@@ -317,138 +197,138 @@ async def getStockFromSina(a):
             if datas: queryTask.task_done()
 
 
-async def queryStockTencentFromHttp(host: str):
-    while True:
-        try:
-            datas = None
-            datas = await queryTask.get()
-            if datas == 'end': break
-            res = await http.post(f"{host}/stock/query/tencent", json_data={"data": datas}, headers={"content-type": "application/json"})
-            if res.status_code == 200 or res.status_code == 201:
-                res_json = json.loads(res.text)
-                if res_json['success']:
-                    if res_json['data']['error']:
-                        await queryTask.put(res_json['data']['error'])
-                    if res_json['data']['data']:
-                        stock_list = res_json['data']['data']
-                        for stockInfo in stock_list:
-                            stockDo = StockModelDo()
-                            stockDo.name = stockInfo['name']
-                            stockDo.code = stockInfo['code']
-                            stockDo.current_price = stockInfo['current_price']
-                            stockDo.open_price = stockInfo['open_price']
-                            stockDo.last_price = stockInfo['last_price']
-                            stockDo.volumn = stockInfo['volumn']
-                            stockDo.max_price = stockInfo['max_price']
-                            stockDo.min_price = stockInfo['min_price']
-                            stockDo.turnover_rate = stockInfo['turnover_rate']
-                            stockDo.day = stockInfo['day']
-                            await saveStockInfo(stockDo)
-                            logger.info(f"Tencent - Http: {stockDo}")
-                else:
-                    logger.error(f"Tencent - Http 请求未正常返回, {res.text} - {datas}...")
-                    await queryTask.put(datas)
-                    await asyncio.sleep(3)
-            else:
-                logger.error(f"Tencent - Http 请求未正常返回 - {res.status_code} - {datas}")
-                await queryTask.put(datas)
-                await asyncio.sleep(3)
-        except:
-            logger.error(f"Tencent - Http 出现异常...... {datas}")
-            logger.error(traceback.format_exc())
-            if datas: await queryTask.put(datas)
-            await asyncio.sleep(3)
-        finally:
-            if datas: queryTask.task_done()
+# async def queryStockTencentFromHttp(host: str):
+#     while True:
+#         try:
+#             datas = None
+#             datas = await queryTask.get()
+#             if datas == 'end': break
+#             res = await http.post(f"{host}/stock/query/tencent", json_data={"data": datas}, headers={"content-type": "application/json"})
+#             if res.status_code == 200 or res.status_code == 201:
+#                 res_json = json.loads(res.text)
+#                 if res_json['success']:
+#                     if res_json['data']['error']:
+#                         await queryTask.put(res_json['data']['error'])
+#                     if res_json['data']['data']:
+#                         stock_list = res_json['data']['data']
+#                         for stockInfo in stock_list:
+#                             stockDo = StockModelDo()
+#                             stockDo.name = stockInfo['name']
+#                             stockDo.code = stockInfo['code']
+#                             stockDo.current_price = stockInfo['current_price']
+#                             stockDo.open_price = stockInfo['open_price']
+#                             stockDo.last_price = stockInfo['last_price']
+#                             stockDo.volume = stockInfo['volume']
+#                             stockDo.max_price = stockInfo['max_price']
+#                             stockDo.min_price = stockInfo['min_price']
+#                             stockDo.turnover_rate = stockInfo['turnover_rate']
+#                             stockDo.day = stockInfo['day']
+#                             await saveStockInfo(stockDo)
+#                             logger.info(f"Tencent - Http: {stockDo}")
+#                 else:
+#                     logger.error(f"Tencent - Http 请求未正常返回, {res.text} - {datas}...")
+#                     await queryTask.put(datas)
+#                     await asyncio.sleep(3)
+#             else:
+#                 logger.error(f"Tencent - Http 请求未正常返回 - {res.status_code} - {datas}")
+#                 await queryTask.put(datas)
+#                 await asyncio.sleep(3)
+#         except:
+#             logger.error(f"Tencent - Http 出现异常...... {datas}")
+#             logger.error(traceback.format_exc())
+#             if datas: await queryTask.put(datas)
+#             await asyncio.sleep(3)
+#         finally:
+#             if datas: queryTask.task_done()
 
 
-async def queryStockXueQiuFromHttp(host: str):
-    while True:
-        try:
-            datas = None
-            datas = await queryTask.get()
-            if datas == 'end': break
-            res = await http.post(f"{host}/stock/query/xueqiu", json_data={"data": datas}, headers={"content-type": "application/json"})
-            if res.status_code == 200 or res.status_code == 201:
-                res_json = json.loads(res.text)
-                if res_json['success']:
-                    if res_json['data']['error']:
-                        await queryTask.put(res_json['data']['error'])
-                    if res_json['data']['data']:
-                        stock_list = res_json['data']['data']
-                        for stockInfo in stock_list:
-                            stockDo = StockModelDo()
-                            stockDo.name = stockInfo['name']
-                            stockDo.code = stockInfo['code']
-                            stockDo.current_price = stockInfo['current_price']
-                            stockDo.open_price = stockInfo['open_price']
-                            stockDo.last_price = stockInfo['last_price']
-                            stockDo.volumn = stockInfo['volumn']
-                            stockDo.max_price = stockInfo['max_price']
-                            stockDo.min_price = stockInfo['min_price']
-                            stockDo.turnover_rate = stockInfo['turnover_rate']
-                            stockDo.day = stockInfo['day']
-                            await saveStockInfo(stockDo)
-                            logger.info(f"XueQiu - Http: {stockDo}")
-                else:
-                    logger.error(f"XueQiu - Http 请求未正常返回, {res.text} - {datas}...")
-                    await queryTask.put(datas)
-                    await asyncio.sleep(3)
-            else:
-                logger.error(f"XueQiu - Http 请求未正常返回 - {res.status_code} - {datas}")
-                await queryTask.put(datas)
-                await asyncio.sleep(3)
-        except:
-            logger.error(f"XueQiu - Http 出现异常...... {datas}")
-            logger.error(traceback.format_exc())
-            if datas: await queryTask.put(datas)
-            await asyncio.sleep(3)
-        finally:
-            if datas: queryTask.task_done()
+# async def queryStockXueQiuFromHttp(host: str):
+#     while True:
+#         try:
+#             datas = None
+#             datas = await queryTask.get()
+#             if datas == 'end': break
+#             res = await http.post(f"{host}/stock/query/xueqiu", json_data={"data": datas}, headers={"content-type": "application/json"})
+#             if res.status_code == 200 or res.status_code == 201:
+#                 res_json = json.loads(res.text)
+#                 if res_json['success']:
+#                     if res_json['data']['error']:
+#                         await queryTask.put(res_json['data']['error'])
+#                     if res_json['data']['data']:
+#                         stock_list = res_json['data']['data']
+#                         for stockInfo in stock_list:
+#                             stockDo = StockModelDo()
+#                             stockDo.name = stockInfo['name']
+#                             stockDo.code = stockInfo['code']
+#                             stockDo.current_price = stockInfo['current_price']
+#                             stockDo.open_price = stockInfo['open_price']
+#                             stockDo.last_price = stockInfo['last_price']
+#                             stockDo.volume = stockInfo['volume']
+#                             stockDo.max_price = stockInfo['max_price']
+#                             stockDo.min_price = stockInfo['min_price']
+#                             stockDo.turnover_rate = stockInfo['turnover_rate']
+#                             stockDo.day = stockInfo['day']
+#                             await saveStockInfo(stockDo)
+#                             logger.info(f"XueQiu - Http: {stockDo}")
+#                 else:
+#                     logger.error(f"XueQiu - Http 请求未正常返回, {res.text} - {datas}...")
+#                     await queryTask.put(datas)
+#                     await asyncio.sleep(3)
+#             else:
+#                 logger.error(f"XueQiu - Http 请求未正常返回 - {res.status_code} - {datas}")
+#                 await queryTask.put(datas)
+#                 await asyncio.sleep(3)
+#         except:
+#             logger.error(f"XueQiu - Http 出现异常...... {datas}")
+#             logger.error(traceback.format_exc())
+#             if datas: await queryTask.put(datas)
+#             await asyncio.sleep(3)
+#         finally:
+#             if datas: queryTask.task_done()
 
 
-async def queryStockSinaFromHttp(host: str):
-    while True:
-        try:
-            datas = None
-            datas = await queryTask.get()
-            if datas == 'end': break
-            res = await http.post(f"{host}/stock/query/sina", json_data={"data": datas}, headers={"content-type": "application/json"})
-            if res.status_code == 200 or res.status_code == 201:
-                res_json = json.loads(res.text)
-                if res_json['success']:
-                    if res_json['data']['error']:
-                        await queryTask.put(res_json['data']['error'])
-                    if res_json['data']['data']:
-                        stock_list = res_json['data']['data']
-                        for stockInfo in stock_list:
-                            stockDo = StockModelDo()
-                            stockDo.name = stockInfo['name']
-                            stockDo.code = stockInfo['code']
-                            stockDo.current_price = stockInfo['current_price']
-                            stockDo.open_price = stockInfo['open_price']
-                            stockDo.last_price = stockInfo['last_price']
-                            stockDo.volumn = stockInfo['volumn']
-                            stockDo.max_price = stockInfo['max_price']
-                            stockDo.min_price = stockInfo['min_price']
-                            stockDo.day = stockInfo['day']
-                            await saveStockInfo(stockDo)
-                            logger.info(f"Sina - Http: {stockDo}")
-                else:
-                    logger.error(f"Sina - Http 请求未正常返回, {res.text} - {datas}...")
-                    await queryTask.put(datas)
-                    await asyncio.sleep(3)
-            else:
-                logger.error(f"Sina - Http 请求未正常返回 - {res.status_code} - {datas}")
-                await queryTask.put(datas)
-                await asyncio.sleep(3)
-        except:
-            logger.error(f"Sina - Http 出现异常...... {datas}")
-            logger.error(traceback.format_exc())
-            if datas: await queryTask.put(datas)
-            await asyncio.sleep(3)
-        finally:
-            if datas: queryTask.task_done()
+# async def queryStockSinaFromHttp(host: str):
+#     while True:
+#         try:
+#             datas = None
+#             datas = await queryTask.get()
+#             if datas == 'end': break
+#             res = await http.post(f"{host}/stock/query/sina", json_data={"data": datas}, headers={"content-type": "application/json"})
+#             if res.status_code == 200 or res.status_code == 201:
+#                 res_json = json.loads(res.text)
+#                 if res_json['success']:
+#                     if res_json['data']['error']:
+#                         await queryTask.put(res_json['data']['error'])
+#                     if res_json['data']['data']:
+#                         stock_list = res_json['data']['data']
+#                         for stockInfo in stock_list:
+#                             stockDo = StockModelDo()
+#                             stockDo.name = stockInfo['name']
+#                             stockDo.code = stockInfo['code']
+#                             stockDo.current_price = stockInfo['current_price']
+#                             stockDo.open_price = stockInfo['open_price']
+#                             stockDo.last_price = stockInfo['last_price']
+#                             stockDo.volume = stockInfo['volume']
+#                             stockDo.max_price = stockInfo['max_price']
+#                             stockDo.min_price = stockInfo['min_price']
+#                             stockDo.day = stockInfo['day']
+#                             await saveStockInfo(stockDo)
+#                             logger.info(f"Sina - Http: {stockDo}")
+#                 else:
+#                     logger.error(f"Sina - Http 请求未正常返回, {res.text} - {datas}...")
+#                     await queryTask.put(datas)
+#                     await asyncio.sleep(3)
+#             else:
+#                 logger.error(f"Sina - Http 请求未正常返回 - {res.status_code} - {datas}")
+#                 await queryTask.put(datas)
+#                 await asyncio.sleep(3)
+#         except:
+#             logger.error(f"Sina - Http 出现异常...... {datas}")
+#             logger.error(traceback.format_exc())
+#             if datas: await queryTask.put(datas)
+#             await asyncio.sleep(3)
+#         finally:
+#             if datas: queryTask.task_done()
 
 
 def calc_macd(price: float, ema_s: float, ema_l: float, dea: float) -> dict:
@@ -483,7 +363,7 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
 
 
 async def saveStockInfo(stockDo: StockModelDo):
-    stock_price_obj = await Detail.query().equal(code=stockDo.code).order_by(Detail.day.desc()).limit(21).all()
+    stock_price_obj: list[Detail] = await Detail.query().equal(code=stockDo.code).order_by(Detail.day.desc()).limit(21).all()
     stock_price = [r.current_price for r in stock_price_obj]
     high_price = [r.max_price for r in stock_price_obj]
     low_price = [r.min_price for r in stock_price_obj]
@@ -495,7 +375,7 @@ async def saveStockInfo(stockDo: StockModelDo):
         high_price[0] = stockDo.max_price
         low_price[0] = stockDo.min_price
         trix_list[0] = 0
-        volume_list = [r.volumn for r in stock_price_obj[1: 6]]
+        volume_list = [r.volume for r in stock_price_obj[1: 6]]
         volume_len = min(max(len(volume_list), 1), 5)
         if len(stock_price_obj) > 1:
             emas = stock_price_obj[1].emas
@@ -515,16 +395,16 @@ async def saveStockInfo(stockDo: StockModelDo):
             trix_ema_one = stockDo.current_price
             trix_ema_two = stockDo.current_price
             trix_ema_three = stockDo.current_price
-        average_volumn = (sum(volume_list) / volume_len) * (real_trade_time / 240)
-        average_volumn = average_volumn if average_volumn > 0 else stockDo.volumn
+        average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
+        average_volume = average_volume if average_volume > 0 else stockDo.volume
         ma_twenty = calc_MA(stock_price, 20)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
         await Detail.update((stockDo.code, stockDo.day), current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
-                            max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, ma_five=calc_MA(stock_price, 5),
-                            ma_ten=calc_MA(stock_price, 10), ma_twenty=ma_twenty, qrr=round(stockDo.volumn / average_volumn, 2), emas=macd['emas'],
+                            max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, ma_five=calc_MA(stock_price, 5),
+                            ma_ten=calc_MA(stock_price, 10), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2), emas=macd['emas'],
                             emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'], fund=0.0,
                             trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate,
                             boll_up=round(boll_up, 2), boll_low=round(boll_low, 2))
@@ -533,7 +413,7 @@ async def saveStockInfo(stockDo: StockModelDo):
         high_price.insert(0, stockDo.max_price)
         low_price.insert(0, stockDo.min_price)
         trix_list.insert(0, 0)
-        volume_list = [r.volumn for r in stock_price_obj[: 5]]
+        volume_list = [r.volume for r in stock_price_obj[: 5]]
         volume_len = min(max(len(volume_list), 1), 5)
         emas = stock_price_obj[0].emas if len(stock_price_obj) > 0 else stockDo.current_price
         emal = stock_price_obj[0].emal if len(stock_price_obj) > 0 else stockDo.current_price
@@ -543,34 +423,34 @@ async def saveStockInfo(stockDo: StockModelDo):
         trix_ema_one = stock_price_obj[0].trix_ema_one if len(stock_price_obj) > 0 else stockDo.current_price
         trix_ema_two = stock_price_obj[0].trix_ema_two if len(stock_price_obj) > 0 else stockDo.current_price
         trix_ema_three = stock_price_obj[0].trix_ema_three if len(stock_price_obj) > 0 else stockDo.current_price
-        average_volumn = (sum(volume_list) / volume_len) * (real_trade_time / 240)
-        average_volumn = average_volumn if average_volumn > 0 else stockDo.volumn
+        average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
+        average_volume = average_volume if average_volume > 0 else stockDo.volume
         ma_twenty = calc_MA(stock_price, 20)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
         await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                            max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=stockDo.last_price, fund=0.0,
-                            ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=ma_twenty, qrr=round(stockDo.volumn / average_volumn, 2),
+                            max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=stockDo.last_price, fund=0.0,
+                            ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2),
                             emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'],
                             trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate,
                             boll_up=round(boll_up, 2), boll_low=round(boll_low, 2))
 
 
 async def setAvailableStock():
-    tool = await Tools.get_one("openDoor")
+    tool: Tools = await Tools.get_one("openDoor")
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
         try:
-            total_cnt = await Stock.query().equal(running=1).count()
+            total_cnt: int = await Stock.query().equal(running=1).count()
             total_batch = int((total_cnt + BATCH_SIZE - 1) / BATCH_SIZE)
             one_batch_size = int(BATCH_SIZE / All_STOCK_DATA_SIZE)
             page = 0
             while page < total_batch:
                 offset = page * BATCH_SIZE
                 stockList = []
-                stockInfo = await Stock.query().equal(running=1).order_by(Stock.create_time.asc()).offset(offset).limit(BATCH_SIZE).all()
+                stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.asc()).offset(offset).limit(BATCH_SIZE).all()
                 for s in stockInfo:
                     stockList.append({s.code: s.name, f'{s.code}count': 1})
                 random.shuffle(stockList)
@@ -584,232 +464,6 @@ async def setAvailableStock():
             logger.error(traceback.format_exc())
 
 
-async def getStockFromTencentReal(a):
-    while True:
-        try:
-            datas = None
-            datas = await recommendTask.get()
-            if datas == 'end': break
-            error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-            stockCode = generateStockCode(dataDict)
-            res = await http.get(f"https://qt.gtimg.cn/q={stockCode}", headers=headers)
-            if res.status_code == 200:
-                res_list = res.text.split(';')
-                minute = time.strftime("%H:%M")
-                for s in res_list:
-                    try:
-                        stockDo = StockModelDo()
-                        if len(s) < 30:
-                            continue
-                        stockInfo = s.split('~')
-                        stockDo.name = stockInfo[1]
-                        stockDo.code = stockInfo[2]
-                        stockDo.current_price = float(stockInfo[3])
-                        stockDo.last_price = float(stockInfo[4])
-                        stockDo.open_price = float(stockInfo[5])
-                        if int(stockInfo[6]) < 2:
-                            logger.info(f"Tencent(Real) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                            continue
-                        stockDo.volumn = int(int(stockInfo[6]))
-                        stockDo.max_price = float(stockInfo[33])
-                        stockDo.min_price = float(stockInfo[34])
-                        stockDo.turnover_rate = float(stockInfo[38])
-                        stockDo.day = stockInfo[30][:8]
-                        await MinuteK.create(code=stockDo.code, day=stockDo.day, minute=minute, volume=stockDo.volumn, price=stockDo.current_price)
-                        now = datetime.now().time()
-                        save_time = datetime.strptime("14:49:00", "%H:%M:%S").time()
-                        if now <= save_time:
-                            await saveStockInfo(stockDo)
-                        logger.info(f"Tencent(Real): {stockDo}")
-                    except:
-                        logger.error(f"Tencent(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                        logger.error(traceback.format_exc())
-                        key_stock = f"{stockDo.code}count"
-                        if dataCount[key_stock] < 5:
-                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-                if len(error_list) > 0:
-                    await recommendTask.put(error_list)
-                    await asyncio.sleep(2)
-            else:
-                logger.error(f"Tencent(Real) - 请求未正常返回... {datas}")
-                await recommendTask.put(datas)
-                await asyncio.sleep(2)
-            error_list = []
-        except:
-            logger.error(f"Tencent(Real) - 出现异常...... {datas}")
-            logger.error(traceback.format_exc())
-            if datas: await recommendTask.put(datas)
-            await asyncio.sleep(2)
-        finally:
-            if datas: recommendTask.task_done()
-
-
-async def getStockFromXueQiuReal(a):
-    while True:
-        try:
-            datas = None
-            datas = await recommendTask.get()
-            if datas == 'end': break
-            error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-            stockCode = generateStockCode(dataDict)
-            res = await http.get(f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", headers=headers)
-            if res.status_code == 200:
-                res_json = json.loads(res.text)
-                minute = time.strftime("%H:%M")
-                if len(res_json['data']) > 0:
-                    for s in res_json['data']:
-                        try:
-                            stockDo = StockModelDo()
-                            code = s['symbol'][2:]
-                            stockDo.name = dataDict[code]
-                            stockDo.code = code
-                            stockDo.current_price = s['current']
-                            stockDo.open_price = s['open']
-                            stockDo.last_price = s['last_close']
-                            stockDo.max_price = s['high']
-                            stockDo.min_price = s['low']
-                            stockDo.turnover_rate = s['turnover_rate']
-                            if not s['volume'] or s['volume'] < 2:
-                                logger.info(f"XueQiu(Real) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                                continue
-                            stockDo.volumn = int(s['volume'] / 100)
-                            stockDo.day = time.strftime("%Y%m%d", time.localtime(s['timestamp'] / 1000))
-                            await MinuteK.create(code=stockDo.code, day=stockDo.day, minute=minute, volume=stockDo.volumn, price=stockDo.current_price)
-                            now = datetime.now().time()
-                            save_time = datetime.strptime("14:49:00", "%H:%M:%S").time()
-                            if now <= save_time:
-                                await saveStockInfo(stockDo)
-                            logger.info(f"XueQiu(Real): {stockDo}")
-                        except:
-                            logger.error(f"XueQiu(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
-                            logger.error(traceback.format_exc())
-                            key_stock = f"{stockDo.code}count"
-                            if dataCount[key_stock] < 5:
-                                error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-                else:
-                    logger.error(f"XueQiu(Real) - 请求未正常返回...响应值: {res_json}")
-                    await recommendTask.put(datas)
-                    await asyncio.sleep(2)
-                if len(error_list) > 0:
-                    await recommendTask.put(error_list)
-                    await asyncio.sleep(2)
-            else:
-                logger.error(f"XueQiu(Real) - 请求未正常返回... {datas}")
-                await recommendTask.put(datas)
-                await asyncio.sleep(2)
-            error_list = []
-        except:
-            logger.error(f"XueQiu(Real) - 出现异常...... {res.text}")
-            logger.error(traceback.format_exc())
-            if datas: await recommendTask.put(datas)
-            await asyncio.sleep(2)
-        finally:
-            if datas: recommendTask.task_done()
-
-
-async def getStockFromSinaReal(a):
-    while True:
-        try:
-            datas = None
-            datas = await recommendTask.get()
-            if datas == 'end': break
-            error_list = []
-            dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-            dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-            stockCode = generateStockCode(dataDict)
-            stockCode_i = generateStockCodeForSina(dataDict)
-            h = {
-                'Referer': 'https://finance.sina.com.cn',
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
-            }
-            res = await http.get(f"http://hq.sinajs.cn/list={stockCode},{stockCode_i}", headers=h)
-            if res.status_code == 200:
-                res_list = res.text.split(';')
-                minute = time.strftime("%H:%M")
-                data_dict = {}
-                for line in res_list:
-                    try:
-                        if len(line.strip()) < 30:
-                            continue
-                        stockInfo = line.strip().split(',')
-                        code = stockInfo[0].split('=')[0].split('_')[2][2:].strip()
-                        if code in data_dict:
-                            stockDo = data_dict[code]
-                            if f"{code}_i" in line:
-                                if float(stockInfo[8]) < 0.5:
-                                    logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                                    continue
-                                stockDo.turnover_rate = float(stockInfo[8])
-                            else:
-                                stockDo.name = stockInfo[0].split('"')[-1]
-                                stockDo.current_price = float(stockInfo[3])
-                                stockDo.open_price = float(stockInfo[1])
-                                if int(stockInfo[8]) < 2:
-                                    logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                                    continue
-                                stockDo.volumn = int(int(stockInfo[8]) / 100)
-                                stockDo.last_price = float(stockInfo[2])
-                                stockDo.max_price = float(stockInfo[4])
-                                stockDo.min_price = float(stockInfo[5])
-                                stockDo.day = stockInfo[30].replace('-', '')
-                            data_dict.update({code: stockDo})
-                        else:
-                            stockDo = StockModelDo()
-                            stockDo.code = code
-                            if f"{code}_i" in line:
-                                if float(stockInfo[8]) < 0.5:
-                                    logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                                    continue
-                                stockDo.turnover_rate = float(stockInfo[8])
-                            else:
-                                stockDo.name = stockInfo[0].split('"')[-1]
-                                stockDo.current_price = float(stockInfo[3])
-                                stockDo.open_price = float(stockInfo[1])
-                                if int(stockInfo[8]) < 2:
-                                    logger.info(f"Sina({a}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                                    continue
-                                stockDo.volumn = int(int(stockInfo[8]) / 100)
-                                stockDo.last_price = float(stockInfo[2])
-                                stockDo.max_price = float(stockInfo[4])
-                                stockDo.min_price = float(stockInfo[5])
-                                stockDo.day = stockInfo[30].replace('-', '')
-                            data_dict.update({code: stockDo})
-                    except:
-                        logger.error(f"Sina(Real) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {line}")
-                        logger.error(traceback.format_exc())
-                        key_stock = f"{stockDo.code}count"
-                        if dataCount[key_stock] < 5:
-                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-                for _, v in data_dict.items():
-                    if v.volumn > 0 and v.turnover_rate > 0:
-                        v.turnover_rate = round(v.volumn / v.turnover_rate, 2)
-                        await MinuteK.create(code=v.code, day=v.day, minute=minute, volume=v.volumn, price=v.current_price)
-                        now = datetime.now().time()
-                        save_time = datetime.strptime("14:49:00", "%H:%M:%S").time()
-                        if now <= save_time:
-                            await saveStockInfo(v)
-                        logger.info(f"Sina(Real): {v}")
-                if len(error_list) > 0:
-                    await recommendTask.put(error_list)
-                    await asyncio.sleep(2)
-            else:
-                logger.error(f"Sina(Real) - 请求未正常返回... {datas}")
-                await recommendTask.put(datas)
-                await asyncio.sleep(2)
-            error_list = []
-        except:
-            logger.error(f"Sina(Real) - 出现异常...... {datas}")
-            logger.error(traceback.format_exc())
-            if datas: await recommendTask.put(datas)
-            await asyncio.sleep(2)
-        finally:
-            if datas: recommendTask.task_done()
-
-
 async def queryRecommendStockData():
     now = datetime.now().time()
     start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
@@ -820,9 +474,11 @@ async def queryRecommendStockData():
         try:
             stockList = []
             hasList = []
-            stockInfo = await Recommend.query().is_null('last_five_price').all()
-            myStock = await Stock.query().like(filter="myself").all()
+            stockInfo: list[Recommend] = await Recommend.query().is_null('last_five_price').all()
+            myStock: list[Stock] = await Stock.query().like(filter="myself").all()
             for s in stockInfo:
+                if s.code in hasList:
+                    continue
                 hasList.append(s.code)
                 stockList.append({s.code: s.name, f'{s.code}count': 1})
             for s in myStock:
@@ -838,7 +494,7 @@ async def queryRecommendStockData():
 
 
 async def startSelectStock():
-    tool = await Tools.get_one("openDoor")
+    tool: Tools = await Tools.get_one("openDoor")
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
         try:
@@ -851,7 +507,7 @@ async def startSelectStock():
                 stockList = []
                 for s in stockInfos:
                     try:
-                        s_info = await Stock.get_one(s['code'])
+                        s_info: Stock = await Stock.get_one(s['code'])
                         if s_info.industry in ["航空机场", "证券", "房地产开发", "房地产服务", "珠宝首饰", "汽车整车", "水泥建材", "多元金融", "燃气", "银行"]:
                             continue
                         if s_info.running == 1:
@@ -910,95 +566,95 @@ async def checkTradeDay():
         await asyncio.sleep(3)
 
 
-async def calcStockMetric():
-    try:
-        tool = await Tools.get_one("openDoor")
-        current_day = tool.value
-        if current_day == time.strftime("%Y%m%d"):
-            stock_metric = []   # 非买入信号的策略选股
-            day = ''
-            stockInfos = await Stock.query().equal(running=1).all()
-            for s in stockInfos:
-                try:
-                    stockList = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(5).all()
-                    up_percent = (stockList[0].current_price - stockList[0].last_price) / stockList[0].last_price * 100
-                    if (up_percent > 9 or up_percent < 1 or stockList[0].qrr < 1.2):
-                        continue
-                    stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
-                    stockData.reverse()
-                    stockMetric = analyze_buy_signal(stockData, None)
-                    day = stockMetric['day']
-                    logger.info(f"Auto Select Stock - {s.code} - {s.name} : - : {stockMetric}")
-                    if stockMetric['score'] > 5:
-                        stock_metric.append(stockMetric)
-                except:
-                    logger.error(f"{s.code} - {s.name}")
-                    logger.error(traceback.format_exc())
+# async def calcStockMetric():
+#     try:
+#         tool = await Tools.get_one("openDoor")
+#         current_day = tool.value
+#         if current_day == time.strftime("%Y%m%d"):
+#             stock_metric = []   # 非买入信号的策略选股
+#             day = ''
+#             stockInfos = await Stock.query().equal(running=1).all()
+#             for s in stockInfos:
+#                 try:
+#                     stockList = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(5).all()
+#                     up_percent = (stockList[0].current_price - stockList[0].last_price) / stockList[0].last_price * 100
+#                     if (up_percent > 9 or up_percent < 1 or stockList[0].qrr < 1.2):
+#                         continue
+#                     stockData = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
+#                     stockData.reverse()
+#                     stockMetric = analyze_buy_signal(stockData, None)
+#                     day = stockMetric['day']
+#                     logger.info(f"Auto Select Stock - {s.code} - {s.name} : - : {stockMetric}")
+#                     if stockMetric['score'] > 5:
+#                         stock_metric.append(stockMetric)
+#                 except:
+#                     logger.error(f"{s.code} - {s.name}")
+#                     logger.error(traceback.format_exc())
 
-            send_msg = []
-            stock_metric.sort(key=lambda x: -x['score'])
-            logger.info(f"select stocks: {stock_metric}")
-            ai_model_list = stock_metric[: 10]
-            for i in range(len(ai_model_list)):
-                logger.info(f"Select stocks: {ai_model_list[i]}")
-                stock_code_id = ai_model_list[i]['code']
-                stock_data_list = await Detail.query().equal(code=stock_code_id).order_by(Detail.day.desc()).limit(6).all()
-                stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
-                stockData.reverse()
-                try:
-                    fflow = await getStockZhuLiFundFromDongCai(stock_code_id)
-                except:
-                    logger.error(traceback.format_exc())
-                    try:
-                        fflow = await getStockZhuLiFundFromTencent(stock_code_id)
-                    except:
-                        logger.error(traceback.format_exc())
-                        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
-                        fflow = 0.0
-                stockData[-1]['fund'] = fflow
-                # 请求大模型
-                try:
-                    # stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
-                    stock_dict = await queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
-                    logger.info(f"AI-model: {stock_dict}")
-                    if stock_dict and stock_dict[0][stock_code_id]['buy']:
-                        recommend_stocks = await Recommend.query().equal(code=stock_code_id).is_null('last_five_price').all()
-                        if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
-                            await Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01)
-                            send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
-                    else:
-                        logger.error(f"大模型返回结果为空 - {stock_dict}")
-                except:
-                    logger.error(traceback.format_exc())
-                    stock_dict = {}
+#             send_msg = []
+#             stock_metric.sort(key=lambda x: -x['score'])
+#             logger.info(f"select stocks: {stock_metric}")
+#             ai_model_list = stock_metric[: 10]
+#             for i in range(len(ai_model_list)):
+#                 logger.info(f"Select stocks: {ai_model_list[i]}")
+#                 stock_code_id = ai_model_list[i]['code']
+#                 stock_data_list = await Detail.query().equal(code=stock_code_id).order_by(Detail.day.desc()).limit(6).all()
+#                 stockData = [AiModelStockList.from_orm_format(f).model_dump() for f in stock_data_list]
+#                 stockData.reverse()
+#                 try:
+#                     fflow = await getStockZhuLiFundFromDongCai(stock_code_id)
+#                 except:
+#                     logger.error(traceback.format_exc())
+#                     try:
+#                         fflow = await getStockZhuLiFundFromTencent(stock_code_id)
+#                     except:
+#                         logger.error(traceback.format_exc())
+#                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
+#                         fflow = 0.0
+#                 stockData[-1]['fund'] = fflow
+#                 # 请求大模型
+#                 try:
+#                     # stock_dict = queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AUTH_CODE)
+#                     stock_dict = await queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
+#                     logger.info(f"AI-model: {stock_dict}")
+#                     if stock_dict and stock_dict[0][stock_code_id]['buy']:
+#                         recommend_stocks = await Recommend.query().equal(code=stock_code_id).is_null('last_five_price').all()
+#                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
+#                             await Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01)
+#                             send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}, 信号: {stock_dict[0][stock_code_id]['reason']}")
+#                     else:
+#                         logger.error(f"大模型返回结果为空 - {stock_dict}")
+#                 except:
+#                     logger.error(traceback.format_exc())
+#                     stock_dict = {}
 
-            if len(send_msg) > 0:
-                msg = '\n'.join(send_msg)
-                sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, f'{day} 股票推荐', msg)
-                logger.info('Email send success ~')
-            else:
-                logger.info('No stock recommended.')
-        else:
-            logger.info("不在交易时间。。。")
-    except:
-        logger.error(traceback.format_exc())
+#             if len(send_msg) > 0:
+#                 msg = '\n'.join(send_msg)
+#                 sendEmail(SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, f'{day} 股票推荐', msg)
+#                 logger.info('Email send success ~')
+#             else:
+#                 logger.info('No stock recommended.')
+#         else:
+#             logger.info("不在交易时间。。。")
+#     except:
+#         logger.error(traceback.format_exc())
 
 
 async def selectStockMetric():
     global current_topic
     try:
-        tool = await Tools.get_one("openDoor")
+        tool: Tools = await Tools.get_one("openDoor")
         current_day = tool.value
         if current_day == time.strftime("%Y%m%d"):
             stock_metric = []   # 非买入信号的策略选股
             day = ''
             trunc_time = time.strftime("%Y-%m-%d") + " 14:20:20"
-            selected = await Recommend.query().is_null('last_three_price').greater(create_time=trunc_time).all()
+            selected: list[Recommend] = await Recommend.query().is_null('last_three_price').greater(create_time=trunc_time).all()
             exclued_stock = [r.code for r in selected]
-            stockInfos = await Detail.query().equal(day=current_day).notin(code=exclued_stock).all()
+            stockInfos: list[Detail] = await Detail.query().equal(day=current_day).notin(code=exclued_stock).all()
             for s in stockInfos:
                 try:
-                    stockList = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(5).all()
+                    stockList: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(5).all()
                     if (stockList[0].qrr < 1.2 or stockList[0].qrr > 6):
                         continue
                     # s_info = await Stock.get_one(s.code)
@@ -1038,7 +694,7 @@ async def selectStockMetric():
                         logger.error(f"DaDan Stock - {stock_code_id} - no meet 60% / 30% / 10% 这样的数值, - {da_dan}")
                         await asyncio.sleep(2)
                         continue
-                stock_data_list = await Detail.query().equal(code=stock_code_id).order_by(Detail.day.desc()).limit(6).all()
+                stock_data_list: list[Detail] = await Detail.query().equal(code=stock_code_id).order_by(Detail.day.desc()).limit(6).all()
                 stock_data_list.reverse()
                 stockData = detail2List(stock_data_list)
                 try:
@@ -1063,7 +719,7 @@ async def selectStockMetric():
                     stock_dict = await queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
                     if stock_dict and stock_dict['buy']:
-                        recommend_stocks = await Recommend.query().equal(code=stock_code_id).is_null('last_three_price').all()
+                        recommend_stocks: list[Recommend] = await Recommend.query().equal(code=stock_code_id).is_null('last_three_price').all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
@@ -1100,7 +756,7 @@ async def selectStockMetric():
 
 
 async def saveStockFund(day: str, code: str, fund: float):
-    s = await Detail.get((code, day))
+    s: Detail = await Detail.get((code, day))
     if s:
         await Detail.update((code, day), fund=fund)
         logger.info(f"Update Stock Fund: {code} - {fund}")
@@ -1108,7 +764,7 @@ async def saveStockFund(day: str, code: str, fund: float):
 
 async def updateStockFund(a=1):
     try:
-        tool = await Tools.get_one("openDoor")
+        tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
         if day == time.strftime("%Y%m%d"):
             h = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
@@ -1186,9 +842,9 @@ async def updateStockFund(a=1):
 
 async def checkUpdateStockFund():
     try:
-        tool = await Tools.get_one("openDoor")
+        tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
-        stocks = await Detail.query().equal(day=day).less_equal(fund=0.01).greater_equal(fund=-0.01).all()
+        stocks: list[Detail] = await Detail.query().equal(day=day).less_equal(fund=0.01).greater_equal(fund=-0.01).all()
         for s in stocks:
             try:
                 fund = await getStockZhuLiFundFromDongCai(s.code)
@@ -1203,12 +859,12 @@ async def checkUpdateStockFund():
 
 async def updateRecommendPrice():
     try:
-        tool = await Tools.get_one("openDoor")
+        tool: Tools = await Tools.get_one("openDoor")
         new_day = tool.value
         if new_day == time.strftime("%Y%m%d"):
             # 更新最新收盘价
             try:
-                new_stocks = await Recommend.query().less_equal(price=0.02).all()
+                new_stocks: list[Recommend] = await Recommend.query().less_equal(price=0.02).all()
                 for r in new_stocks:
                     s = await Detail.get_one((r.code, new_day))
                     await Recommend.update(r.id, price=s.current_price)
@@ -1216,10 +872,10 @@ async def updateRecommendPrice():
                 logger.error(traceback.format_exc())
 
             t = time.strftime("%Y-%m-%d") + " 09:00:00"
-            recommend_stocks = await Recommend.query().less_equal(create_time=t).is_null('last_five_price').all()
+            recommend_stocks: list[Recommend] = await Recommend.query().less_equal(create_time=t).is_null('last_five_price').all()
             for r in recommend_stocks:
                 try:
-                    stockInfo = await Detail.get((r.code, new_day))
+                    stockInfo: Detail = await Detail.get((r.code, new_day))
                     if stockInfo:
                         price_pct = round((stockInfo.current_price - r.price) / r.price * 100, 2)
                         max_price_pct = round((stockInfo.max_price - r.price) / r.price * 100, 2)
@@ -1247,9 +903,9 @@ async def updateRecommendPrice():
 async def updateStockBanKuai(ban=0):
     try:
         if ban == 0:
-            stockInfo = await Stock.query().equal(running=1).all()
+            stockInfo: list[Stock] = await Stock.query().equal(running=1).all()
         else:
-            stockInfo = await Stock.query().equal(running=1, region="").all()
+            stockInfo: list[Stock] = await Stock.query().equal(running=1, region="").all()
         for s in stockInfo:
             res = await getStockBanKuaiFromDOngCai(s.code)
             if 'msg' in res:
@@ -1263,7 +919,7 @@ async def updateStockBanKuai(ban=0):
 
 
 async def setAllSHStock():
-    tool = await Tools.get_one("openDoor")
+    tool: Tools = await Tools.get_one("openDoor")
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
         try:
@@ -1293,7 +949,7 @@ async def setAllSHStock():
                                 if code.startswith("68"):
                                     continue
                                 try:
-                                    s = await Stock.get_one(code)
+                                    s: Stock = await Stock.get_one(code)
                                     is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
                                         if s.filter and 'myself' in s.filter:
@@ -1334,7 +990,7 @@ async def setAllSHStock():
 
 
 async def setAllSZStock():
-    tool = await Tools.get_one("openDoor")
+    tool: Tools = await Tools.get_one("openDoor")
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
         try:
@@ -1362,7 +1018,7 @@ async def setAllSZStock():
                                 if code.startswith("68"):
                                     continue
                                 try:
-                                    s = await Stock.get_one(code)
+                                    s: Stock = await Stock.get_one(code)
                                     is_running = s.running
                                     if ('ST' in name.upper() or '退' in name) and s.running == 1:
                                         if s.filter and 'myself' in s.filter:
@@ -1396,7 +1052,7 @@ async def setAllSZStock():
                 await updateStockBanKuai(ban=1)
                 if (len(resubmit_list) > 0):
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{','.join(resubmit_list)}，请检查数据～")
-                tool = await Tools.get_one("openDoor")
+                tool: Tools = await Tools.get_one("openDoor")
                 current_day = tool.value
                 if current_day == time.strftime("%Y%m%d"):
                     await getStockTopic()
@@ -1408,7 +1064,7 @@ async def setAllSZStock():
 async def getStockTopic():
     try:
         global current_topic
-        tool = await Tools.get_one("openDoor")
+        tool: Tools = await Tools.get_one("openDoor")
         current_day = tool.value
         res = await webSearchTopic(API_URL, AUTH_CODE)
         file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
@@ -1417,7 +1073,7 @@ async def getStockTopic():
         data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].strip().split("\n")[0]
         res_list = [r.replace('。', '').strip() for r in data.split(',')]
         try:
-            tool = await Tools.get_one(current_day)
+            tool: Tools = await Tools.get_one(current_day)
             await Tools.update(tool.key, value=',' .join(res_list))
         except NoResultFound:
             await Tools.create(key=current_day, value=',' .join(res_list))
@@ -1438,14 +1094,9 @@ async def stopTask():
 
 
 async def clearStockData():
-    t = time.strftime("%Y-%m-%d") + " 14:40:00"
-    tool = await Tools.get_one("openDoor")
+    tool: Tools = await Tools.get_one("openDoor")
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
-        stockInfos = await Stock.query().like(filter='myself').all()
-        for s in stockInfos:
-            await MinuteK.query().equal(code=s.code).less_equal(create_time=t).delete()
-            logger.info(f"delete my stock data success, {s.code} - {s.name}")
         await getStockTopic()
 
 
@@ -1468,12 +1119,14 @@ async def main():
 
     worker_task = asyncio.create_task(write_worker())
     asyncio.create_task(getStockFromTencent('base'))
-    asyncio.create_task(queryStockTencentFromHttp(HTTP_HOST1))
-    asyncio.create_task(queryStockXueQiuFromHttp(HTTP_HOST1))
-    asyncio.create_task(getStockFromTencent('proxy'))
-    asyncio.create_task(getStockFromXueQiu('proxy'))
-    asyncio.create_task(getStockFromTencentReal('base'))
-    asyncio.create_task(getStockFromSinaReal('base'))
+    asyncio.create_task(getStockFromTencent(HTTP_HOST1))
+    asyncio.create_task(getStockFromTencent(HTTP_HOST2))
+    asyncio.create_task(getStockFromXueQiu('base'))
+    asyncio.create_task(getStockFromXueQiu(HTTP_HOST1))
+    asyncio.create_task(getStockFromXueQiu(HTTP_HOST2))
+    asyncio.create_task(getStockFromSina('base'))
+    asyncio.create_task(getStockFromSina(HTTP_HOST1))
+    asyncio.create_task(getStockFromSina(HTTP_HOST2))
 
     try:
         await asyncio.Event().wait()

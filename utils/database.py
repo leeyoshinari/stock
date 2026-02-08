@@ -346,7 +346,7 @@ class Detail(Base, CRUDBase):
     last_price = Column(Float, nullable=False, comment="前一天收盘价")
     max_price = Column(Float, nullable=False, comment="最高价")
     min_price = Column(Float, nullable=False, comment="最低价")
-    volumn = Column(Integer, nullable=False, comment="成交量（手）")
+    volume = Column(Integer, nullable=False, comment="成交量（手）")
     ma_five = Column(Float, nullable=True, comment="5日均线")
     ma_ten = Column(Float, nullable=True, comment="10日均线")
     ma_twenty = Column(Float, nullable=True, comment="20日均线")
@@ -369,7 +369,7 @@ class Detail(Base, CRUDBase):
     create_time = Column(DateTime, default=datetime.now)
 
     __sortable__ = {
-        'volumn': volumn, 'qrr': qrr, 'turnover_rate': turnover_rate, 'fund': fund, 'create_time': create_time
+        'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate, 'fund': fund, 'create_time': create_time
     }
 
 
@@ -402,22 +402,6 @@ class Recommend(Base, CRUDBase):
     content = Column(Text, nullable=True, comment="推荐 reason")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-
-class MinuteK(Base, CRUDBase):
-    __tablename__ = 'minutek'
-    __table_args__ = (
-        Index('idx_minutek_code', 'code'),
-        {'sqlite_autoincrement': True}
-    )
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    code = Column(String(8), ForeignKey('stock.code', ondelete="CASCADE"), nullable=False, comment="股票代码")
-    day = Column(String(8), nullable=False, comment="日期")
-    minute = Column(String(6), nullable=False, comment="分钟")
-    price = Column(Float, nullable=False, comment="价格")
-    volume = Column(Integer, nullable=False, comment="成交量（手）")
-    create_time = Column(DateTime, default=datetime.now)
 
 
 class Tools(Base, CRUDBase):

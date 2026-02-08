@@ -36,10 +36,10 @@ class StockController(Controller):
         return result
 
     @get('/get', summary="查询股票信息")
-    async def create_file(self, request: Request, code: str) -> Result:
+    async def create_file(self, request: Request, code: str, site: str = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.queryByCode(code)
+            result = await views.queryByCode(code, site)
         return result
 
     @get('/getRecommend', summary="获取推荐的股票")
@@ -49,45 +49,30 @@ class StockController(Controller):
             result = await views.queryRecommendStockList(page)
         return result
 
-    @post('/query/tencent', summary="查询股票数据信息")
-    async def query_stock(self, data: model.RequestData) -> Result:
-        result = await views.query_tencent(data)
-        return result
-
-    @post('/query/xueqiu', summary="查询股票数据信息")
-    async def query_stock_xueqiu(self, data: model.RequestData) -> Result:
-        result = await views.query_xueqiu(data)
-        return result
-
-    @post('/query/sina', summary="查询股票数据信息")
-    async def query_stock_sina(self, data: model.RequestData) -> Result:
-        result = await views.query_sina(data)
-        return result
-
     @get('/query/ai', summary="询问AI股票走势")
-    async def stock_ai_data(self, request: Request, code: str) -> Result:
+    async def stock_ai_data(self, request: Request, code: str, site: str = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.query_ai_stock(code)
+            result = await views.query_ai_stock(code, site)
         return result
 
     @get('/sell/stock', summary="AI股票卖出判断")
-    async def sell_stock(self, request: Request, code: str, price: str, t: str) -> Result:
+    async def sell_stock(self, request: Request, code: str, price: str, t: str, site: str = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.sell_stock(code, price, t)
+            result = await views.sell_stock(code, price, t, site)
         return result
 
     @get('/query/stock/return', summary="查询选出来的股票的收益")
-    async def stock_return(self, request: Request) -> Result:
-        result = await views.calc_stock_return()
+    async def stock_return(self, request: Request, fee: int = 0) -> Result:
+        result = await views.calc_stock_return(fee)
         return result
 
-    @get('/query/recommend/real', summary="查询选出来的股票的分钟级走势")
-    async def stock_real(self, request: Request, code: str) -> Result:
+    @get('/query/day/k', summary="查询股票当日K线")
+    async def stock_real(self, request: Request, code: str, site: str = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.calc_stock_real(code)
+            result = await views.calc_stock_real(code, site)
         return result
 
     @get('/stock/list', summary="查询股票信息")

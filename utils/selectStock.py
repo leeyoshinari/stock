@@ -115,7 +115,7 @@ async def getStockZhuLiFundFromTencent(code: str) -> float:
     return fund
 
 
-async def getStockFundFlowFromDongCai(stockCode: str) -> dict:
+async def getStockFundFlowFromDongCai(stockCode: str) -> dict[str, float]:
     '''从东方财富获取资金流向，最近10日'''
     '''https://data.eastmoney.com/zjlx/600067.html'''
     fflow = {}
@@ -130,7 +130,7 @@ async def getStockFundFlowFromDongCai(stockCode: str) -> dict:
     return fflow
 
 
-async def getStockOrderByFundFromDongCai(p):
+async def getStockOrderByFundFromDongCai(p) -> list[dict]:
     '''从东方财富获取股票资金净流入排序'''
     '''https://data.eastmoney.com/zjlx/detail.html'''
     fflow = []
@@ -149,7 +149,7 @@ async def getStockOrderByFundFromDongCai(p):
     return fflow
 
 
-async def getStockOrderByFundFromTencent(p):
+async def getStockOrderByFundFromTencent(p) -> list[dict]:
     '''从腾讯获取股票资金净流入排序'''
     '''网页：https://stockapp.finance.qq.com/mstats/#mod=list&id=hs_hsj&module=hs&type=hsj&sort=6&page=1&max=20'''
     fflow = []
@@ -167,7 +167,7 @@ async def getStockOrderByFundFromTencent(p):
     return fflow
 
 
-async def getStockOrderByFundFromSinaBackUp():
+async def getStockOrderByFundFromSinaBackUp() -> list[dict]:
     '''从新浪财经获取股票资金净流入排序'''
     fflow = []
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
@@ -183,7 +183,7 @@ async def getStockOrderByFundFromSinaBackUp():
     return fflow
 
 
-async def getStockOrderByFundFromSina():
+async def getStockOrderByFundFromSina() -> list[dict]:
     '''从新浪财经获取股票资金净流入排序'''
     fflow = []
     current_time = int(time.time())

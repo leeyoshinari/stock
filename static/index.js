@@ -40,7 +40,7 @@ function watchInput(el, callback, delay = 500) {
 
 function getStockList() {
     let sortField = document.getElementById("order-by").value;
-    let url = prefix + `/list?pageSize=20&page=${page}&sortField=${sortField}`;
+    let url = `${prefix}/list?pageSize=20&page=${page}&sortField=${sortField}`;
     let stock_name = document.getElementById("stock-name").value;
     let stock_code = document.getElementById("stock-code").value;
     if (stock_code || stock_code.trim()) {
@@ -58,7 +58,7 @@ function getStockList() {
                 let zhen = (item.max_price - item.min_price) / item.last_price * 100;
                 let color = zhang >= 0 ? zhang > 0 ? 'red' : 'black' : 'green';
                 s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
-                      <div>${item.volumn}</div><div>${item.qrr}</div><div>${item.turnover_rate}%</div><div>${item.fund.toFixed(0)}万</div></div>`;
+                      <div>${item.e}</div><div>${item.qrr}</div><div>${item.turnover_rate}%</div><div>${item.fund.toFixed(0)}万</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -77,7 +77,9 @@ function getStockList() {
 function change_select() {page=1;getStockList();}
 
 function get_stock_figure(code) {
-    fetch(prefix + `/get?code=${code}`)
+    show_modal_cover();
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/get?code=${code}&site=${site}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
@@ -87,15 +89,17 @@ function get_stock_figure(code) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volumn, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low);
+                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
+        .finally(() => {close_modal_cover();})
 }
 
 function query_stock_ai(code, name) {
     show_modal_cover();
-    fetch(prefix + `/query/ai?code=${code}`)
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/query/ai?code=${code}&site=${site}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
