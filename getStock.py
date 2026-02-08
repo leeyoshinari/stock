@@ -307,7 +307,7 @@ async def saveStockInfo(stockDo: StockModelDo):
 async def setAvailableStock():
     tool: Tools = await Tools.get_one("openDoor")
     current_day = tool.value
-    if current_day != time.strftime("%Y%m%d"):
+    if current_day == time.strftime("%Y%m%d"):
         try:
             total_cnt: int = await Stock.query().equal(running=1).count()
             total_batch_size = BATCH_SIZE * All_STOCK_DATA_SIZE
