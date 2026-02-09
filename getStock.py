@@ -370,8 +370,6 @@ async def startSelectStock():
                 except:
                     logger.error(traceback.format_exc())
                     stockInfos = await getStockOrderByFundFromTencent(p)
-                if stockInfos[-1]['fund'] < 100:
-                    p = 20
                 stockList = []
                 for s in stockInfos:
                     try:
@@ -386,6 +384,9 @@ async def startSelectStock():
                 await queryTask.put(stockList[: index])
                 await queryTask.put(stockList[index:])
                 logger.info(f"正在更新选股的数据，当前是第 {p + 1} 页，总数 {len(stockList)} 个")
+                if stockInfos[-1]['fund'] < 100:
+                    logger.warning(f"主力资金流入过低，在 {p + 1} 页提前结束")
+                    break
                 await asyncio.sleep(3.8)
             scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
             current_day = time.strftime("%Y%m%d")
