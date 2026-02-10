@@ -503,6 +503,7 @@ async def selectStockMetric():
                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
                         fflow = 0.0
                 stockData['fund'][-1] = fflow
+                await Detail.update((stock_code_id, current_day), fund=fflow)
                 # 请求大模型
                 try:
                     # s_info = await Stock.get_one(stock_code_id)
