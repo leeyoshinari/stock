@@ -382,7 +382,7 @@ async def ai_sell(code: str, site: str = None) -> Result:
         day_line = await getMinuteKFromTongHuaShun('', code, logger)
         stock_dict = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
-        logger.info(f"sell stock AI suggestion successfully, code: {code}, result: {result.data}")
+        logger.info(f"sell stock AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
