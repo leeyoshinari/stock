@@ -451,7 +451,7 @@ async def selectStockMetric():
             stock_metric = []   # 非买入信号的策略选股
             day = ''
             trunc_time = time.strftime("%Y-%m-%d") + " 14:20:20"
-            selected: list[Recommend] = await Recommend.query().is_null('last_three_price').greater(create_time=trunc_time).all()
+            selected: list[Recommend] = await Recommend.query().is_null('last_four_price').less(create_time=trunc_time).all()
             exclued_stock = [r.code for r in selected]
             stockInfos: list[Detail] = await Detail.query().equal(day=current_day).notin(code=exclued_stock).all()
             for s in stockInfos:
@@ -522,7 +522,7 @@ async def selectStockMetric():
                     stock_dict = await queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
                     if stock_dict and stock_dict['buy']:
-                        recommend_stocks: list[Recommend] = await Recommend.query().equal(code=stock_code_id).is_null('last_three_price').all()
+                        recommend_stocks: list[Recommend] = await Recommend.query().equal(code=stock_code_id).is_null('last_four_price').all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
@@ -916,7 +916,6 @@ async def main():
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50, misfire_grace_time=10)    # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)    # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
-    scheduler.add_job(updateStockBanKuai, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)
     scheduler.start()
     await asyncio.sleep(2)
 

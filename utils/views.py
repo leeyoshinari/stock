@@ -593,16 +593,11 @@ async def calc_stock_real_data(code: str, site: str = None) -> dict:
 async def test(code) -> Result:
     result = Result()
     try:
-        stock_volume_obj: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(6).all()
-        stock_volume_obj.reverse()
-        stock_volume = detail2List(stock_volume_obj)
-        s_info = await Stock.get_one(code)
-        tool = await Tools.get_one("openDoor")
-        topic_info = await Tools.get_one(tool.value)
-        stock_volume['hot_topic'] = topic_info.value
-        stock_volume['industry'] = s_info.industry
-        stock_volume['concept'] = s_info.concept
-        result.data = stock_volume
+        exclude = code.split(',')
+        logger.info(exclude)
+        s: list[Recommend] = await Recommend.query().is_null('last_two_price').notin(code=exclude).all()
+        result.data = [r.code for r in s]
+        logger.info(result.data)
     except:
         logger.error(traceback.format_exc())
     return result
