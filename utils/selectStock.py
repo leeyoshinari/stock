@@ -255,9 +255,9 @@ async def getStockBanKuaiFromDOngCai(code: str) -> dict:
         industry = ''
         concept = []
         for d in data_list:
-            if d['BOARD_TYPE'] == '行业':
+            if d['BOARD_TYPE'] == "行业" and d['BOARD_LEVEL'] == "1":
                 industry = d['BOARD_NAME']
-            elif d['BOARD_TYPE']:
+            elif d['BOARD_TYPE'] == "板块":
                 region = d['BOARD_NAME'].replace("板块", "")
             else:
                 if ('连板' in d['BOARD_NAME'] or '涨停' in d['BOARD_NAME'] or '预增' in d['BOARD_NAME'] or '预减' in d['BOARD_NAME'] or '扭亏' in d['BOARD_NAME']):

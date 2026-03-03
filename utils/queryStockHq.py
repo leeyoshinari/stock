@@ -203,7 +203,8 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
             res = await http.get(f"http://hq.sinajs.cn/list={stockCode},{stockCode_i}", headers=h)
         if res.status_code == 200:
             res_list = res.text.split(';')
-            data_dict = {}
+            data_dict: dict[str, StockModelDo] = {}
+            stop_list = []
             for line in res_list:
                 try:
                     if len(line.strip()) < 30:
@@ -213,15 +214,13 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
                     if code in data_dict:
                         stockDo: StockModelDo = data_dict[code]
                         if f"{code}_i" in line:
-                            if float(stockInfo[8]) < 0.5:
-                                logger.info(f"Sina({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                                continue
                             stockDo.turnover_rate = round(stockDo.volume / float(stockInfo[8]), 2)
                         else:
                             stockDo.name = stockInfo[0].split('"')[-1]
                             stockDo.current_price = float(stockInfo[3])
                             stockDo.open_price = float(stockInfo[1])
                             if int(stockInfo[8]) < 2:
+                                stop_list.append(code)
                                 logger.info(f"Sina({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                                 continue
                             stockDo.volume = int(int(stockInfo[8]) / 100)
@@ -229,20 +228,20 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
                             stockDo.max_price = float(stockInfo[4])
                             stockDo.min_price = float(stockInfo[5])
                             stockDo.day = stockInfo[30].replace('-', '')
+                            if stockDo.volume and stockDo.turnover_rate > 200:
+                                stockDo.turnover_rate = round(stockDo.volume / stockDo.turnover_rate, 2)
                         data_dict.update({code: stockDo})
                     else:
                         stockDo = StockModelDo()
                         stockDo.code = code
                         if f"{code}_i" in line:
-                            if float(stockInfo[8]) < 0.5:
-                                logger.info(f"Sina({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
-                                continue
                             stockDo.turnover_rate = float(stockInfo[8])
                         else:
                             stockDo.name = stockInfo[0].split('"')[-1]
                             stockDo.current_price = float(stockInfo[3])
                             stockDo.open_price = float(stockInfo[1])
                             if int(stockInfo[8]) < 2:
+                                stop_list.append(code)
                                 logger.info(f"Sina({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                                 continue
                             stockDo.volume = int(int(stockInfo[8]) / 100)
@@ -257,7 +256,9 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
                     key_stock = f"{stockDo.code}count"
                     if dataCount[key_stock] < 5:
                         error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
-            for _, v in data_dict.items():
+            for k, v in data_dict.items():
+                if k in stop_list:
+                    continue
                 data_list.append(v)
                 logger.info(f"Sina({host}): {v}")
             result['data'] = data_list

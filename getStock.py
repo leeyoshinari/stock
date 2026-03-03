@@ -178,6 +178,7 @@ async def getStockFromSina(host):
     while True:
         try:
             datas = None
+            saveErrorList = []
             datas = await queryTask.get()
             if datas == 'end': break
             result: dict = await getStockHqFromSina(host, datas, logger)
@@ -187,7 +188,13 @@ async def getStockFromSina(host):
                 await queryTask.put(errorList)
                 await asyncio.sleep(3)
             for d in dataList:
-                await saveStockInfo(d)
+                try:
+                    await saveStockInfo(d)
+                except:
+                    saveErrorList.append({d.code: d.name, f'{d.code}count': 1})
+                    logger.error(f"Sina({host}) - 出现异常...... {d}")
+            if len(saveErrorList) > 0:
+                await queryTask.put(saveErrorList)
         except:
             logger.error(f"Sina({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
@@ -366,10 +373,10 @@ async def startSelectStock():
         try:
             for p in range(20):
                 try:
-                    stockInfos = await getStockOrderByFundFromDongCai(p)
+                    stockInfos = await getStockOrderByFundFromTencent(p)
                 except:
                     logger.error(traceback.format_exc())
-                    stockInfos = await getStockOrderByFundFromTencent(p)
+                    stockInfos = await getStockOrderByFundFromDongCai(p)
                 stockList = []
                 for s in stockInfos:
                     try:
@@ -493,11 +500,11 @@ async def selectStockMetric():
                 stock_data_list.reverse()
                 stockData = detail2List(stock_data_list)
                 try:
-                    fflow = await getStockZhuLiFundFromDongCai(stock_code_id)
+                    fflow = await getStockZhuLiFundFromTencent(stock_code_id)
                 except:
                     logger.error(traceback.format_exc())
                     try:
-                        fflow = await getStockZhuLiFundFromTencent(stock_code_id)
+                        fflow = await getStockZhuLiFundFromDongCai(stock_code_id)
                     except:
                         logger.error(traceback.format_exc())
                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
@@ -707,7 +714,8 @@ async def updateStockBanKuai(ban=0):
             if 'msg' in res:
                 await asyncio.sleep(5)
                 continue
-            await Stock.update(s.code, region=res['region'], industry=res['industry'], concept=res['concept'])
+            region = res['region'] if res['region'] else s.region
+            await Stock.update(s.code, region=region, industry=res['industry'], concept=res['concept'])
             logger.info(f"Update stock BanKuai {s.code} - {s.name} - {res}")
             await asyncio.sleep(5)
     except:
@@ -908,6 +916,7 @@ async def main():
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50, misfire_grace_time=10)    # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)    # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
+    scheduler.add_job(updateStockBanKuai, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)
     scheduler.start()
     await asyncio.sleep(2)
 
