@@ -260,7 +260,7 @@ async def getStockBanKuaiFromDOngCai(code: str) -> dict:
             elif d['BOARD_TYPE'] == "板块":
                 region = d['BOARD_NAME'].replace("板块", "")
             else:
-                if ('连板' in d['BOARD_NAME'] or '涨停' in d['BOARD_NAME'] or '预增' in d['BOARD_NAME'] or '预减' in d['BOARD_NAME'] or '扭亏' in d['BOARD_NAME']):
+                if ('昨日' in d['BOARD_NAME'] or '连板' in d['BOARD_NAME'] or '涨停' in d['BOARD_NAME'] or '预增' in d['BOARD_NAME'] or '预减' in d['BOARD_NAME'] or '扭亏' in d['BOARD_NAME']):
                     continue
                 concept.append(d['BOARD_NAME'].rstrip('_'))
         res = {'region': region, 'industry': industry, 'concept': ','.join(concept)}
