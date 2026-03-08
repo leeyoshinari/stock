@@ -876,7 +876,7 @@ async def main():
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)    # 启动任务
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 中午更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 中午更新股票信息
-    scheduler.add_job(startSelectStock, 'cron', hour=14, minute=49, second=1, misfire_grace_time=10)  # 开始选股
+    scheduler.add_job(startSelectStock, 'cron', hour=14, minute=48, second=30, misfire_grace_time=10)  # 开始选股
     scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
     scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)          # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)     # 收盘后更新数据
