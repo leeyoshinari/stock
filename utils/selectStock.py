@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
-import asyncio
 import time
 import json
-import random
 from utils.http_client import http
 
 
