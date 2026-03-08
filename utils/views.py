@@ -7,6 +7,7 @@ import time
 import json
 import traceback
 from datetime import datetime
+from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList
 from utils.selectStock import getStockZhuLiFundFromDongCai
@@ -460,7 +461,21 @@ async def all_topic_info(query: SearchStockParam) -> Result:
 async def get_current_topic() -> Result:
     result = Result()
     try:
-        result.data = await webSearchTopic(API_URL, AUTH_CODE)
+        tool: Tools = await Tools.get_one("openDoor")
+        current_day = tool.value
+        current_date = tool.update_time.strftime("%Y年%m月%d日")
+        res = await webSearchTopic(API_URL, AUTH_CODE, current_date)
+        file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(res)
+        data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].strip().split("\n")[0]
+        res_list = [r.replace('。', '').strip() for r in data.split(',')]
+        try:
+            tool: Tools = await Tools.get_one(current_day)
+            await Tools.update(tool.key, value=',' .join(res_list))
+        except NoResultFound:
+            await Tools.create(key=current_day, value=',' .join(res_list))
+        result.data = res
         logger.info(f"Current Topic is: {result.data}")
     except Exception as e:
         logger.error(traceback.format_exc())

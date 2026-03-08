@@ -858,8 +858,6 @@ async def setAllSZStock():
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{','.join(resubmit_list)}，请检查数据～")
                 tool: Tools = await Tools.get_one("openDoor")
                 current_day = tool.value
-                if current_day == time.strftime("%Y%m%d"):
-                    await getStockTopic()
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
@@ -870,7 +868,8 @@ async def getStockTopic():
         global current_topic
         tool: Tools = await Tools.get_one("openDoor")
         current_day = tool.value
-        res = await webSearchTopic(API_URL, AUTH_CODE)
+        current_date = tool.update_time.strftime("%Y年%m月%d日")
+        res = await webSearchTopic(API_URL, AUTH_CODE, current_date)
         file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(res)
