@@ -54,17 +54,6 @@ def getStockRegionNum(code: str) -> str:
         return ""
 
 
-def getStockType(code: str) -> int:
-    if code.startswith("60"):
-        return 1
-    elif code.startswith("00"):
-        return 1
-    elif code.startswith("30"):
-        return 1
-    else:
-        return 0
-
-
 def getStockRegion(code: str) -> str:
     if code.startswith("60") or code.startswith("68"):
         return "sh"
@@ -87,16 +76,26 @@ async def isOpenStock() -> bool:
         return False
 
 
-async def getStockZhuLiFundFromDongCai(code: str) -> float:
-    '''获取东方财富当前股票的主力净流入'''
-    '''https://data.eastmoney.com/stockdata/000045.html'''
-    current_time = int(time.time() * 1000)
-    rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
-    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-    url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={getStockRegionNum(code)}.{code}&fields=f469,f137,f193,f140,f194,f143,f195,f146,f196,f149,f197,f470,f434,f454,f435,f455,f436,f456,f437,f457,f438,f458,f471,f459,f460,f461,f462,f463,f464,f465,f466,f467,f468,f170,f119,f291&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{current_time}&_={current_time + 1}'
+# async def getStockZhuLiFundFromDongCai(code: str) -> float:
+#     '''获取东方财富当前股票的主力净流入'''
+#     '''https://data.eastmoney.com/stockdata/000045.html'''
+#     current_time = int(time.time() * 1000)
+#     rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
+#     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+#     url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={getStockRegionNum(code)}.{code}&fields=f469,f137,f193,f140,f194,f143,f195,f146,f196,f149,f197,f470,f434,f454,f435,f455,f436,f456,f437,f457,f438,f458,f471,f459,f460,f461,f462,f463,f464,f465,f466,f467,f468,f170,f119,f291&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{current_time}&_={current_time + 1}'
+#     res = await http.get(url, headers=header)
+#     res_json = json.loads(res.text.split('(')[1].split(')')[0])
+#     return round(res_json['data']['f137'] / 10000, 2)
+
+
+async def getStockZhuLiFundFromSina(code: str) -> float:
+    '''获取新浪当前股票的主力净流入：https://quotes.sina.cn/hs/company/quotes/view/sz002261?autocallup=no&isfromsina=yes'''
+    header = {'Referer': 'https://finance.sina.com.cn', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    url = f"https://hq.sinajs.cn/?list=zjlxn_{getStockRegion(code)}{code}"
     res = await http.get(url, headers=header)
-    res_json = json.loads(res.text.split('(')[1].split(')')[0])
-    return round(res_json['data']['f137'] / 10000, 2)
+    res_list = res.text.split(',')
+    fund = round(float(res_list[22]) / 10000, 2)
+    return fund
 
 
 async def getStockZhuLiFundFromTencent(code: str) -> float:
@@ -130,74 +129,44 @@ async def getStockFundFlowFromDongCai(stockCode: str) -> dict[str, float]:
     return fflow
 
 
-async def getStockOrderByFundFromDongCai(p) -> list[dict]:
-    '''从东方财富获取股票资金净流入排序'''
-    '''https://data.eastmoney.com/zjlx/detail.html'''
+async def getStockOrderByFundFromSina(page_size: int, p: int, is_price: bool = True) -> list[dict]:
+    '''从新浪获取股票资金净流入排序, 分页从 0 开始'''
+    '''https://gu.sina.cn/m/?vt=4&cid=76524&node_id=76524#/index/index'''
     fflow = []
-    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-    rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
-    current_time = int(time.time() * 1000)
-    url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn={p + 1}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
+    rand_num = time.strftime("%m%d%H%M%S")
+    header = {'Referer': 'https://finance.sina.com.cn', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    url = f"https://cnrank.finance.sina.cn/getSymRankByNode?sort=rp_net&num={page_size}&hnew=1&hcnew=1&asc=0&node=hs&page={p + 1}&callback=hqccall{rand_num}"
     res = await http.get(url, headers=header)
     res_json = json.loads(res.text.split('(')[1].split(')')[0])
-    diffs = res_json['data']['diff']
-    for k in diffs:
-        if 1 <= k['f3'] <= 9 and getStockType(k['f12']) and k['f2'] < 51 and k['f2'] > 5:
-            fflow.append({'code': k['f12'], 'name': k['f14'], 'pcnt': k['f3'], 'fund': round(k['f62'] / 10000, 2), 'ratio': k['f184']})
-        if k['f62'] < 100:
-            break
+    for k in res_json['data']:
+        try:
+            fund = round(float(k['rp_net']) / 10000, 2)
+        except:
+            fund = 0.0
+        if is_price:
+            fflow.append({'code': k['code'], 'name': k['name'], 'fund': fund, 'percent': float(k['percent']), 'price': float(k['price'])})
+        else:
+            fflow.append({'code': k['code'], 'fund': fund, 'total': res_json['total']})
     return fflow
 
 
-async def getStockOrderByFundFromTencent(p) -> list[dict]:
-    '''从腾讯获取股票资金净流入排序'''
+async def getStockOrderByFundFromTencent(page_size: int, p: int, is_price: bool = True) -> list[dict]:
+    '''从腾讯获取股票资金净流入排序, 分页从 0 开始'''
     '''网页：https://stockapp.finance.qq.com/mstats/#mod=list&id=hs_hsj&module=hs&type=hsj&sort=6&page=1&max=20'''
     fflow = []
-    page_size = 50
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset={page_size * p}&count={page_size}'
     res = await http.get(url, headers=header)
     res_json = json.loads(res.text)
     for k in res_json['data']['rank_list']:
-        change_ratio = float(k['zdf'])
-        if 1 <= change_ratio <= 9 and getStockType(k['code'][2:]) and float(k['zxj']) < 51 and float(k['zxj']) > 5:
-            fflow.append({'code': k['code'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': float(k['zljlr']), 'ratio': 0})
-        if float(k['zljlr']) < 1:
-            break
-    return fflow
-
-
-async def getStockOrderByFundFromSinaBackUp() -> list[dict]:
-    '''从新浪财经获取股票资金净流入排序'''
-    fflow = []
-    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-    for p in range(10):
-        url = f'https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_ssggzj?page={p + 1}&num=50&sort=r0_net&asc=0&bankuai=&shichang='
-        res = await http.get(url, headers=header)
-        res_json = json.loads(res.text)
-        for k in res_json:
-            change_ratio = round(float(k['changeratio']) * 100, 2)
-            if 1 <= change_ratio <= 7 and getStockType(k['symbol'][2:]) and float(k['trade']) < 51:
-                fflow.append({'code': k['symbol'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': round(float(k['r0_net']) / 10000, 2), 'ratio': round(float(k['r0_ratio']) * 100, 2)})
-        await asyncio.sleep(1)
-    return fflow
-
-
-async def getStockOrderByFundFromSina() -> list[dict]:
-    '''从新浪财经获取股票资金净流入排序'''
-    fflow = []
-    current_time = int(time.time())
-    header = {'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1'}
-    for p in range(10):
-        url = f'https://cnrank.finance.sina.cn/getSymRankByNode?sort=rp_net&num=50&hnew=0&hcnew=0&asc=0&node=hs&page={p + 1}&callback=hqccall{current_time}'
-        res = await http.get(url, headers=header)
-        res_json = json.loads(res.text.split('(')[1].split(')')[0])
-        diffs = res_json['data']
-        for k in diffs:
-            change_ratio = round(float(k['percent']), 2)
-            if 1 <= change_ratio <= 7 and getStockType(k['symbol'][2:]) and float(k['price']) < 51:
-                fflow.append({'code': k['symbol'][2:], 'name': k['name'], 'pcnt': change_ratio, 'fund': round(float(k['rp_net']) / 10000, 2), 'ratio': 0})
-        await asyncio.sleep(1)
+        try:
+            fund = float(k['zljlr'])
+        except:
+            fund = 0.0
+        if is_price:
+            fflow.append({'code': k['code'][2:], 'name': k['name'], 'fund': fund, 'percent': float(k['zdf']), 'price': float(k['zxj'])})
+        else:
+            fflow.append({'code': k['code'][2:], 'fund': fund, 'total': res_json['data']['total']})
     return fflow
 
 
@@ -225,8 +194,8 @@ async def getStockDaDanFromSina(code: str) -> dict:
     res = {}
     try:
         current_day = time.strftime("%Y-%m-%d")
-        header = {'referer': 'https://vip.stock.finance.sina.com.cn/quotes_service/view/cn_bill.php', 'content-type': 'application/x-www-form-urlencoded',
-                  "sec-ch-ua-mobile": "?0", "sec-fetch-dest": "empty", "sec-fetch-site": "same-origin",
+        current_day = '2026-03-06'
+        header = {'referer': 'https://vip.stock.finance.sina.com.cn/quotes_service/view/cn_bill.php',
                   'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
         url = f'https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_Bill.GetBillSum?symbol={getStockRegion(code)}{code}&num=60&sort=ticktime&asc=0&volume=40000&amount=0&type=0&day={current_day}'
         res = await http.get(url, headers=header)
@@ -267,45 +236,3 @@ async def getStockBanKuaiFromDOngCai(code: str) -> dict:
     except Exception as e:
         res = {'msg': type(e).__name__}
     return res
-
-
-async def getBanKuaiKlineFromDongCai(code: str) -> dict:
-    '''从东方财富获取板块的日K数据'''
-    '''https://quote.eastmoney.com/bk/90.BK0908.html'''
-    res = {}
-    try:
-        header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
-        url = f'https://datacenter.eastmoney.com/securities/api/data/get?type=RPT_F10_CORETHEME_BOARDTYPE&sty=ALL&filter=(SECUCODE%3D%22{code}.{getStockRegion(code).upper()}%22)&p=1&ps=&sr=1&st=BOARD_RANK&source=HSF10&client=PC&v=02238{int(time.time() * 1000)}'
-        res = await http.get(url, headers=header)
-        _ = json.loads(res.text)
-    except Exception as e:
-        res = {'msg': type(e).__name__}
-    return res
-
-
-async def getBanKuaiFundFlowFromDongCai(ban: str, page: int = 1) -> dict:
-    '''从东方财富获取板块的资金流入数据'''
-    '''https://quote.eastmoney.com/center/hsbk.html'''
-    current_time = str(int(time.time() * 1000))
-    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
-    rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
-    if ban == 'concept':
-        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn={page}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A3&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
-    elif ban == 'industry':
-        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn={page}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
-    else:
-        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A90+t%3A1&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
-    res = await http.get(url, headers=header)
-    res_json = json.loads(res.text.split(current_time + '(')[1][: -2])
-    return res_json['data']['diff']
-
-
-async def getStockTopicFromTongHuaShun() -> dict:
-    '''从同花顺获取最新热点主题'''
-    '''https://focus.10jqka.com.cn/zttz.html'''
-    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'}
-    current_time = str(int(time.time() * 1000))
-    url = f'https://ai.iwencai.com/mobile/NewHotSpotStocks/indexData?params=zcxjh:5,jrjh:7&source=wzzttz&callback=jQuery1830609281377850579_{current_time}&_={current_time}'
-    res = await http.get(url, headers=header)
-    res_json = json.loads(res.text.split(current_time + '(')[1][: -1])
-    return res_json['data']['jrjh']

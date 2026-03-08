@@ -24,8 +24,8 @@ from utils.ai_model import queryGemini, queryOpenAi, webSearchTopic
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
-from utils.selectStock import getStockOrderByFundFromDongCai, getStockOrderByFundFromTencent, getBanKuaiFundFlowFromDongCai
-from utils.selectStock import getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencent
+from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent
+from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina
 from utils.database import Stock, Detail, Tools, Recommend, write_worker
 from utils.logging_getstock import logger
 
@@ -371,20 +371,23 @@ async def startSelectStock():
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
         try:
-            for p in range(20):
+            for p in range(50):
                 try:
-                    stockInfos = await getStockOrderByFundFromTencent(p)
+                    stockInfos = await getStockOrderByFundFromTencent(20, p)
                 except:
                     logger.error(traceback.format_exc())
-                    stockInfos = await getStockOrderByFundFromDongCai(p)
+                    stockInfos = await getStockOrderByFundFromSina(20, p)
                 stockList = []
                 for s in stockInfos:
                     try:
-                        s_info: Stock = await Stock.get_one(s['code'])
-                        if s_info.industry in ["航空机场", "证券", "房地产开发", "房地产服务", "珠宝首饰", "汽车整车", "水泥建材", "多元金融", "燃气", "银行"]:
-                            continue
-                        if s_info.running == 1:
-                            stockList.append({s['code']: s['name'], f'{s['code']}count': 1})
+                        if s['fund'] < 100:
+                            break
+                        if 5 < s['price'] < 51 and getStockType(s['code']) and 1 <= s['percent'] <= 9:
+                            s_info: Stock = await Stock.get_one(s['code'])
+                            if s_info.industry in ["航空机场", "证券", "房地产开发", "房地产服务", "珠宝首饰", "汽车整车", "水泥建材", "多元金融", "燃气", "银行"]:
+                                continue
+                            if s_info.running == 1:
+                                stockList.append({s['code']: s['name'], f'{s['code']}count': 1})
                     except:
                         logger.error(traceback.format_exc())
                 index = int(len(stockList) / 2)
@@ -394,7 +397,7 @@ async def startSelectStock():
                 if stockInfos[-1]['fund'] < 100:
                     logger.warning(f"主力资金流入过低，在 {p + 1} 页提前结束")
                     break
-                await asyncio.sleep(3.8)
+                await asyncio.sleep(3)
             scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
             current_day = time.strftime("%Y%m%d")
             try:
@@ -504,7 +507,7 @@ async def selectStockMetric():
                 except:
                     logger.error(traceback.format_exc())
                     try:
-                        fflow = await getStockZhuLiFundFromDongCai(stock_code_id)
+                        fflow = await getStockZhuLiFundFromSina(stock_code_id)
                     except:
                         logger.error(traceback.format_exc())
                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
@@ -570,68 +573,33 @@ async def updateStockFund(a=1):
         tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
         if day == time.strftime("%Y%m%d"):
-            h = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-            total_page = 100
+            page_size = 20
+            p = 0
             if a == 1:
                 try:
-                    logger.info("使用东方财富网更新主力资金～")
-                    rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
-                    current_time = int(time.time() * 1000)
-                    url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
-                    res = await http.get(url, headers=h)
-                    res_json = json.loads(res.text.split('(')[1].split(')')[0])
-                    total_page = int((res_json['data']['total'] + 49) / 50)
-                    for k in res_json['data']['diff']:
-                        code = k['f12']
-                        try:
-                            fund = round(k['f62'] / 10000, 2)
-                        except:
-                            try:
-                                fund = round(float(k['f62']) / 10000, 2)
-                            except:
-                                fund = 0.0
-                        await saveStockFund(day, code, fund)
-                    for p in range(1, total_page):
-                        if p % 5 == 0:
-                            current_time = int(time.time() * 1000)
-                        url = f'https://push2.eastmoney.com/api/qt/clist/get?cb=jQuery11230{rand}_{current_time}&fid=f62&po=1&pz=50&pn={p + 1}&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m%3A0%2Bt%3A6%2Bf%3A!2%2Cm%3A0%2Bt%3A13%2Bf%3A!2%2Cm%3A0%2Bt%3A80%2Bf%3A!2%2Cm%3A1%2Bt%3A2%2Bf%3A!2%2Cm%3A1%2Bt%3A23%2Bf%3A!2%2Cm%3A0%2Bt%3A7%2Bf%3A!2%2Cm%3A1%2Bt%3A3%2Bf%3A!2&fields=f12%2Cf14%2Cf2%2Cf3%2Cf62%2Cf184%2Cf66%2Cf69%2Cf72%2Cf75%2Cf78%2Cf81%2Cf84%2Cf87%2Cf204%2Cf205%2Cf124%2Cf1%2Cf13'
-                        res = await http.get(url, headers=h)
-                        res_json = json.loads(res.text.split('(')[1].split(')')[0])
-                        for k in res_json['data']['diff']:
-                            code = k['f12']
-                            try:
-                                fund = round(k['f62'] / 10000, 2)
-                            except:
-                                try:
-                                    fund = round(float(k['f62']) / 10000, 2)
-                                except:
-                                    fund = 0.0
-                            await saveStockFund(day, code, fund)
-                        await asyncio.sleep(5)
+                    logger.info("使用腾讯财经更新主力资金～")
+                    while True:
+                        res = await getStockOrderByFundFromTencent(page_size, p, is_price=False)
+                        for r in res:
+                            await saveStockFund(day, r['code'], r['fund'])
+                        if int((res[-1]['total'] + page_size - 1) / page_size) <= p:
+                            break
+                        p += 1
+                        await asyncio.sleep(6)
                 except:
                     logger.error(traceback.format_exc())
                     await updateStockFund(2)
             else:
                 try:
-                    logger.info("使用腾讯财经更新主力资金～")
-                    page_size = 50
-                    url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset=0&count={page_size}'
-                    res = await http.get(url, headers=h)
-                    res_json = json.loads(res.text)
-                    total_page = int((res_json['data']['total'] + 49) / 50)
-                    for k in res_json['data']['rank_list']:
-                        code = k['code'][2:]
-                        fund = float(k['zljlr'])
-                        await saveStockFund(day, code, fund)
-                    for p in range(1, total_page):
-                        url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset={page_size * p}&count={page_size}'
-                        res = await http.get(url, headers=h)
-                        res_json = json.loads(res.text)
-                        for k in res_json['data']['rank_list']:
-                            code = k['code'][2:]
-                            fund = float(k['zljlr'])
-                            await saveStockFund(day, code, fund)
-                        await asyncio.sleep(5)
+                    logger.info("使用新浪财经更新主力资金～")
+                    while True:
+                        res = await getStockOrderByFundFromSina(page_size, p, is_price=False)
+                        for r in res:
+                            await saveStockFund(day, r['code'], r['fund'])
+                        if int((res[-1]['total'] + page_size - 1) / page_size) <= p:
+                            break
+                        p += 1
+                        await asyncio.sleep(6)
                 except:
                     logger.error(traceback.format_exc())
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, "获取所有股票的主力资金净流入数据失败")
@@ -650,9 +618,9 @@ async def checkUpdateStockFund():
         stocks: list[Detail] = await Detail.query().equal(day=day).less_equal(fund=0.01).greater_equal(fund=-0.01).all()
         for s in stocks:
             try:
-                fund = await getStockZhuLiFundFromDongCai(s.code)
-            except:
                 fund = await getStockZhuLiFundFromTencent(s.code)
+            except:
+                fund = await getStockZhuLiFundFromSina(s.code)
             await Detail.update((s.code, s.day), fund=fund)
             logger.info(f"ReUpdate Stock Fund: {s.code} - {fund}")
             await asyncio.sleep(5)
@@ -908,13 +876,13 @@ async def main():
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 中午更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 中午更新股票信息
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=49, second=1, misfire_grace_time=10)  # 开始选股
-    scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)    # 获取热门题材
-    scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)   # 停止任务
-    scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)  # 收盘后更新数据
-    scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
-    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50, misfire_grace_time=10)    # 更新推荐股票的价格
-    scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)    # 删除数据
-    scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)    # 更新股票行业、概念等数据
+    scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
+    scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)          # 停止任务
+    scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)     # 收盘后更新数据
+    scheduler.add_job(updateStockFund, 'cron', hour=15, minute=48, second=20, args=[1], misfire_grace_time=10)  # 更新主力流入数据
+    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=52, second=50, misfire_grace_time=10)       # 更新推荐股票的价格
+    scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据
+    scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)        # 更新股票行业、概念等数据
     scheduler.start()
     await asyncio.sleep(2)
 

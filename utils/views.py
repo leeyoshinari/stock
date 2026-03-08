@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList
-from utils.selectStock import getStockZhuLiFundFromDongCai
+from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryAI, webSearchTopic
 from utils.saleStock import sellAI
 from utils.logging import logger
@@ -296,7 +296,7 @@ async def query_ai_stock(code: str, site: str = None) -> Result:
             stockDo: dict = await calc_stock_real_data(code, site)
             stock_data.insert(0, stockDo)
         else:
-            fflow = await getStockZhuLiFundFromDongCai(code)
+            fflow = await getStockZhuLiFundFromTencent(code)
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
         post_data = detail2List(stock_data)
@@ -329,7 +329,7 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
             stockDo: dict = await calc_stock_real_data(code, site)
             stock_data.insert(0, stockDo)
         else:
-            fflow = await getStockZhuLiFundFromDongCai(code)
+            fflow = await getStockZhuLiFundFromTencent(code)
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
         post_data = detail2List(stock_data)
@@ -368,7 +368,7 @@ async def ai_sell(code: str, site: str = None) -> Result:
             stockDo: dict = await calc_stock_real_data(code, site)
             stock_data.insert(0, stockDo)
         else:
-            fflow = await getStockZhuLiFundFromDongCai(code)
+            fflow = await getStockZhuLiFundFromTencent(code)
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
         post_data = detail2List(stock_data)
@@ -597,7 +597,7 @@ async def calc_stock_real_data(code: str, site: str = None) -> dict:
     stockDo.update({'trix': trix['trix']})
     stockDo.update({'trma': trix['trma']})
     stockDo.update({'volume': stockDo['volume']})
-    stockDo.update({'fund': await getStockZhuLiFundFromDongCai(code)})
+    stockDo.update({'fund': await getStockZhuLiFundFromTencent(code)})
     up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
     stockDo.update({'boll_up': round(up, 2)})
     stockDo.update({'boll_low': round(dn, 2)})
