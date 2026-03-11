@@ -28,7 +28,7 @@ sellPrompt = '''
 - 跳空截断: 今日开盘价较前日收盘价跌幅大于6%（尤其是前日上涨后），立即卖出。
 ## 动态止盈与洗盘识别
 - 缩量洗盘保护: 若连续 4-5 个交易日价格下跌但成交量萎缩（量比持续下行），视为洗盘，继续持有，直至触及9.5%硬止损。
-- 移动止盈: 盈利状态下，当天分钟级数据从最高点回撤大于3%触发止盈。若属于“缓慢上涨/缩量上涨”，回撤大于1%且处于盈利状态时，立即卖出；若回撤时处于亏损，则继续持有。
+- 移动止盈: 盈利状态下，当天分钟级数据从最高点回撤大于3%触发止盈（回撤后也必须是盈利状态）。若属于“缓慢上涨/缩量上涨”，回撤大于1%且处于盈利状态时，立即卖出；若回撤时处于亏损，则继续持有。
 # 执行约束 (防误判指令)
 - 回撤定义：使用“当日最高价”计算的回撤，和使用“买入后最高价”计算的回撤，两者取最大回撤值作为判断依据。
 - 时间锚点: 你的所有判断必须基于 买入日期 之后的交易数据，严禁将买入前的历史波动作为卖出理由。
@@ -72,113 +72,97 @@ async def sellAI(api_host: str, model: str, auth_code: str, current_time: str, b
     raise RuntimeError("Gemini 服务持续繁忙")
 
 
-'''
-你是一个精通中国A股市场的交易员，擅长根据股票走势判断是否买入卖出股票。请根据以下信息判断当前时间是否卖出股票，及时止盈止损，请使用python代码实现判断是否应该卖出？，所有关键阈值要参数化不要使用numpy和pandas等第三方包
+def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minute_data):
+    """
+    A股量化卖出决策引擎
+    :param current_time: str, "HH:MM" 格式
+    :param buy_date: str, 买入时间
+    :param cost_price: float, 买入成本价
+    :param daily_data: List[dict], 10日数据，最后一项为当日实时
+    :param minute_data: List[dict], 当日分钟数据
+    """
+    # 只保留买入日期当天及之后的数据
+    valid_daily = [d for d in daily_data if d['date'] >= buy_date]
+    if not valid_daily:
+        return {"action": "HOLD", "reason": "未获取到买入后的有效数据"}
 
-提供的参数:
-- cost: float, 持有成本
-- rise_limit: float, 涨停幅度，例如0.1或0.2
-- days_kline: list[dict], 每一天的天级K线数据和技术指标，最近5天的数据，最后一天是当天的实时数据
-    每个dict的字段解释: current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线
-- days_minute_price: list[list[float]], 最近2天的分钟级价格列表，最后一天是当天的部分数据；如果你需要5min中的价格数据，你可以自己计算出来然后使用
-- days_minute_volume: list[list[int]], 最近2天的分钟级成交量列表，与days_minute_price对应；如果你需要5min中的成交量数据，你可以自己计算出来然后使用
+    # 1. 提取基础变量
+    today = daily_data[-1]
+    prev_day = daily_data[-2]
+    curr_price = today['current_price']
 
-以下是一些补充说明和交易策略：
-1、已知输入的数据是当天截至当前分钟的数据，price和volume都是一个数组，数组最后的数据是最新时间的数据，你只需要判断到当前时间是否应该卖出股票；也有可能不是当天截至当前分钟的所有数据，你需要自己判断并告诉我你需要多长时间的数据；
-2、如果股票亏损，那么股票的止损点是10%，不到止损点就继续持有，等待股票上涨；
-3、如果股票盈利，那么在股票涨势较好的情况下不需要止盈，继续持有获得更多的收益；如果股票已经盈利，短时间放量下跌回撤，那么当回撤3%时，需要及时止盈，如果回撤后股票处于亏损状态，则不需要止盈或止损，继续持有；
-4、股票可以持有很多天，你需要给出一个比较好的方法解决前一天收盘和第二天开盘的数据衔接问题，特别是股票已经上涨后开盘大幅下跌的情况更应该卖出股票；
-5、中国A股部分股票涨停是10%，部分股票涨停是20%，如果当天股票涨停，不需要做任何处理，继续持有股票；
-6、股票可能开盘直接涨停封板，也可能上下波动慢慢上涨直到涨停，你需要能够处理这种情况，保持持有股票，不能轻易卖出股票；
-7、如果股票前几天涨的很好，突然某一天开盘大幅下跌超过3%，你需要及时卖出股票，所以你不能只根据总收益判断，你还需要结合当天的实际行情数据和前一天的收盘价比较；
-8、你需要识别出股票是横盘（成交量变化不大）、放量下跌、放量上涨、缓慢下跌、缓慢上涨，如果股票从亏损状态放量上涨，那么继续持有股票；如果股票从亏损状态缓慢上涨，那么在它回撤1%时卖出股票；
+    # 计算盈亏比 (当前价 vs 成本)
+    pnl_ratio = (curr_price - cost_price) / cost_price
 
-对上面的交易策略的优化补充与完善:
-1. 原策略基础:
-    - 止损: 亏损10%触发。
-    - 止盈: 最近10分钟盈利回撤3%。
-    - 开盘大幅下跌>3%（尤其是前日上涨后），卖出。
-    - 涨停持有。
-    - 从亏损放量上涨继续持有；缓慢上涨回撤1%且处于盈利状态时卖出，如果未盈利继续持有。
+    # 计算买入以来的最高价 (含今日)
+    max_price_since_buy = max([d['max_price'] for d in valid_daily])
+    today_max = today['max_price']
 
-2. 分钟级精细化:
-    - 检测日内放量下跌: 最近10分钟volume > 日均1.5倍 + 价格跌>1%，结合天级信号卖出。
-    - 波动率: 如果日内波动>5%且无向上突破，卖出锁定利润。
-    - 趋势确认: 使用分钟数据计算短期均线，如果分钟MA5 < MA10 + 天级死叉，强化卖出。
+    # --- 1. 强制锁定 (优先级最高) ---
+    # 涨停保护: A股主板10%，创业板/科创板20% (统一按9.5%触发阈值)
+    if curr_price >= prev_day['current_price'] * 1.095:
+        return {"action": "HOLD", "reason": "涨停保护中"}
 
-3. 趋势与风险管理:
-    - 整体趋势: 如果最近5天close > MA10，继续持有；否则结合其他信号。
-    - 累计回撤: 从历史高回撤>5% + 技术指标恶化（MACD死叉或KDJ超买后回落），卖出。
-    - 横盘识别: 最近5天价格波动<2% + volume低（<均值0.8倍） + KDJ在40-60，如果小盈利（>2%）卖出。
-    - 从亏损恢复: 反弹后若MACD顶背离（价格新高但MACD未新高）或KDJ J>80，卖出。
+    # 硬性死线止损
+    if pnl_ratio <= -0.095:
+        return {"action": "SELL", "reason": f"触及-9.5%硬止损线 (当前:{pnl_ratio:.2%})"}
 
-4. 成交量确认:
-    - 放量上涨: volume > 均值1.5倍 + 价格上涨，继续持有。
-    - 缩量上涨: 警惕，若已经盈利但回撤>1%卖出，如果回撤>1%但没用盈利，继续持有。
-    - 放量下跌: 立即卖出，尤其在支撑位。
+    # 技术死刑 (MA & MACD & BOLL)
+    is_ma_dead = today['ma_five'] < today['ma_ten']
+    is_macd_dead = today['diff'] < today['dea']
+    is_boll_break = curr_price < today['boll_low']
+    if (is_ma_dead and is_macd_dead) or is_boll_break:
+        return {"action": "SELL", "reason": "MA/MACD双死叉或跌破布林下轨"}
 
-5. 多天衔接与异常处理:
-    - 开盘衔接: 比较当天open与前日close，处理跳空。
-    - 综合评分: 多个信号触发时（>2个卖出信号），强制卖出。
+    # --- 2. 量价异动 (盘感逻辑) ---
+    qrr = today['qrr']  # 量比
+    curr_min_node = minute_data[-1]
+    on_avg_line = curr_min_node['price'] >= curr_min_node['price_avg']
 
-如果还有未考虑的场景，你需要继续补充，让整个交易策略可以获取最大收益，减少亏损。
+    # 时间锚点判断 (将 HH:MM 转为整数分钟方便比较)
+    h, m = map(int, current_time.split(':'))
+    minutes_now = h * 60 + m
 
-你是一个精通中国A股市场的交易员，擅长根据股票走势判断是否买入卖出股票。请根据以下信息判断当前时间是否卖出股票，及时止盈止损
+    # 分时量比止损逻辑
+    if minutes_now <= 600:  # 10:00 之前
+        if qrr > 8 and not on_avg_line and pnl_ratio < -0.05:
+            return {"action": "SELL", "reason": "早盘高量比且均线下亏损>5%"}
+    elif minutes_now <= 660:    # 11:00 之前
+        if qrr > 3 and not on_avg_line and pnl_ratio < -0.05:
+            return {"action": "SELL", "reason": "盘中量比>3且均线下亏损>5%"}
+    elif minutes_now >= 660:    # 11:00 之后
+        if qrr > 1.5 and not on_avg_line and pnl_ratio < -0.06:
+            return {"action": "SELL", "reason": "午后破位且量比>1.5"}
 
-提供的参数:
-- buy_price: float, 持有成本
-- buy_date: str, 买入时间
-- days_kline: list[dict], 每一天的天级K线数据和技术指标，最近10天的数据，最后一天是当天的实时数据
-    每个dict的字段解释: current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线
-- minute_datas: list[dict], 当天分钟级实时价格和成交量数据，你可以自行根据数据算出5min/10min中的数据用于辅助判断决策
-    每个dict的字段解释: time：时间，几点几分；price：当前价格；volume：当前分钟的成交量；
+    # 高位放量止盈 (盈利>5%时)
+    if pnl_ratio > 0.05:
+        # 盈利回撤定义：从买入后最高点回撤
+        max_drawdown = (max_price_since_buy - curr_price) / max_price_since_buy
+        if qrr > 1.5 and max_drawdown > 0.05:
+            return {"action": "SELL", "reason": "盈利5%以上出现放量跳水"}
 
+    # 跳空截断
+    if (today['open_price'] / prev_day['current_price'] - 1) < -0.06:
+        return {"action": "SELL", "reason": "大幅低开(>-6%)截断"}
 
-以下是一些补充说明和交易策略：
-1、已知输入的数据是当天截至当前分钟的数据，price和volume都是一个数组，数组最后的数据是最新时间的数据，你只需要判断到当前时间是否应该卖出股票；也有可能不是当天截至当前分钟的所有数据，你需要自己判断并告诉我你需要多长时间的数据；
-2、如果股票亏损，那么股票的止损点是10%，不到止损点就继续持有，等待股票上涨；
-3、如果股票盈利，那么在股票涨势较好的情况下不需要止盈，继续持有获得更多的收益；如果股票已经盈利，短时间放量下跌回撤，那么当回撤3%时，需要及时止盈，如果回撤后股票处于亏损状态，则不需要止盈或止损，继续持有；
-4、股票可以持有很多天，你需要给出一个比较好的方法解决前一天收盘和第二天开盘的数据衔接问题，特别是股票已经上涨后开盘大幅下跌的情况更应该卖出股票；
-5、中国A股部分股票涨停是10%，部分股票涨停是20%，如果当天股票涨停，不需要做任何处理，继续持有股票；
-6、股票可能开盘直接涨停封板，也可能上下波动慢慢上涨直到涨停，你需要能够处理这种情况，保持持有股票，不能轻易卖出股票；
-7、如果股票前几天涨的很好，突然某一天开盘大幅下跌超过3%，你需要及时卖出股票，所以你不能只根据总收益判断，你还需要结合当天的实际行情数据和前一天的收盘价比较；
-8、你需要识别出股票是横盘（成交量变化不大）、放量下跌、放量上涨、缓慢下跌、缓慢上涨，如果股票从亏损状态放量上涨，那么继续持有股票；如果股票从亏损状态缓慢上涨，那么在它回撤1%时卖出股票；
+    # --- 3. 动态止盈与洗盘识别 ---
+    # 缩量洗盘保护 (判断最近4日是否缩量下跌)
+    if len(daily_data) >= 5:
+        recent_4 = daily_data[-4:]
+        is_vol_down = all(recent_4[i]['volume'] > recent_4[i + 1]['volume'] for i in range(len(recent_4) - 1))
+        is_price_down = all(recent_4[i]['current_price'] > recent_4[i + 1]['current_price'] for i in range(len(recent_4) - 1))
 
-对上面的交易策略的优化补充与完善:
-1. 原策略基础:
-    - 止损: 亏损10%触发。
-    - 止盈: 最近10分钟盈利回撤3%。
-    - 开盘大幅下跌>3%（尤其是前日上涨后），卖出。
-    - 涨停持有。
-    - 从亏损放量上涨继续持有；缓慢上涨回撤1%且处于盈利状态时卖出，如果未盈利继续持有。
+        if is_vol_down and is_price_down:
+            return {"action": "HOLD", "reason": "识别为缩量洗盘，观察硬止损线"}
 
-2. 分钟级精细化:
-    - 检测日内放量下跌: 最近10分钟volume > 日均1.5倍 + 价格跌>1%，结合天级信号卖出。
-    - 波动率: 如果日内波动>5%且无向上突破，卖出锁定利润。
-    - 趋势确认: 使用分钟数据计算短期均线，如果分钟MA5 < MA10 + 天级死叉，强化卖出。
-    - 分钟级别的数据，在开盘后的半个小时，成交量会出现异常，导致计算出来的量比偏大，需要合理判断这种场景
-
-3. 趋势与风险管理:
-    - 整体趋势: 如果最近5天close > MA10，继续持有；否则结合其他信号。
-    - 累计回撤: 从历史高回撤>5% + 技术指标恶化（MACD死叉或KDJ超买后回落），卖出。
-    - 横盘识别: 最近5天价格波动<2% + volume低（<均值0.8倍） + KDJ在40-60，如果小盈利（>2%）卖出。
-    - 从亏损恢复: 反弹后若MACD顶背离（价格新高但MACD未新高）或KDJ J>80，卖出。
-
-4. 成交量确认:
-    - 放量上涨: volume > 均值1.5倍 + 价格上涨，继续持有。
-    - 缩量上涨: 警惕，若已经盈利但回撤>1%卖出，如果回撤>1%但没用盈利，继续持有。
-    - 放量下跌: 立即卖出，尤其在支撑位。
-
-5. 多天衔接与异常处理:
-    - 开盘衔接: 比较当天open与前日close，处理跳空。
-    - 综合评分: 多个信号触发时（>2个卖出信号），强制卖出。
-
-如果还有未考虑的场景，你需要继续补充，让整个交易策略可以获取最大收益，减少亏损。
-
-还有以下问题你需要考虑：
-1、通常在开盘后的半个小时，成交量会出现异常，导致计算出来的量比偏大，需要合理处理这种场景
-2、再加上一个条件：如果股票放量下跌到亏损大于6%，则立即卖出止损，否则在亏损达到9.5%以上时立即卖出止损。同样如果在大幅盈利的情况下也出现放量下跌，那么也要及时卖出止损。
-3、如果连续四五个交易日缩量下跌，则继续持有，直到亏损达到9.5%以上时立即卖出止损
-4、如果技术面已经严重变坏，无论是否盈利和亏损，都应立即卖出股票
-
-'''
+    # 移动止盈 (使用当日最高与买入后最高的最大回撤)
+    reference_max = max(today_max, max_price_since_buy)
+    current_dd = (reference_max - curr_price) / reference_max
+    if pnl_ratio > 0:
+        # 缓慢/缩量上涨识别 (量比 < 1.0)
+        if qrr < 1.0 and current_dd > 0.01:
+            return {"action": "SELL", "reason": "慢涨/缩量上涨回撤>1%止盈"}
+        # 通用回撤止盈
+        if current_dd > 0.03:
+            return {"action": "SELL", "reason": "盈利状态从最高点回撤>3%"}
+    return {"action": "HOLD", "reason": "未触及过滤规则"}

@@ -139,6 +139,8 @@ async def queryByCode(code: str, site: str = None) -> Result:
             trma.append(round(stockDo['trma'], 3))
             boll_up.append(stockDo['boll_up'])
             boll_low.append(stockDo['boll_low'])
+        else:
+            fund[-1] = await getStockZhuLiFundFromTencent(code)
         result.data = {
             'x': x, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'coord': coords,
             'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate,
