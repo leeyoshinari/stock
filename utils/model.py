@@ -18,6 +18,14 @@ class SearchStockParam(BaseModel):
     sortField: str = 'qrr'
 
 
+class SetStockParam(BaseModel):
+    code: str
+    operate_type: str
+    buy_time: Optional[str] = None
+    buy_price: Optional[str] = None
+    tag: Optional[str] = None
+
+
 class StockModelDo(BaseModel):
     code: str = None
     name: str = None

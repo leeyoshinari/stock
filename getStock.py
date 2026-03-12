@@ -348,7 +348,7 @@ async def queryRecommendStockData():
             hasList = []
             batch_num = All_STOCK_DATA_SIZE - 2
             stockInfo: list[Recommend] = await Recommend.query().is_null('last_five_price').all()
-            myStock: list[Stock] = await Stock.query().like(filter="myself").all()
+            myStock: list[Stock] = await Stock.query().like(filter="buy").all()
             for s in stockInfo:
                 if s.code in hasList:
                     continue
@@ -842,7 +842,7 @@ async def getStockTopic():
             file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(res)
-            data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].strip().split("\n")[0]
+            data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].replace(':', '').replace('：', '').strip().split("\n")[0]
             res_list = [r.replace('。', '').strip() for r in data.split(',')]
             try:
                 tool: Tools = await Tools.get_one(current_day)

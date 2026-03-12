@@ -112,13 +112,6 @@ class StockController(Controller):
             result = await views.get_stock_info(code)
         return result
 
-    @get('/stock/setFilter', summary="设置股票标签")
-    async def set_stock_filter(self, request: Request, code: str, filter: str, operate: int) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.set_stock_filter(code, filter, operate)
-        return result
-
     @get('/stock/init', summary="初始化股票数据")
     async def init_stock_data(self, request: Request, code: str) -> Result:
         result = Result()
@@ -148,6 +141,13 @@ class StockController(Controller):
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.get_topic_file(code)
+        return result
+
+    @post('/set/stock', summary="查询完整题材分析")
+    async def set_stock(self, request: Request, data: model.SetStockParam) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.set_stock(data)
         return result
 
     @get('/test')

@@ -9,7 +9,7 @@ import traceback
 from datetime import datetime
 from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
-from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList
+from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryAI, webSearchTopic
 from utils.saleStock import sellAI
@@ -19,7 +19,7 @@ from utils.initData import initStockData
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromTencent, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
-from utils.database import Recommend, Stock, Detail, Tools
+from utils.database import Recommend, Stock, Detail, Tools, StockInHand
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
 
 
@@ -119,6 +119,7 @@ async def queryByCode(code: str, site: str = None) -> Result:
         recommends: list[Recommend] = await Recommend.query().select('create_time', 'price').equal(code=code).order_by(Recommend.create_time.asc()).all()
         coords = [['R', r[0].strftime("%Y%m%d"), r[0].strftime("%Y-%m-%d %H:%M:%S"), r[1]] for r in recommends]
         if x[-1] != day:
+            logger.info(f"No real data, start query read data - code: {code}")
             stockDo: dict = await calc_stock_real_data(code, site)
             x.append(day)
             data.append([stockDo['open_price'], stockDo['current_price'], stockDo['min_price'], stockDo['max_price'], stockDo['volume'], stockDo['qrr'], 0, 0, stockDo['dea'], stockDo['turnover_rate'], stockDo['fund']])
@@ -130,7 +131,7 @@ async def queryByCode(code: str, site: str = None) -> Result:
             ma_twenty.append(stockDo['ma_twenty'])
             diff.append(round(stockDo['diff'], 3))
             dea.append(round(stockDo['dea'], 3))
-            macd.append(round(stockDo['diff'] - stockDo['dea'], 3))
+            macd.append(round((stockDo['diff'] - stockDo['dea']) * 2, 3))
             fund.append(stockDo['fund'])
             kdjk.append(round(stockDo['k'], 3))
             kdjd.append(round(stockDo['d'], 3))
@@ -149,7 +150,7 @@ async def queryByCode(code: str, site: str = None) -> Result:
             'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma, 'boll_low': boll_low
         }
         result.total = len(result.data)
-        logger.info(f"查询信息成功, 代码: {code}")
+        logger.info(f"Query stock k-line success - code: {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -186,7 +187,7 @@ async def queryStockList(query: SearchStockParam) -> Result:
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList
-        logger.info(f"查询列表成功, 查询参数: {query}")
+        logger.info(f"Query Stock Real Data List Success, params: {query}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -204,7 +205,7 @@ async def queryRecommendStockList(page: int = 1) -> Result:
         stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
-        logger.info("查询推荐股票列表成功～")
+        logger.info("Query Recommend Stock List Success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -435,7 +436,7 @@ async def all_stock_info(query: SearchStockParam) -> Result:
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList
-        logger.info(f"查询股票列表成功, 查询参数: {query}")
+        logger.info(f"Query Stock List Success, params: {query}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -452,7 +453,7 @@ async def all_topic_info(query: SearchStockParam) -> Result:
         topicList = [ToolsInfoList.from_orm_format(f).model_dump() for f in topicInfo if not f.key.startswith('openDoor')]
         result.total = total_num
         result.data = topicList
-        logger.info(f"查询股票列表成功, 查询参数: {query}")
+        logger.info(f"Query Hot Topic List Success, params: {query}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -470,7 +471,7 @@ async def get_current_topic() -> Result:
         file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(res)
-        data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].strip().split("\n")[0]
+        data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].replace(':', '').replace('：', '').strip().split("\n")[0]
         res_list = [r.replace('。', '').strip() for r in data.split(',')]
         try:
             tool: Tools = await Tools.get_one(current_day)
@@ -502,18 +503,36 @@ async def get_topic_file(code: str) -> Result:
     return result
 
 
-async def set_stock_filter(code: str, filter: str, operate: int) -> Result:
+async def set_stock(data: SetStockParam) -> Result:
     result = Result()
     try:
-        stock: Stock = await Stock.get_one(code)
-        if operate == 1:
-            await Stock.update(stock.code, filter=f"{stock.filter},{filter}")
-            logger.info(f"设置股票标签成功 - {code} - {filter}")
-        else:
+        stock: Stock = await Stock.get_one(data.code)
+        if data.operate_type == "setBuy":
+            if not data.buy_time or not data.buy_price:
+                raise
+            await Stock.update(stock.code, filter=f"{stock.filter},buy")
+            date_obj = datetime.strptime(data.buy_time + " 14:52:52", "%Y-%m-%d %H:%M:%S")
+            await StockInHand.create(code=stock.code, name=stock.name, price=float(data.buy_price), buy_time=date_obj)
+            logger.info(f"Set Stock Buy Success - {stock.code} - {stock.name} - {data.operate_type}")
+        if data.operate_type == "setSale":
+            if not data.buy_time or not data.buy_price:
+                raise
+            hms = time.strftime("%H:%M:%S")
+            date_obj = datetime.strptime(data.buy_time + " " + hms, "%Y-%m-%d %H:%M:%S")
+            await StockInHand.update(stock.code, sale_price=float(data.buy_price), sale_time=date_obj)
+            logger.info(f"Set Stock Sale Success - {stock.code} - {stock.name} - {data.operate_type}")
+        if data.operate_type == "addFilter":
+            if not data.tag:
+                raise
+            await Stock.update(stock.code, filter=f"{stock.filter},{data.tag}")
+            logger.info(f"Add Stock Label Success - {stock.code} - {stock.name} - {data.tag}")
+        if data.operate_type == "delFilter":
+            if not data.tag:
+                raise
             filter_list = stock.filter.split(',')
-            res_list = [r for r in filter_list if r != filter]
+            res_list = [r for r in filter_list if r != data.tag]
             await Stock.update(stock.code, filter=",".join(res_list))
-            logger.info(f"删除股票标签成功 - {code} - {filter}")
+            logger.info(f"Remove Stock Label Success - {stock.code} - {stock.name} - {data.tag}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -533,7 +552,7 @@ async def get_stock_info(code: str) -> Result:
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stocks]
         result.data = stockList
         result.total = len(stockList)
-        logger.info(f"查询股票信息成功 - {code}")
+        logger.info(f"Query stock info success - {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

@@ -74,7 +74,7 @@ function getStockList() {
             data.data.forEach(item => {
                 let setFlag = ``;
                 if (showFlag) {
-                    setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" />`;
+                    setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" /><img id="buy-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="buy_stocks('${item.code}', '${item.name}');" />`;
                 }
                 s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a>${setFlag}</div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
                       <div><img id="dc-${item.code}" src="${prefix}/static/dc.ico" alt="" onclick="window.open('https://quote.eastmoney.com/concept/${getStockRegion(item.code) + item.code}.html#chart-k-cyq');" style="width:18px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:20px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:20px;" /></div>
@@ -139,7 +139,15 @@ function get_stock_real_figure(code) {
 }
 
 function show_stock_filter(code) {
-    let s = `<div class="header">${code}</div><div><div class="title"><label>标签：</label><input type="text" id="filter-values" placeholder="" autocomplete="off"></div><div><button onclick="set_stock_filter('${code}', 1);">设置</button><button onclick="set_stock_filter('${code}', 0);">删除</button></div></div>`;
+    let s = `<div class="header">${code}</div><div><div class="title"><label>标签：</label><input type="text" id="filter-values" placeholder="" autocomplete="off"></div><div><button onclick="set_stock_buy('${code}', 'addFilter');">设置</button><button onclick="set_stock_buy('${code}', 'delFilter');">删除</button></div></div>`;
+    document.getElementById("data-tips").innerHTML = s;
+    document.getElementById("data-tips").style.width = "auto";
+    document.getElementById("data-tips").style.transform = 'translate(100%,0%)';
+    document.getElementsByClassName("stock-data")[0].style.display = "flex";
+}
+
+function buy_stocks(code, name) {
+    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="date" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_buy('${code}', 'setBuy');">买入</button><button onclick="set_stock_buy('${code}', 'setSale');">卖出</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
     document.getElementById("data-tips").style.width = "auto";
     document.getElementById("data-tips").style.transform = 'translate(100%,0%)';
@@ -152,15 +160,6 @@ function show_concept(code) {
     document.getElementById("data-tips").style.width = '70%';
     document.getElementById("data-tips").style.transform = 'translate(15%,0%)';
     document.getElementsByClassName("stock-data")[0].style.display = "flex";
-}
-
-function set_stock_filter(code, value) {
-    let filter = document.getElementById("filter-values").value;
-    fetch(`${prefix}/stock/setFilter?code=${code}&filter=${filter}&operate=${value}`)
-        .then(res => res.json())
-        .then(data => {
-            if (!data.success) {alert(data.msg);}
-        })
 }
 
 function show_sell_stock_window(code, name) {
@@ -200,6 +199,28 @@ function query_stock_ai(code, name) {
             document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
         .finally(() => {close_modal_cover();})
+}
+
+function set_stock_buy(code, operate_type) {
+    let data = { code, operate_type };
+    if (operate_type === "setBuy" || operate_type === "setSale") {
+        let buy_time = document.getElementById("buy-time").value;
+        let buy_price = document.getElementById("buy-price").value;
+        data = { ...data, buy_time, buy_price };
+    }
+    if (operate_type === "addFilter" || operate_type === "delFilter") {
+        let tag = document.getElementById("filter-values").value;
+        data = { ...data, tag };
+    }
+    let headers = {'content-type': 'application/json;charset=UTF-8'};
+    fetch(`${prefix}/set/stock`, {
+        method: "POST",
+        headers: { ...headers },
+        body: JSON.stringify(data)
+    }).then(res => res.json())
+    .then(data => {
+        if (!data.success) {alert(data.msg);}
+    })
 }
 
 function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}

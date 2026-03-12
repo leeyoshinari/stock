@@ -74,95 +74,108 @@ async def sellAI(api_host: str, model: str, auth_code: str, current_time: str, b
 
 def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minute_data):
     """
-    A股量化卖出决策引擎
-    :param current_time: str, "HH:MM" 格式
-    :param buy_date: str, 买入时间
-    :param cost_price: float, 买入成本价
-    :param daily_data: List[dict], 10日数据，最后一项为当日实时
-    :param minute_data: List[dict], 当日分钟数据
+    :param current_time: str, "HH:MM"
+    :param buy_date: str, "YYYY-MM-DD"
+    :param cost_price: float, 买入成本
+    :param daily_data: dict, 键为字段名，值为列表
+    :param minute_data: dict, 键为字段名，值为列表
     """
-    # 只保留买入日期当天及之后的数据
-    valid_daily = [d for d in daily_data if d['date'] >= buy_date]
-    if not valid_daily:
-        return {"action": "HOLD", "reason": "未获取到买入后的有效数据"}
+    # --- 1. 定位时间锚点 ---
+    days = daily_data['day']
+    # 找到买入日期在列表中的起始索引
+    start_idx = -1
+    for i, d in enumerate(days):
+        if d >= buy_date:
+            start_idx = i
+            break
 
-    # 1. 提取基础变量
-    today = daily_data[-1]
-    prev_day = daily_data[-2]
-    curr_price = today['current_price']
+    if start_idx == -1:
+        return {"action": "HOLD", "reason": "未发现买入日后的有效天级数据"}
 
-    # 计算盈亏比 (当前价 vs 成本)
+    # 提取当日（最后一根K线）索引
+    last_idx = len(days) - 1
+    # 提取前一日索引（用于计算跳空和涨停参考价）
+    prev_idx = last_idx - 1 if last_idx > 0 else last_idx
+
+    # --- 2. 基础变量提取 ---
+    curr_price = daily_data['current_price'][last_idx]
+    prev_close = daily_data['last_price'][last_idx] # 或者用 daily_data['current_price'][prev_idx]
     pnl_ratio = (curr_price - cost_price) / cost_price
+    
+    # 提取买入后的最高价 (切片 start_idx 到最后)
+    max_prices_after_buy = daily_data['max_price'][start_idx:]
+    max_since_buy = max(max_prices_after_buy)
+    today_max = daily_data['max_price'][last_idx]
 
-    # 计算买入以来的最高价 (含今日)
-    max_price_since_buy = max([d['max_price'] for d in valid_daily])
-    today_max = today['max_price']
+    # --- 3. 核心判定规则 (优先级由高到低) ---
 
-    # --- 1. 强制锁定 (优先级最高) ---
-    # 涨停保护: A股主板10%，创业板/科创板20% (统一按9.5%触发阈值)
-    if curr_price >= prev_day['current_price'] * 1.095:
-        return {"action": "HOLD", "reason": "涨停保护中"}
+    ## A. 强制锁定
+    # 涨停保护 (10% 或 20% 阈值取 9.5% 兼容)
+    if curr_price >= prev_close * 1.095:
+        return {"action": "HOLD", "reason": "触及涨停，锁定持有"}
 
-    # 硬性死线止损
+    # 硬性死线
     if pnl_ratio <= -0.095:
-        return {"action": "SELL", "reason": f"触及-9.5%硬止损线 (当前:{pnl_ratio:.2%})"}
+        return {"action": "SELL", "reason": f"硬止损触发: 亏损{pnl_ratio:.2%}"}
 
-    # 技术死刑 (MA & MACD & BOLL)
-    is_ma_dead = today['ma_five'] < today['ma_ten']
-    is_macd_dead = today['diff'] < today['dea']
-    is_boll_break = curr_price < today['boll_low']
+    # 技术死刑 (MA/MACD/BOLL)
+    is_ma_dead = daily_data['ma_five'][last_idx] < daily_data['ma_ten'][last_idx]
+    is_macd_dead = daily_data['diff'][last_idx] < daily_data['dea'][last_idx]
+    is_boll_break = curr_price < daily_data['boll_low'][last_idx]
     if (is_ma_dead and is_macd_dead) or is_boll_break:
-        return {"action": "SELL", "reason": "MA/MACD双死叉或跌破布林下轨"}
+        return {"action": "SELL", "reason": "MA+MACD双死叉或破布林下轨"}
 
-    # --- 2. 量价异动 (盘感逻辑) ---
-    qrr = today['qrr']  # 量比
-    curr_min_node = minute_data[-1]
-    on_avg_line = curr_min_node['price'] >= curr_min_node['price_avg']
+    ## B. 量价异动
+    qrr = daily_data['qrr'][last_idx]
+    # 分时数据取最后一点
+    m_price = minute_data['price'][-1]
+    m_avg = minute_data['price_avg'][-1]
+    on_avg_line = m_price >= m_avg
 
-    # 时间锚点判断 (将 HH:MM 转为整数分钟方便比较)
+    # 时间锚点判断
     h, m = map(int, current_time.split(':'))
-    minutes_now = h * 60 + m
-
-    # 分时量比止损逻辑
-    if minutes_now <= 600:  # 10:00 之前
+    time_val = h * 60 + m
+    
+    if time_val <= 600: # 10:00
         if qrr > 8 and not on_avg_line and pnl_ratio < -0.05:
-            return {"action": "SELL", "reason": "早盘高量比且均线下亏损>5%"}
-    elif minutes_now <= 660:    # 11:00 之前
+            return {"action": "SELL", "reason": "早盘高量比破均线且亏损>5%"}
+    elif time_val <= 660: # 11:00
         if qrr > 3 and not on_avg_line and pnl_ratio < -0.05:
-            return {"action": "SELL", "reason": "盘中量比>3且均线下亏损>5%"}
-    elif minutes_now >= 660:    # 11:00 之后
+            return {"action": "SELL", "reason": "盘中量比>3破均线且亏损>5%"}
+    else: # 11:00后
         if qrr > 1.5 and not on_avg_line and pnl_ratio < -0.06:
-            return {"action": "SELL", "reason": "午后破位且量比>1.5"}
+            return {"action": "SELL", "reason": "午后量比>1.5破均线且亏损>6%"}
 
-    # 高位放量止盈 (盈利>5%时)
+    # 高位放量止盈
     if pnl_ratio > 0.05:
-        # 盈利回撤定义：从买入后最高点回撤
-        max_drawdown = (max_price_since_buy - curr_price) / max_price_since_buy
-        if qrr > 1.5 and max_drawdown > 0.05:
-            return {"action": "SELL", "reason": "盈利5%以上出现放量跳水"}
+        # 盈利回撤使用买入后最高点
+        drawdown = (max_since_buy - curr_price) / max_since_buy
+        if qrr > 1.5 and drawdown > 0.05:
+            return {"action": "SELL", "reason": "盈利回撤>5%且放量"}
 
     # 跳空截断
-    if (today['open_price'] / prev_day['current_price'] - 1) < -0.06:
-        return {"action": "SELL", "reason": "大幅低开(>-6%)截断"}
+    if (daily_data['open_price'][last_idx] / prev_close - 1) < -0.06:
+        return {"action": "SELL", "reason": "大幅低开(<-6%)截断"}
 
-    # --- 3. 动态止盈与洗盘识别 ---
-    # 缩量洗盘保护 (判断最近4日是否缩量下跌)
-    if len(daily_data) >= 5:
-        recent_4 = daily_data[-4:]
-        is_vol_down = all(recent_4[i]['volume'] > recent_4[i + 1]['volume'] for i in range(len(recent_4) - 1))
-        is_price_down = all(recent_4[i]['current_price'] > recent_4[i + 1]['current_price'] for i in range(len(recent_4) - 1))
-
+    ## C. 动态止盈与洗盘识别
+    # 缩量洗盘 (由于是列式，取最后5个元素进行判断)
+    if len(days) >= 5:
+        vols = daily_data['volume'][-5:]
+        closes = daily_data['current_price'][-5:]
+        is_vol_down = all(vols[i] > vols[i+1] for i in range(len(vols)-1))
+        is_price_down = all(closes[i] > closes[i+1] for i in range(len(closes)-1))
         if is_vol_down and is_price_down:
-            return {"action": "HOLD", "reason": "识别为缩量洗盘，观察硬止损线"}
+            return {"action": "HOLD", "reason": "识别为缩量洗盘，暂不操作"}
 
-    # 移动止盈 (使用当日最高与买入后最高的最大回撤)
-    reference_max = max(today_max, max_price_since_buy)
-    current_dd = (reference_max - curr_price) / reference_max
+    # 移动止盈 (取当日最高和买入后最高的最大值)
+    ref_max = max(today_max, max_since_buy)
+    current_drawdown = (ref_max - curr_price) / ref_max
+    
     if pnl_ratio > 0:
-        # 缓慢/缩量上涨识别 (量比 < 1.0)
-        if qrr < 1.0 and current_dd > 0.01:
-            return {"action": "SELL", "reason": "慢涨/缩量上涨回撤>1%止盈"}
-        # 通用回撤止盈
-        if current_dd > 0.03:
-            return {"action": "SELL", "reason": "盈利状态从最高点回撤>3%"}
-    return {"action": "HOLD", "reason": "未触及过滤规则"}
+        is_slow = qrr < 1.0
+        if is_slow and current_drawdown > 0.01:
+            return {"action": "SELL", "reason": "慢涨/缩量上涨回撤>1%"}
+        if current_drawdown > 0.03:
+            return {"action": "SELL", "reason": "盈利状态最高点回撤>3%"}
+
+    return {"action": "HOLD", "reason": "未触发预设过滤逻辑"}
