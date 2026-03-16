@@ -383,17 +383,7 @@ async def ai_sell(code: str, site: str = None) -> Result:
         current_time = time.strftime("%Y-%m-%d %H:%M:%S")
         if current_time > open_date:
             current_time = open_date
-        res: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
-        t = []
-        price = []
-        price_avg = []
-        volume = []
-        for rr in res:
-            t.append(rr.time)
-            price.append(rr.price)
-            price_avg.append(rr.price_avg)
-            volume.append(rr.volume)
-        day_line = {'time': t, 'price': price, 'price_avg': price_avg, 'volume': volume}
+        day_line: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
         stock_dict = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), 'sellPrompt', logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"sell stock AI suggestion successfully, code: {code}, result: {stock_dict}")
