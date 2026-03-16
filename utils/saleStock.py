@@ -49,11 +49,60 @@ sellPrompt = '''
 当天分钟级实时数据是: {}
 '''
 
+decidePrompt = '''
+# Role
+你是一个冷静、犀利的 A 股顶级短线职业交易员。你不仅看数值，更擅长透过量价看到背后的主力意图。
 
-async def sellAI(api_host: str, model: str, auth_code: str, current_time: str, buyPrice: str, buyDate: str, k_line: str, day_line: str, logger: Logger) -> dict:
+# 复核逻辑（严格按序执行）
+1. **资金面检查**：结合 `fund` 数据。股价回撤但资金净流入（>0）通常是洗盘；股价下跌且资金大幅流出，确认为主力出货。
+2. **多指标共振**：你需要结合多个指标公共分析，如果技术指标趋势出现明显走弱，必须卖出。
+3. **分时支撑**：查看分钟级数据，如果 `price` 长期无法站上 `price_avg`，代表日内抛压极大，反弹无望。
+4. **形态博弈**：若当日的天级别数据出现长上影线，代表多头反击失败，抛压剧增。
+
+# 约束条件
+- **买入锚点**：所有判断必须基于 买入日期 之后的交易数据，严禁将买入前的历史波动作为卖出理由。
+- **最大回撤基准**：当前价相对于股票最高价的回撤幅度。最高价的定义：买入日期之后的所有交易日的最高价，包含当日股票的最高价。
+
+#  输入的数据
+- 当前精确时间。
+- 买入日期和持仓成本。
+- 最近10日天级数据（含当日实时数据）。每个dict的字段解释: day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。
+- 当天分钟实时分时数据。每个dict的字段解释: time：时间，几点几分；price：当日价格；price_avg：当日分时均线价，volume：当日分钟的成交量。
+
+# 标准输出格式（严格 JSON）
+{
+  "code": "代码",
+  "sell": true/false,
+  "reason": "决策:[卖出/持有] | 触发核心:[如:资金流出+J值下拐] | 盘面逻辑:[详细分析资金、均线、回撤的博弈关系] | 止损参考:[若持有，下一步死守的点位]"
+}
+
+【用户输入】
+当前时间是: {}。
+股票的买入日期是: {}。
+持仓成本是: {}。
+最近10日天级数据（含当日实时数据）是: {}。
+当天分钟级实时数据是: {}
+'''
+
+
+def getStockLimitUp(code: str, name: str) -> int:
+    if 'st' in name.lower():
+        return 5
+    if code.startswith("60") or code.startswith("00"):
+        return 10
+    if code.startswith("68") or code.startswith("30"):
+        return 20
+    return 10
+
+
+async def sellAI(api_host: str, model: str, auth_code: str, current_time: str, buyPrice: str, buyDate: str, k_line: str, day_line: str, promptType: str, logger: Logger) -> dict:
     url = f"{api_host}/api/chat"
     header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
-    data = {"model": model, "messages": [{"role": "user", "content": sellPrompt.format(current_time, buyDate, buyPrice, k_line, day_line)}]}
+    if promptType == 'decidePrompt':
+        prompt = decidePrompt
+    else:
+        prompt = sellPrompt
+    data = {"model": model, "messages": [{"role": "user", "content": prompt.format(current_time, buyDate, buyPrice, k_line, day_line)}]}
     for attempt in range(max_retry):
         try:
             res = await http.post(url=url, json_data=data, headers=header)
@@ -74,8 +123,8 @@ async def sellAI(api_host: str, model: str, auth_code: str, current_time: str, b
 
 def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minute_data):
     """
-    :param current_time: str, "HH:MM"
-    :param buy_date: str, "YYYY-MM-DD"
+    :param current_time: str, "%Y-%m-%d %H:%M:%S"
+    :param buy_date: str, "%Y%m%d"
     :param cost_price: float, 买入成本
     :param daily_data: dict, 键为字段名，值为列表
     :param minute_data: dict, 键为字段名，值为列表
@@ -179,3 +228,79 @@ def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minut
             return {"action": "SELL", "reason": "盈利状态最高点回撤>3%"}
 
     return {"action": "HOLD", "reason": "未触发预设过滤逻辑"}
+def expert_stock_sensor(current_time, buy_date, cost_price, daily_data, minute_data):
+    """
+    :param current_time: str, "%Y-%m-%d %H:%M:%S"
+    :param buy_date: str, "%Y%m%d"
+    :param cost_price: float, 买入成本
+    :param daily_data: dict, 键为字段名，值为列表
+    :param minute_data: dict, 键为字段名，值为列表
+    """
+    days = daily_data['day']
+    idx = len(days) - 1
+
+    # 1. 持仓时间与基础盈亏
+    start_idx = 0
+    for i, d in enumerate(days):
+        if d == buy_date:
+            start_idx = i
+            break
+    hold_days = len(days) - start_idx
+    curr_p = minute_data['price'][-1]
+    prev_c = daily_data['last_price'][-1]
+    pnl = (curr_p - cost_price) / cost_price    # 涨幅
+
+    # 2. 计算回撤 (基于持仓期最高价)
+    max_after_buy = max(daily_data['max_price'][start_idx + 1:])
+    drawdown = (max_after_buy - curr_p) / max_after_buy
+
+    # 3. 提取专业技术因子
+    # 量价背离识别：价格涨幅与成交量增幅是否匹配
+    vol_change = daily_data['volume'][idx] / (daily_data['volume'][idx-1] + 1e-5)
+    price_change = curr_p / prev_c
+    vol_price_divergence = (price_change > 1.0) and (vol_change < 0.8) # 缩量上涨
+
+    # 动能因子
+    trix_trend = "UP" if daily_data['trix'][idx] > daily_data['trma'][idx] else "DOWN"
+    j_value = daily_data['j'][idx]
+    is_overbought = j_value > 100
+    
+    # K线形态：上影线占比
+    upper_shadow = (daily_data['max_price'][idx] - max(curr_p, daily_data['open_price'][idx])) / (curr_p + 1e-5)
+
+    # 4. 自动化硬过滤逻辑 (降低 AI 负担)
+    
+    # 规则 A: 涨停绝对保护
+    if curr_p >= prev_c * 1.095:
+        return {"action": "HOLD", "level": 0, "reason": "封板强制锁定"}
+
+    # 规则 B: 风险极值拦截 (放量大跌/硬止损)
+    qrr = daily_data['qrr'][idx]
+    if pnl <= -0.095:
+        return {"action": "SELL", "level": 3, "reason": "触及-9.5%铁律止损"}
+    if (daily_data['open_price'][idx] / prev_c - 1) < -0.06 and qrr > 2.0:
+        return {"action": "SELL", "level": 3, "reason": "高量低开，恐慌性踩踏"}
+
+    # 5. 生成信号因子包 (交给 AI 决策)
+    factors = {
+        "pnl": f"{pnl:.2%}",
+        "drawdown": f"{drawdown:.2%}",
+        "hold_days": hold_days,
+        "vol_price_divergence": vol_price_divergence,
+        "trix_trend": trix_trend,
+        "is_overbought": is_overbought,
+        "upper_shadow": f"{upper_shadow:.2%}",
+        "fund_flow": f"{daily_data['fund'][idx]}万",
+        "minute_vs_avg": "ABOVE" if minute_data['price'][-1] > minute_data['price_avg'][-1] else "BELOW"
+    }
+
+    # 触发 AI 决策的临界点
+    trigger_ai = False
+    if pnl > 0 and (drawdown > 0.02 or is_overbought or vol_price_divergence): trigger_ai = True
+    if hold_days > 4 and pnl < 0.02: trigger_ai = True
+    if pnl < -0.05 or trix_trend == "DOWN": trigger_ai = True
+
+    if trigger_ai:
+        return {"action": "AI_DECIDE", "level": 2, "factors": factors}
+    
+    return {"action": "HOLD", "level": 1, "reason": "趋势正常，未达预警"}

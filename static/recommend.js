@@ -94,7 +94,7 @@ function get_stock_real_figure(code) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.volume);
+                plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.price_avg, data.data.volume);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })

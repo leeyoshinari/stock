@@ -610,8 +610,7 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
   myChart.setOption(option);
 }
 
-function plot_minute_line(myChart, title, x, price, volume) {
-  let startValue = x.length > 250 ? (1 - 250 / x.length) * 100 : 0;
+function plot_minute_line(myChart, title, x, price, price_avg, volume) {
   let option;
   myChart.clear();
   myChart.setOption(
@@ -620,7 +619,7 @@ function plot_minute_line(myChart, title, x, price, volume) {
       title: {
         text: title,
         left: 'center',
-        top: 0,
+        top: 5,
         textStyle: {
           fontSize: 13,
           fontWeight: 'bold'
@@ -640,18 +639,19 @@ function plot_minute_line(myChart, title, x, price, volume) {
         {
           left: '10px',
           right: '30px',
-          top: '20px',
-          height: '300px'
+          top: '50px',
+          height: '350px'
         },{
           left: '30px',
           right: '30px',
-          top: '350px',
+          top: '430px',
           height: '60px'
         }
       ],
       xAxis: [{
           type: 'category',
           data: x,
+          gridIndex: 0,
           min: 'dataMin',
           max: 'dataMax'
         },{
@@ -667,7 +667,7 @@ function plot_minute_line(myChart, title, x, price, volume) {
           scale: true,
           gridIndex: 0
         },{
-          scale: true,
+          scale: false,
           gridIndex: 1,
           axisLabel: { show: false },
           axisLine: { show: false },
@@ -675,28 +675,25 @@ function plot_minute_line(myChart, title, x, price, volume) {
           splitLine: { show: false }
         }
       ],
-      dataZoom: [{
-          type: 'inside',
-          xAxisIndex: [0, 1],
-          start: startValue,
-          end: 100
-        },
-        {
-          show: true,
-          xAxisIndex: [0, 1],
-          type: 'slider',
-          start: startValue,
-          end: 100
-        }
-      ],
       series: [
         {
           name: 'Price',
           type: 'line',
           data: price,
+          xAxisIndex: 0,
+          yAxisIndex: 0,
           smooth: false,
           showSymbol: false,
-          lineStyle: { color: 'blue', opacity: 0.5 }
+          lineStyle: { color: 'red', opacity: 0.9, width: 1}
+        },{
+          name: 'Price Avg',
+          type: 'line',
+          data: price_avg,
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+          smooth: false,
+          showSymbol: false,
+          lineStyle: { color: 'gray', opacity: 0.9, width: 1}
         },{
           name: 'Volume',
           type: 'bar',

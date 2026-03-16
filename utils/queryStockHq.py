@@ -295,7 +295,7 @@ async def getMinuteKFromTencent(host: str, code: str, logger: Logger) -> list[St
                     if d[0] > '1500': continue
                     stockDo = StockMinuteDo()
                     stockDo.code = code
-                    stockDo.time = d[0]
+                    stockDo.time = f"{d[0][: 2]}:{d[0][2:]}"
                     stockDo.price = float(d[1])
                     stockDo.volume = int(d[2]) - pre_volume
                     result.append(stockDo)
@@ -328,9 +328,10 @@ async def getMinuteKFromTongHuaShun(host: str, code: str, logger: Logger) -> lis
                 for s in data_list:
                     d = s.split(",")
                     if d[0].strip() > '1500': continue
+                    time_str = d[0].strip()
                     stockDo = StockMinuteDo()
                     stockDo.code = code
-                    stockDo.time = d[0].strip()
+                    stockDo.time = f"{time_str[: 2]}:{time_str[2:]}"
                     stockDo.price = float(d[1])
                     stockDo.volume = int(int(d[4]) / 100)
                     stockDo.price_avg = round(float(d[3]), 2)
@@ -365,8 +366,8 @@ async def getMinuteKFromSina(host: str, code: str, logger: Logger) -> list[Stock
             res_json = json.loads(res.text.split("(")[1].split(")")[0])
             if len(res_json["result"]['data']) > 0:
                 for s in res_json["result"]['data']:
-                    m = s['m'][:5].replace(':', '')
-                    if m > '1500': continue
+                    m = s['m'][:5]
+                    if m > '15:00': continue
                     stockDo = StockMinuteDo()
                     stockDo.code = code
                     stockDo.time = m

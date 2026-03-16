@@ -383,8 +383,18 @@ async def ai_sell(code: str, site: str = None) -> Result:
         current_time = time.strftime("%Y-%m-%d %H:%M:%S")
         if current_time > open_date:
             current_time = open_date
-        day_line = await getMinuteKFromTongHuaShun('', code, logger)
-        stock_dict = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
+        res: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
+        t = []
+        price = []
+        price_avg = []
+        volume = []
+        for rr in res:
+            t.append(rr.time)
+            price.append(rr.price)
+            price_avg.append(rr.price_avg)
+            volume.append(rr.volume)
+        day_line = {'time': t, 'price': price, 'price_avg': price_avg, 'volume': volume}
+        stock_dict = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), 'sellPrompt', logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"sell stock AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
@@ -399,6 +409,7 @@ async def calc_stock_real(code: str, site: str = None) -> Result:
     try:
         x = []
         price = []
+        price_avg = []
         volume = []
         if site == 'sina':
             res: list[StockMinuteDo] = await getMinuteKFromSina('', code, logger)
@@ -407,9 +418,10 @@ async def calc_stock_real(code: str, site: str = None) -> Result:
         for r in res:
             x.append(r.time)
             price.append(r.price)
+            price_avg.append(r.price_avg)
             volume.append(r.volume)
         st = await Stock.get_one(code)
-        result.data = {'x': x, 'price': price, 'volume': volume, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'concept': st.concept}
+        result.data = {'x': x, 'price': price, 'price_avg': price_avg, 'volume': volume, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'concept': st.concept}
         logger.info(f"query Recommend stock minute real data success - {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
