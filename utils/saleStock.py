@@ -4,6 +4,7 @@
 
 import asyncio
 import json
+import math
 import traceback
 from logging import Logger
 from utils.http_client import http
@@ -228,78 +229,112 @@ def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minut
             return {"action": "SELL", "reason": "盈利状态最高点回撤>3%"}
 
     return {"action": "HOLD", "reason": "未触发预设过滤逻辑"}
-def expert_stock_sensor(current_time, buy_date, cost_price, daily_data, minute_data):
+
+
+def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minute_data, limit_up):
     """
     :param current_time: str, "%Y-%m-%d %H:%M:%S"
     :param buy_date: str, "%Y%m%d"
     :param cost_price: float, 买入成本
     :param daily_data: dict, 键为字段名，值为列表
     :param minute_data: dict, 键为字段名，值为列表
+    :param limit_up: float, 股票最大涨跌幅
     """
-    days = daily_data['day']
-    idx = len(days) - 1
+    today = {k: daily_data[k][-1] for k in daily_data if isinstance(daily_data[k], list)}
+    prev = {k: daily_data[k][-2] for k in daily_data if isinstance(daily_data[k], list)}
 
-    # 1. 持仓时间与基础盈亏
-    start_idx = 0
-    for i, d in enumerate(days):
-        if d == buy_date:
-            start_idx = i
-            break
-    hold_days = len(days) - start_idx
-    curr_price = minute_data['price'][-1]
-    prev_close = daily_data['last_price'][-1]
-    pnl = (curr_price - cost_price) / cost_price    # 涨幅
+    curr_price = today['current_price']
+    pnl = (curr_price - cost_price) / cost_price
 
-    # 2. 计算回撤 (基于持仓期最高价)
-    max_after_buy = max(daily_data['max_price'][start_idx + 1:])
-    drawdown = (max_after_buy - curr_price) / max_after_buy
+    # ---------- 计算买入后最高价 ----------
+    max_price_since_buy = cost_price
+    for i, day in enumerate(daily_data['day']):
+        if day > buy_date:
+            max_price_since_buy = max(max_price_since_buy, daily_data['max_price'][i])
 
-    # 3. 提取专业技术因子
-    # 量价背离识别：价格涨幅与成交量增幅是否匹配
-    price_change = curr_price / prev_close
-    vol_price_divergence = (price_change > 1.0) and (daily_data['qrr'] < 0.8)   # 缩量上涨
+    today_high = today['max_price']
 
-    # 动能因子
-    trix_trend = "UP" if daily_data['trix'][idx] > daily_data['trma'][idx] else "DOWN"
-    j_value = daily_data['j'][idx]
-    is_overbought = j_value > 100
-    
-    # K线形态：上影线占比
-    upper_shadow = (daily_data['max_price'][idx] - max(curr_price, daily_data['open_price'][idx])) / (curr_price + 1e-5)
+    # ---------- 涨停保护 ----------
+    if curr_price >= math.floor(today['last_price'] * (1 + limit_up)):
+        return {"action": "HOLD", "reason": "limit_up"}
 
-    # 4. 自动化硬过滤逻辑 (降低 AI 负担)
-    
-    # 规则 A: 涨停绝对保护
-    if curr_price >= prev_close * 1.095:
-        return {"action": "HOLD", "level": 0, "reason": "封板强制锁定"}
-
-    # 规则 B: 风险极值拦截 (放量大跌/硬止损)
-    qrr = daily_data['qrr'][idx]
+    # ---------- 硬止损 ----------
     if pnl <= -0.095:
-        return {"action": "SELL", "level": 3, "reason": "触及-9.5%铁律止损"}
-    if (daily_data['open_price'][idx] / prev_close - 1) < -0.06 and qrr > 2.0:
-        return {"action": "SELL", "level": 3, "reason": "高量低开，恐慌性踩踏"}
+        return {"action": "SELL", "reason": "hard_stop"}
 
-    # 5. 生成信号因子包 (交给 AI 决策)
-    factors = {
-        "pnl": f"{pnl:.2%}",
-        "drawdown": f"{drawdown:.2%}",
-        "hold_days": hold_days,
-        "vol_price_divergence": vol_price_divergence,
-        "trix_trend": trix_trend,
-        "is_overbought": is_overbought,
-        "upper_shadow": f"{upper_shadow:.2%}",
-        "fund_flow": f"{daily_data['fund'][idx]}万",
-        "minute_vs_avg": "ABOVE" if minute_data['price'][-1] > minute_data['price_avg'][-1] else "BELOW"
-    }
+    # ---------- MA死叉 ----------
+    ma_dead = (prev['ma_five'] >= prev['ma_ten'] and today['ma_five'] < today['ma_ten'])
 
-    # 触发 AI 决策的临界点
-    trigger_ai = False
-    if pnl > 0 and (drawdown > 0.02 or is_overbought or vol_price_divergence): trigger_ai = True
-    if hold_days > 4 and pnl < 0.02: trigger_ai = True
-    if pnl < -0.05 or trix_trend == "DOWN": trigger_ai = True
+    # ---------- MACD死叉 ----------
+    macd_dead = (prev['diff'] >= prev['dea'] and today['diff'] < today['dea'])
 
-    if trigger_ai:
-        return {"action": "AI_DECIDE", "level": 2, "factors": factors}
-    
-    return {"action": "HOLD", "level": 1, "reason": "趋势正常，未达预警"}
+    # ---------- 布林破位 ----------
+    boll_break = curr_price < today['boll_low']
+
+    if ma_dead or macd_dead or boll_break:
+        return {"action": "SELL", "reason": "tech_break"}
+
+    # ---------- 跳空低开 ----------
+    gap = (today['open_price'] - today['last_price']) / today['last_price']
+    if gap < -0.06:
+        return {"action": "SELL", "reason": "gap_down"}
+
+    # ---------- 分时状态 ---------- 不应该只根据最新数据判断，这很容易误判，应该看截至当前时间的所有数据，价格是否长时间低于均价
+    last_price = minute_data['price'][-1]
+    last_avg = minute_data['price_avg'][-1]
+
+    below_avg = last_price < last_avg
+
+    qrr = today['qrr']
+
+    h = int(current_time[11:13])
+    m = int(current_time[14:16])
+    minutes = h * 60 + m
+
+    # ---------- 放量止损 ----------
+    if minutes <= 600:
+        if qrr > 8 and below_avg and pnl < -0.05:
+            return {"action": "SELL", "reason": "panic_morning"}
+
+    elif minutes <= 660:
+        if qrr > 3 and below_avg and pnl < -0.05:
+            return {"action": "SELL", "reason": "volume_break"}
+
+    else:
+        if qrr > 1.5 and below_avg and pnl < -0.06:
+            return {"action": "SELL", "reason": "afternoon_break"}
+
+    # ---------- 分钟跳水 ----------
+    if len(minute_data['price']) >= 5:
+        last5 = minute_data['price'][-5:]
+        max5 = max(last5)
+        drop = (max5 - last_price) / max5
+        if pnl > 0.05 and drop > 0.03:
+            return {"action": "SELL", "reason": "minute_dump"}
+
+    # ---------- 盈利回撤 ----------
+    ref_high = max(today_high, max_price_since_buy)
+    drawdown = (ref_high - curr_price) / ref_high
+
+    if pnl > 0:
+
+        if qrr < 1 and drawdown > 0.01:
+            return {"action": "SELL", "reason": "slow_up_exit"}
+
+        if drawdown > 0.03:
+            return {"action": "SELL", "reason": "drawdown_exit"}
+
+    # ---------- 缩量洗盘 ----------
+    if len(daily_data['volume']) >= 5:
+
+        vol = daily_data['volume'][-5:]
+        price = daily_data['current_price'][-5:]
+
+        vol_down = vol[0] > vol[1] > vol[2] > vol[3] > vol[4]
+        price_down = price[0] > price[1] > price[2] > price[3] > price[4]
+
+        if vol_down and price_down:
+            return {"action": "HOLD", "reason": "wash"}
+
+    # ---------- AI判断 ----------
+    return {"action": "AI_CHECK"}

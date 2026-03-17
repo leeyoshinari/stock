@@ -150,9 +150,14 @@ class StockController(Controller):
             result = await views.set_stock(data)
         return result
 
+    @get('/data/day')
+    async def get_data_by_day(self, request: Request, code: str, day: str) -> Result:
+        result = await views.get_data_by_day(code, day)
+        return result
+
     @get('/test')
-    async def test(self, request: Request, code: str) -> Result:
-        result = await views.test(code)
+    async def test(self, request: Request, code: str, day: str) -> Result:
+        result = await views.test(code, day)
         return result
 
 

@@ -596,7 +596,7 @@ async def updateStockFund(a=1):
                         res = await getStockOrderByFundFromSina(page_size, p, is_price=False)
                         for r in res:
                             await saveStockFund(day, r['code'], r['fund'])
-                        if int((res[-1]['total'] + page_size - 1) / page_size) <= p:
+                        if len(res) == 0 or int((res[-1]['total'] + page_size - 1) / page_size) <= p:
                             break
                         p += 1
                         await asyncio.sleep(6)

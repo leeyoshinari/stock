@@ -628,7 +628,19 @@ async def calc_stock_real_data(code: str, site: str = None) -> dict:
     return stockDo
 
 
-async def test(code) -> Result:
+async def get_data_by_day(code: str, day: str) -> Result:
+    result = Result()
+    try:
+        stock = await Detail.query().equal(code=code).less_equal(day=day).order_by(Detail.day.desc()).limit(6).all()
+        stock.reverse()
+        result.data = detail2List(stock)
+        logger.info(result.data)
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
+async def test(code: str, day: str) -> Result:
     result = Result()
     try:
         exclude = code.split(',')
