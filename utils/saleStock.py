@@ -246,19 +246,18 @@ def expert_stock_sensor(current_time, buy_date, cost_price, daily_data, minute_d
             start_idx = i
             break
     hold_days = len(days) - start_idx
-    curr_p = minute_data['price'][-1]
-    prev_c = daily_data['last_price'][-1]
-    pnl = (curr_p - cost_price) / cost_price    # 涨幅
+    curr_price = minute_data['price'][-1]
+    prev_close = daily_data['last_price'][-1]
+    pnl = (curr_price - cost_price) / cost_price    # 涨幅
 
     # 2. 计算回撤 (基于持仓期最高价)
     max_after_buy = max(daily_data['max_price'][start_idx + 1:])
-    drawdown = (max_after_buy - curr_p) / max_after_buy
+    drawdown = (max_after_buy - curr_price) / max_after_buy
 
     # 3. 提取专业技术因子
     # 量价背离识别：价格涨幅与成交量增幅是否匹配
-    vol_change = daily_data['volume'][idx] / (daily_data['volume'][idx-1] + 1e-5)
-    price_change = curr_p / prev_c
-    vol_price_divergence = (price_change > 1.0) and (vol_change < 0.8) # 缩量上涨
+    price_change = curr_price / prev_close
+    vol_price_divergence = (price_change > 1.0) and (daily_data['qrr'] < 0.8)   # 缩量上涨
 
     # 动能因子
     trix_trend = "UP" if daily_data['trix'][idx] > daily_data['trma'][idx] else "DOWN"
@@ -266,19 +265,19 @@ def expert_stock_sensor(current_time, buy_date, cost_price, daily_data, minute_d
     is_overbought = j_value > 100
     
     # K线形态：上影线占比
-    upper_shadow = (daily_data['max_price'][idx] - max(curr_p, daily_data['open_price'][idx])) / (curr_p + 1e-5)
+    upper_shadow = (daily_data['max_price'][idx] - max(curr_price, daily_data['open_price'][idx])) / (curr_price + 1e-5)
 
     # 4. 自动化硬过滤逻辑 (降低 AI 负担)
     
     # 规则 A: 涨停绝对保护
-    if curr_p >= prev_c * 1.095:
+    if curr_price >= prev_close * 1.095:
         return {"action": "HOLD", "level": 0, "reason": "封板强制锁定"}
 
     # 规则 B: 风险极值拦截 (放量大跌/硬止损)
     qrr = daily_data['qrr'][idx]
     if pnl <= -0.095:
         return {"action": "SELL", "level": 3, "reason": "触及-9.5%铁律止损"}
-    if (daily_data['open_price'][idx] / prev_c - 1) < -0.06 and qrr > 2.0:
+    if (daily_data['open_price'][idx] / prev_close - 1) < -0.06 and qrr > 2.0:
         return {"action": "SELL", "level": 3, "reason": "高量低开，恐慌性踩踏"}
 
     # 5. 生成信号因子包 (交给 AI 决策)

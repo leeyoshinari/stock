@@ -231,7 +231,7 @@ def analyze_buy_signal_new(stock_data_list: list[dict[str, Any]]) -> dict[str, A
     diff_greater_zero = stock_data_list[-1]['diff'] > 0
 
     # MACD柱不减小
-    macd_bar_increase = macd_bar[-1] > macd_bar[-2]
+    macd_bar_increase = macd_bar[-1] > macd_bar[-2] > macd_bar[-3]
 
     macd_bar_increase123 = stock_data_list[-1]['diff'] > -0.2 and macd_bar_increase and macd_bar[-1] > 0.2
 
