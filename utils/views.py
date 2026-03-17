@@ -631,9 +631,10 @@ async def calc_stock_real_data(code: str, site: str = None) -> dict:
 async def get_data_by_day(code: str, day: str) -> Result:
     result = Result()
     try:
-        stock = await Detail.query().equal(code=code).less_equal(day=day).order_by(Detail.day.desc()).limit(6).all()
+        stock: list[Detail] = await Detail.query().equal(code=code).less_equal(day=day).order_by(Detail.day.desc()).limit(6).all()
         stock.reverse()
-        result.data = detail2List(stock)
+        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stock]
+        result.data = detail2List(stock_data)
         logger.info(result.data)
     except:
         logger.error(traceback.format_exc())
