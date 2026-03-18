@@ -20,7 +20,7 @@ from utils.writer_queue import writer_queue
 from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
-from utils.ai_model import queryGemini, queryOpenAi, webSearchTopic
+from utils.ai_model import queryGemini, queryOpenAi, webSearchTopicBak
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
@@ -838,7 +838,7 @@ async def getStockTopic():
         current_day = tool.value
         current_date = tool.update_time.strftime("%Y年%m月%d日")
         if current_day == time.strftime("%Y%m%d"):
-            res = await webSearchTopic(API_URL, AUTH_CODE, current_date)
+            res = await webSearchTopicBak(API_URL, AUTH_CODE, current_date)
             file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(res)

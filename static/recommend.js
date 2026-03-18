@@ -109,7 +109,7 @@ function query_stock_ai(code, name) {
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
             document.getElementById("data-tips").style.width = '70%';
-            document.getElementById("data-tips").style.transform = 'translate(15%,0%)';
+            document.getElementById("data-tips").style.transform = 'translate(0%,0%)';
             document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
         .finally(() => {close_modal_cover();})

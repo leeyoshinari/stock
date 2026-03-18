@@ -193,6 +193,8 @@ route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(
 async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
     scheduler.add_job(zip_file, 'cron', hour=21, minute=20, second=20, args=[[db_path], zip_path, logger], misfire_grace_time=10)  # 备份数据库
+    scheduler.add_job(views.start_auto_sell_stock, 'cron', hour=9, minute=34, second=50)
+    scheduler.add_job(views.stop_auto_sell_stock, 'cron', hour=14, minute=58, second=58)
     scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
     worker_task = asyncio.create_task(write_worker())
     yield

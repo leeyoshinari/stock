@@ -5,16 +5,18 @@
 import os
 import time
 import json
+import asyncio
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, SellStockDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
 from utils.selectStock import getStockZhuLiFundFromTencent
-from utils.ai_model import queryAI, webSearchTopic
-from utils.saleStock import sellAI
+from utils.ai_model import queryAI, webSearchTopicBak
+from utils.saleStock import sellAI, evaluate_sell_strategy
 from utils.logging import logger
 from utils.results import Result
+from utils.scheduler import scheduler
 from utils.initData import initStockData
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromTencent, getMinuteKFromSina
@@ -65,6 +67,14 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
     trix_list[0] = trix
     trma = sum(trix_list[: 9]) / 9
     return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
+
+
+def getStockLimitUp(code: str, name: str) -> float:
+    if 'st' in name.lower():
+        return 0.05
+    if code.startswith("30") or code.startswith("68"):
+        return 0.2
+    return 0.1
 
 
 async def queryByCode(code: str, site: str = None) -> Result:
@@ -302,7 +312,7 @@ async def query_ai_stock(code: str, site: str = None) -> Result:
             fflow = await getStockZhuLiFundFromTencent(code)
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
-        post_data = detail2List(stock_data)
+        post_data = detail2List_bak(stock_data)
         date_obj = datetime.strptime(day, "%Y%m%d")
         open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
         current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}，最新日期的所有数据都是截至当前时间实时计算出来的，不一定是一整天的数据，不能和其他日期的数据弄混了'
@@ -335,7 +345,7 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
             fflow = await getStockZhuLiFundFromTencent(code)
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
-        post_data = detail2List(stock_data)
+        post_data = detail2List_bak(stock_data)
         if price and t:
             pass
         else:
@@ -374,7 +384,7 @@ async def ai_sell(code: str, site: str = None) -> Result:
             fflow = await getStockZhuLiFundFromTencent(code)
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
-        post_data = detail2List(stock_data)
+        post_data = detail2List_bak(stock_data)
         r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
         price = r.price
         t = r.create_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -469,7 +479,8 @@ async def get_current_topic() -> Result:
         tool: Tools = await Tools.get_one("openDoor")
         current_day = tool.value
         current_date = tool.update_time.strftime("%Y年%m月%d日")
-        res = await webSearchTopic(API_URL, AUTH_CODE, current_date)
+        res = await webSearchTopicBak(API_URL, AUTH_CODE, current_date)
+        print(res)
         file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(res)
@@ -633,8 +644,7 @@ async def get_data_by_day(code: str, day: str) -> Result:
     try:
         stock: list[Detail] = await Detail.query().equal(code=code).less_equal(day=day).order_by(Detail.day.desc()).limit(6).all()
         stock.reverse()
-        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stock]
-        result.data = detail2List(stock_data)
+        result.data = detail2List(stock)
         logger.info(result.data)
     except:
         logger.error(traceback.format_exc())
@@ -654,7 +664,7 @@ async def test(code: str, day: str) -> Result:
     return result
 
 
-def detail2List(data: list) -> dict:
+def detail2List_bak(data: list) -> dict:
     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
            'd': [], 'j': [], 'trix': [], 'trma': [], 'boll_up': [], 'boll_low': []}
@@ -685,6 +695,37 @@ def detail2List(data: list) -> dict:
     return res
 
 
+def detail2List(data: list[Detail]) -> dict:
+    res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
+           'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
+           'd': [], 'j': [], 'trix': [], 'trma': [], 'boll_up': [], 'boll_low': []}
+    for d in data:
+        res['code'] = d.code
+        res['day'].append(d.day)
+        res['current_price'].append(d.current_price)
+        res['last_price'].append(d.last_price)
+        res['open_price'].append(d.open_price)
+        res['max_price'].append(d.max_price)
+        res['min_price'].append(d.min_price)
+        res['volume'].append(d.volume)
+        res['turnover_rate'].append(f"{d.turnover_rate}%")
+        res['fund'].append(d.fund)
+        res['ma_five'].append(d.ma_five)
+        res['ma_ten'].append(d.ma_ten)
+        res['ma_twenty'].append(d.ma_twenty)
+        res['qrr'].append(d.qrr)
+        res['diff'].append(round(d.emas - d.emal, 4))
+        res['dea'].append(round(d.dea, 4))
+        res['k'].append(round(d.kdjk, 4))
+        res['d'].append(round(d.kdjd, 4))
+        res['j'].append(round(d.kdjj, 4))
+        res['trix'].append(round(d.trix, 4))
+        res['trma'].append(round(d.trma, 4))
+        res['boll_up'].append(d.boll_up)
+        res['boll_low'].append(d.boll_low)
+    return res
+
+
 def minute2List(data: list[StockMinuteDo]) -> dict:
     res = {'code': data[0].code, 'time': [], 'price': [], 'price_avg': [], 'volume': []}
     for d in data:
@@ -695,26 +736,65 @@ def minute2List(data: list[StockMinuteDo]) -> dict:
     return res
 
 
-# async def auto_sell_stock():
-#     try:
-#         stock: list[Recommend] = await Recommend.query().is_null('sale_price', 'sale_time').all()
-#         my_stock: list[StockInHand] = await StockInHand.query().is_null('sale_price', 'sale_time').all()
-#         all_stock: list[SellStockDo] = list[SellStockDo]
-#         for s in stock:
-#             tmp = SellStockDo()
-#             tmp.code = s.code
-#             tmp.name = s.name
-#             tmp.buy_price = s.price
-#             tmp.buy_time = s.create_time.strftime("%Y-%m-%d %H:%M:%S")
-#             all_stock.append(tmp)
-#         for s in my_stock:
-#             tmp = SellStockDo()
-#             tmp.code = s.code
-#             tmp.name = s.name
-#             tmp.buy_price = s.price
-#             tmp.buy_time = s.buy_time.strftime("%Y-%m-%d %H:%M:%S")
-#             all_stock.append(tmp)
-#         for s in all_stock:
-#             pass
-#     except:
-#         logger.error(traceback.format_exc())
+async def auto_sell_stock():
+    try:
+        stock: list[Recommend] = await Recommend.query().is_null('sale_price', 'sale_time').all()
+        my_stock: list[StockInHand] = await StockInHand.query().is_null('sale_price', 'sale_time').all()
+        all_stock: list[SellStockDo] = list[SellStockDo]
+        for s in stock:
+            tmp = SellStockDo()
+            tmp.code = s.code
+            tmp.name = s.name
+            tmp.buy_price = s.price
+            tmp.buy_time = s.create_time.strftime("%Y-%m-%d %H:%M:%S")
+            all_stock.append(tmp)
+        for s in my_stock:
+            tmp = SellStockDo()
+            tmp.code = s.code
+            tmp.name = s.name
+            tmp.buy_price = s.price
+            tmp.buy_time = s.buy_time.strftime("%Y-%m-%d %H:%M:%S")
+            all_stock.append(tmp)
+        total_source = 3
+        index = 0
+        for s in all_stock:
+            try:
+                current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+                limit_up = getStockLimitUp(s.code, s.name)
+                stock_detail: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(10).all()
+                stock_detail.reverse()
+                selected = index % total_source
+                if selected == 0:
+                    minute_detail: list[StockMinuteDo] = getMinuteKFromSina("", s.code, logger)
+                elif selected == 1:
+                    minute_detail: list[StockMinuteDo] = getMinuteKFromTencent("", s.code, logger)
+                else:
+                    minute_detail: list[StockMinuteDo] = getMinuteKFromTongHuaShun("", s.code, logger)
+                minute_data = minute2List(minute_detail)
+                day_data = detail2List(stock_detail)
+                res = evaluate_sell_strategy(current_time, s.buy_time, s.buy_price, day_data, minute_data, limit_up)
+                logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - {res}")
+            except:
+                logger.error(f"Auto sell stock - {s.code} - {s.name}")
+                logger.error(traceback.format_exc())
+            finally:
+                index += 1
+                asyncio.sleep(6)
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def start_auto_sell_stock():
+    tool: Tools = await Tools.get_one("openDoor")
+    current_day = tool.value
+    if current_day == time.strftime("%Y%m%d"):
+        scheduler.add_job(auto_sell_stock, "interval", minutes=5, next_run_time=datetime.now() + timedelta(seconds=9), id='auto_sell_stock')
+        logger.info("start sell stock task ...")
+
+
+async def stop_auto_sell_stock():
+    if scheduler.get_job('auto_sell_stock'):
+        scheduler.remove_job('auto_sell_stock')
+        logger.info("stop sell stock task ...")
+    else:
+        logger.info("sell stock task is not exist or stopped ...")
