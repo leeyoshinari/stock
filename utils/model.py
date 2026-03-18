@@ -151,7 +151,7 @@ class RecommendStockDataList(BaseModel):
     @classmethod
     def from_orm_format(cls, obj):
         c = obj.create_time.strftime("%Y-%m-%d")
-        s = obj.sale_time.strftime("%Y-%m-%d")
+        s = obj.sale_time.strftime("%Y-%m-%d") if obj.sale_time else None
         return cls(code=obj.code, name=obj.name, price=obj.price, last_one_price=obj.last_one_price, content=obj.content, sale_price=obj.sale_price, sale_time=s,
                    last_one_high=obj.last_one_high, last_one_low=obj.last_one_low, last_two_price=obj.last_two_price, last_two_high=obj.last_two_high,
                    last_two_low=obj.last_two_low, last_three_price=obj.last_three_price, last_three_high=obj.last_three_high, last_three_low=obj.last_three_low, last_four_price=obj.last_four_price,
