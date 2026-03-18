@@ -141,8 +141,8 @@ class RecommendStockDataList(BaseModel):
     last_five_high: Optional[float] = None
     last_five_low: Optional[float] = None
     content: Optional[str] = None
-    sale_price: float = None
-    sale_time: str = None
+    sale_price: Optional[float] = None
+    sale_time: Optional[str] = None
     create_time: str = None
 
     class Config:
