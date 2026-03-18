@@ -219,7 +219,7 @@ def evaluate_sell_strategy_bak(current_time, buy_date, cost_price, daily_data, m
     # 移动止盈 (取当日最高和买入后最高的最大值)
     ref_max = max(today_max, max_since_buy)
     current_drawdown = (ref_max - curr_price) / ref_max
-    
+
     if pnl_ratio > 0:
         is_slow = qrr < 1.0
         if is_slow and current_drawdown > 0.01:
