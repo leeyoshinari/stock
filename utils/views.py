@@ -8,7 +8,7 @@ import json
 import traceback
 from datetime import datetime
 from sqlalchemy.exc import NoResultFound
-from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
+from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, SellStockDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryAI, webSearchTopic
@@ -693,3 +693,28 @@ def minute2List(data: list[StockMinuteDo]) -> dict:
         res['price_avg'].append(d.price_avg)
         res['volume'].append(d.volume)
     return res
+
+
+# async def auto_sell_stock():
+#     try:
+#         stock: list[Recommend] = await Recommend.query().is_null('sale_price', 'sale_time').all()
+#         my_stock: list[StockInHand] = await StockInHand.query().is_null('sale_price', 'sale_time').all()
+#         all_stock: list[SellStockDo] = list[SellStockDo]
+#         for s in stock:
+#             tmp = SellStockDo()
+#             tmp.code = s.code
+#             tmp.name = s.name
+#             tmp.buy_price = s.price
+#             tmp.buy_time = s.create_time.strftime("%Y-%m-%d %H:%M:%S")
+#             all_stock.append(tmp)
+#         for s in my_stock:
+#             tmp = SellStockDo()
+#             tmp.code = s.code
+#             tmp.name = s.name
+#             tmp.buy_price = s.price
+#             tmp.buy_time = s.buy_time.strftime("%Y-%m-%d %H:%M:%S")
+#             all_stock.append(tmp)
+#         for s in all_stock:
+#             pass
+#     except:
+#         logger.error(traceback.format_exc())

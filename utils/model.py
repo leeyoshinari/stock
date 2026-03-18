@@ -200,3 +200,12 @@ class ToolsInfoList(BaseModel):
     @classmethod
     def from_orm_format(cls, obj):
         return cls(key=obj.key, value=obj.value, update_time=obj.update_time.strftime("%Y-%m-%d %H:%M:%S"))
+
+
+class SellStockDo(BaseModel):
+    code: str
+    name: str
+    buy_price: float
+    buy_time: str
+    sale_price: float = None
+    sale_time: str = None
