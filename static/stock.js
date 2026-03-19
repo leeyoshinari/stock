@@ -147,7 +147,7 @@ function show_stock_filter(code) {
 }
 
 function buy_stocks(code, name) {
-    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="date" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_buy('${code}', 'setBuy');">买入</button><button onclick="set_stock_buy('${code}', 'setSale');">卖出</button></div></div>`;
+    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="datetime-local" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_buy('${code}', 'setBuy');">买入</button><button onclick="set_stock_buy('${code}', 'setSale');">卖出</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
     document.getElementById("data-tips").style.width = "auto";
     document.getElementById("data-tips").style.transform = 'translate(100%,0%)';
@@ -163,7 +163,7 @@ function show_concept(code) {
 }
 
 function show_sell_stock_window(code, name) {
-    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>买入时间：</label><input type="text" id="buy-time" placeholder="20260521" autocomplete="off"></div><div class="title"><label>买入成本：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div style="margin-top:10px;"><button style="float:right;" onclick="sell_stock_ai('${code}', '${name}');">确定</button></div></div>`;
+    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>买入时间：</label><input type="date" id="buy-time" autocomplete="off"></div><div class="title"><label>买入成本：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div style="margin-top:10px;"><button style="float:right;" onclick="sell_stock_ai('${code}', '${name}');">确定</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
     document.getElementById("data-tips").style.width = "auto";
     document.getElementById("data-tips").style.transform = 'translate(100%,0%)';
@@ -219,7 +219,7 @@ function set_stock_buy(code, operate_type) {
         body: JSON.stringify(data)
     }).then(res => res.json())
     .then(data => {
-        if (!data.success) {alert(data.msg);}
+        if (!data.success) {alert(data.msg);} else {document.getElementsByClassName("stock-data")[0].style.display = "none";}
     })
 }
 

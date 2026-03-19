@@ -50,10 +50,10 @@ class StockController(Controller):
         return result
 
     @get('/getRecommend', summary="获取推荐的股票")
-    async def get_recommend(self, request: Request, page: int = 1) -> Result:
+    async def get_recommend(self, request: Request, source: int = 0, page: int = 1) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.queryRecommendStockList(page)
+            result = await views.queryRecommendStockList(source, page)
         return result
 
     @get('/query/ai', summary="询问AI股票走势 - 通用")

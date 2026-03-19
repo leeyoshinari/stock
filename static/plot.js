@@ -3,30 +3,35 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
   const upColor = '#ec0000';
   total_len = parseInt(100 / 720 * document.body.clientWidth * 0.8);
   let startValue = x.length > total_len ? (1 - total_len / x.length) * 100 : 0;
-  const markPoints = coords.map(item => ({
-    name: item[0],  symbolSize: [12, 20], value: item[3], date: item[2],
-    symbol: 'path://M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
-    coord: [item[1], price[x.indexOf(item[1])][3]],
-    itemStyle: { color: '#00CCFF' },
-    symbolOffset: [0, -12], // 向上偏移
-    label: {show: true, fontSize: 12, offset: [0, -2]},
-    tooltip: {
-        trigger: 'item',
-        confine: true,
-        backgroundColor: 'rgba(255, 255, 255, 0.85)',
-        formatter: function (params) {
-          if (params.data.name === 'R') {
-            return `<div style="max-width:100px;font-weight:bold;">选出时间: ${params.data.date}<br>选出价: ${params.data.value}</div>`;
-          } else {
-            if (params.data.name === 'B') {
-              return `<div style="max-width:100px;font-weight:bold;">买入时间: ${params.data.date}<br>买入价: ${params.data.value}</div>`;
+  const markPoints = coords.map(item => {
+    let color = '#00CCFF';
+    if (item[0] === 'B') color = '#ffaf01';
+    if (item[0] === 'S') color = '#476df7';
+    return {
+      name: item[0],  symbolSize: [12, 20], value: item[3], date: item[2],
+      symbol: 'path://M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
+      coord: [item[1], item[0]==='B' ? price[x.indexOf(item[1])][2] : price[x.indexOf(item[1])][3]],
+      itemStyle: { color },
+      symbolRotate: item[0]==='B' ? 180 : 0,
+      symbolOffset: item[0]==='B' ? [0, 12] : [0, -12],
+      label: {show: true, fontSize: 12, offset: item[0]==='B' ? [0, 2] : [0, -2]},
+      tooltip: {
+          trigger: 'item',
+          confine: true,
+          backgroundColor: 'rgba(255, 255, 255, 0.85)',
+          formatter: function (params) {
+            if (params.data.name === 'R') {
+              return `<div style="max-width:100px;font-weight:bold;">选出时间: ${params.data.date}<br>选出价: ${params.data.value}</div>`;
             } else {
-              return `<div style="max-width:100px;font-weight:bold;">卖出时间: ${params.data.date}<br>卖出价: ${params.data.value}</div>`;
+              if (params.data.name === 'B') {
+                return `<div style="max-width:100px;font-weight:bold;">买入时间: ${params.data.date}<br>买入价: ${params.data.value}</div>`;
+              } else {
+                return `<div style="max-width:100px;font-weight:bold;">卖出时间: ${params.data.date}<br>卖出价: ${params.data.value}</div>`;
+              }
             }
           }
-        }
-    }
-  }));
+      }
+    }});
   let option;
   myChart.clear();
   myChart.setOption(

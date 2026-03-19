@@ -125,6 +125,7 @@ class RecommendStockDataList(BaseModel):
     code: str = None
     name: str = None
     price: float = None
+    source: int = None
     last_one_price: Optional[float] = None
     last_one_high: Optional[float] = None
     last_one_low: Optional[float] = None
@@ -153,7 +154,7 @@ class RecommendStockDataList(BaseModel):
         c = obj.create_time.strftime("%Y-%m-%d")
         s = obj.sale_time.strftime("%Y-%m-%d") if obj.sale_time else None
         return cls(code=obj.code, name=obj.name, price=obj.price, last_one_price=obj.last_one_price, content=obj.content, sale_price=obj.sale_price, sale_time=s,
-                   last_one_high=obj.last_one_high, last_one_low=obj.last_one_low, last_two_price=obj.last_two_price, last_two_high=obj.last_two_high,
+                   last_one_high=obj.last_one_high, last_one_low=obj.last_one_low, last_two_price=obj.last_two_price, last_two_high=obj.last_two_high, source=obj.source,
                    last_two_low=obj.last_two_low, last_three_price=obj.last_three_price, last_three_high=obj.last_three_high, last_three_low=obj.last_three_low, last_four_price=obj.last_four_price,
                    last_four_high=obj.last_four_high, last_four_low=obj.last_four_low, last_five_price=obj.last_five_price, last_five_high=obj.last_five_high, last_five_low=obj.last_five_low, create_time=c)
 
@@ -203,12 +204,3 @@ class ToolsInfoList(BaseModel):
     @classmethod
     def from_orm_format(cls, obj):
         return cls(key=obj.key, value=obj.value, update_time=obj.update_time.strftime("%Y-%m-%d %H:%M:%S"))
-
-
-class SellStockDo(BaseModel):
-    code: str
-    name: str
-    buy_price: float
-    buy_time: str
-    sale_price: float = None
-    sale_time: str = None

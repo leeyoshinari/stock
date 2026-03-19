@@ -402,24 +402,9 @@ class Recommend(Base, CRUDBase):
     sale_price = Column(Float, nullable=True, comment="卖出价")
     sale_time = Column(DateTime, nullable=True, comment="卖出时间")
     content = Column(Text, nullable=True, comment="推荐 reason")
+    source = Column(Integer, default=0, nullable=False, comment="0-自动买入，1-手动买入")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-
-class StockInHand(Base, CRUDBase):
-    __tablename__ = 'stock_in_hand'
-    __table_args__ = (
-        Index('idx_stock_in_hand_code', 'code'),
-        {'sqlite_autoincrement': True}
-    )
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    code = Column(String(8), nullable=False, comment="股票代码")
-    name = Column(String(8), nullable=False, comment="股票名称")
-    price = Column(Float, nullable=False, comment="持仓成本")
-    buy_time = Column(DateTime, nullable=False, comment="买入时间")
-    sale_price = Column(Float, nullable=True, comment="持仓成本")
-    sale_time = Column(DateTime, nullable=True, comment="卖出时间")
 
 
 class Tools(Base, CRUDBase):

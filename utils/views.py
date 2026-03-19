@@ -9,7 +9,7 @@ import asyncio
 import traceback
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
-from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, SellStockDo
+from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryAI, webSearchTopicBak
@@ -21,7 +21,7 @@ from utils.initData import initStockData
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromTencent, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
-from utils.database import Recommend, Stock, Detail, Tools, StockInHand
+from utils.database import Recommend, Stock, Detail, Tools
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
 
 
@@ -126,8 +126,15 @@ async def queryByCode(code: str, site: str = None) -> Result:
             boll_up.append(stockInfo[index].boll_up)
             boll_low.append(stockInfo[index].boll_low)
         st: Stock = await Stock.get_one(code)
-        recommends: list[Recommend] = await Recommend.query().select('create_time', 'price').equal(code=code).order_by(Recommend.create_time.asc()).all()
-        coords = [['R', r[0].strftime("%Y%m%d"), r[0].strftime("%Y-%m-%d %H:%M:%S"), r[1]] for r in recommends]
+        recommends: list[Recommend] = await Recommend.query().equal(code=code).order_by(Recommend.id.asc()).all()
+        coords = []
+        for r in recommends:
+            if r.source == 0:
+                coords.append(['R', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M:%S"), r.price])
+            if r.source == 1:
+                coords.append(['B', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M:%S"), r.price])
+            if r.sale_price and r.sale_time:
+                coords.append(['S', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M:%S"), r.sale_price])
         if x[-1] != day:
             logger.info(f"No real data, start query read data - code: {code}")
             stockDo: dict = await calc_stock_real_data(code, site)
@@ -205,13 +212,13 @@ async def queryStockList(query: SearchStockParam) -> Result:
     return result
 
 
-async def queryRecommendStockList(page: int = 1) -> Result:
+async def queryRecommendStockList(source: int = 0, page: int = 1) -> Result:
     result = Result()
     pageSize = 20
     try:
         offset = (page - 1) * pageSize
-        total_num: int = await Recommend.query().count()
-        stockInfo: list[Recommend] = await Recommend.query().order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
+        total_num: int = await Recommend.query().equal(source=source).count()
+        stockInfo: list[Recommend] = await Recommend.query().equal(source=source).order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
         stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
@@ -233,7 +240,7 @@ async def calc_stock_return(fee) -> Result:
         r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         x = []
         y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
-        stocks: list[Recommend] = await Recommend.query().order_by(Recommend.id.asc()).all()
+        stocks: list[Recommend] = await Recommend.query().equal(source=0).order_by(Recommend.id.asc()).all()
         for s in stocks:
             s_time = s.create_time.strftime("%Y-%m-%d")
             if s_time in x:
@@ -349,11 +356,11 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
         if price and t:
             pass
         else:
-            r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
+            r: Recommend = await Recommend.query().equal(code=code, source=0).order_by(Recommend.id.desc()).first()
             price = r.price
-            t = r.create_time.strftime("%Y%m%d")
+            t = r.create_time.strftime("%Y-%m-%d")
         date_obj = datetime.strptime(day, "%Y%m%d")
-        open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
+        open_date = date_obj.strftime("%Y-%m-%d") + " 15:00:00"
         current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}，最新日期的所有数据都是截至当前时间实时计算出来的，不一定是一整天的数据，不能和其他日期的数据弄混了'
         if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
             current_time = open_date
@@ -369,6 +376,7 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
 
 
 async def ai_sell(code: str, site: str = None) -> Result:
+    '''Recommend list only'''
     result = Result()
     try:
         tool: Tools = await Tools.get_one("openDoor")
@@ -385,7 +393,7 @@ async def ai_sell(code: str, site: str = None) -> Result:
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
         post_data = detail2List_bak(stock_data)
-        r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
+        r: Recommend = await Recommend.query().equal(code=code, source=0).order_by(Recommend.id.desc()).first()
         price = r.price
         t = r.create_time.strftime("%Y-%m-%d %H:%M:%S")
         date_obj = datetime.strptime(day, "%Y%m%d")
@@ -523,16 +531,15 @@ async def set_stock(data: SetStockParam) -> Result:
         if data.operate_type == "setBuy":
             if not data.buy_time or not data.buy_price:
                 raise
-            await Stock.update(stock.code, filter=f"{stock.filter},buy")
-            date_obj = datetime.strptime(data.buy_time + " 14:52:52", "%Y-%m-%d %H:%M:%S")
-            await StockInHand.create(code=stock.code, name=stock.name, price=float(data.buy_price), buy_time=date_obj)
+            date_obj = datetime.strptime(data.buy_time.replace("T", " ") + ":58", "%Y-%m-%d %H:%M:%S")
+            await Recommend.create(code=stock.code, name=stock.name, price=float(data.buy_price), create_time=date_obj, source=1)
             logger.info(f"Set Stock Buy Success - {stock.code} - {stock.name} - {data.operate_type}")
         if data.operate_type == "setSale":
             if not data.buy_time or not data.buy_price:
                 raise
-            hms = time.strftime("%H:%M:%S")
-            date_obj = datetime.strptime(data.buy_time + " " + hms, "%Y-%m-%d %H:%M:%S")
-            await StockInHand.update(stock.code, sale_price=float(data.buy_price), sale_time=date_obj)
+            date_obj = datetime.strptime(data.buy_time.replace("T", " ") + ":58", "%Y-%m-%d %H:%M:%S")
+            r: Recommend = await Recommend.query().equal(code=stock.code, source=1).order_by(Recommend.id.desc()).first()
+            await Recommend.update(r.id, sale_price=float(data.buy_price), sale_time=date_obj)
             logger.info(f"Set Stock Sale Success - {stock.code} - {stock.name} - {data.operate_type}")
         if data.operate_type == "addFilter":
             if not data.tag:
@@ -654,9 +661,7 @@ async def get_data_by_day(code: str, day: str) -> Result:
 async def test(code: str, day: str) -> Result:
     result = Result()
     try:
-        exclude = code.split(',')
-        logger.info(exclude)
-        s: list[Recommend] = await Recommend.query().is_null('last_two_price').notin(code=exclude).all()
+        s: list[Recommend] = await Recommend.query().is_null('last_one_price').all()
         result.data = [r.code for r in s]
         logger.info(result.data)
     except:
@@ -739,25 +744,9 @@ def minute2List(data: list[StockMinuteDo]) -> dict:
 async def auto_sell_stock():
     try:
         stock: list[Recommend] = await Recommend.query().is_null('sale_price', 'sale_time').all()
-        my_stock: list[StockInHand] = await StockInHand.query().is_null('sale_price', 'sale_time').all()
-        all_stock: list[SellStockDo] = list[SellStockDo]
-        for s in stock:
-            tmp = SellStockDo()
-            tmp.code = s.code
-            tmp.name = s.name
-            tmp.buy_price = s.price
-            tmp.buy_time = s.create_time.strftime("%Y-%m-%d %H:%M:%S")
-            all_stock.append(tmp)
-        for s in my_stock:
-            tmp = SellStockDo()
-            tmp.code = s.code
-            tmp.name = s.name
-            tmp.buy_price = s.price
-            tmp.buy_time = s.buy_time.strftime("%Y-%m-%d %H:%M:%S")
-            all_stock.append(tmp)
         total_source = 3
         index = 0
-        for s in all_stock:
+        for s in stock:
             try:
                 current_time = time.strftime("%Y-%m-%d %H:%M:%S")
                 limit_up = getStockLimitUp(s.code, s.name)
@@ -772,7 +761,8 @@ async def auto_sell_stock():
                     minute_detail: list[StockMinuteDo] = getMinuteKFromTongHuaShun("", s.code, logger)
                 minute_data = minute2List(minute_detail)
                 day_data = detail2List(stock_detail)
-                res = evaluate_sell_strategy(current_time, s.buy_time, s.buy_price, day_data, minute_data, limit_up)
+                buy_time = s.create_time.strftime("%Y%m%d")
+                res = evaluate_sell_strategy(current_time, buy_time, s.price, day_data, minute_data, limit_up)
                 logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - {res}")
             except:
                 logger.error(f"Auto sell stock - {s.code} - {s.name}")

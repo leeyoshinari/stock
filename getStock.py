@@ -347,16 +347,11 @@ async def queryRecommendStockData():
             stockList = []
             hasList = []
             batch_num = All_STOCK_DATA_SIZE - 2
-            stockInfo: list[Recommend] = await Recommend.query().is_null('last_five_price').all()
-            myStock: list[Stock] = await Stock.query().like(filter="buy").all()
+            stockInfo: list[Recommend] = await Recommend.query().is_null('sale_price', 'sale_time').all()
             for s in stockInfo:
                 if s.code in hasList:
                     continue
                 hasList.append(s.code)
-                stockList.append({s.code: s.name, f'{s.code}count': 1})
-            for s in myStock:
-                if s.code in hasList:
-                    continue
                 stockList.append({s.code: s.name, f'{s.code}count': 1})
             random.shuffle(stockList)
             one_size = math.ceil(len(stockList) / batch_num)
@@ -454,7 +449,7 @@ async def selectStockMetric():
             stock_metric = []   # 非买入信号的策略选股
             day = ''
             trunc_time = time.strftime("%Y-%m-%d") + " 14:20:20"
-            selected: list[Recommend] = await Recommend.query().is_null('last_four_price').less(create_time=trunc_time).all()
+            selected: list[Recommend] = await Recommend.query().equal(source=0).is_null('last_four_price').less(create_time=trunc_time).all()
             exclued_stock = [r.code for r in selected]
             stockInfos: list[Detail] = await Detail.query().equal(day=current_day).notin(code=exclued_stock).all()
             for s in stockInfos:
@@ -525,7 +520,7 @@ async def selectStockMetric():
                     stock_dict = await queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
                     if stock_dict and stock_dict['buy']:
-                        recommend_stocks: list[Recommend] = await Recommend.query().equal(code=stock_code_id).is_null('last_four_price').all()
+                        recommend_stocks: list[Recommend] = await Recommend.query().equal(code=stock_code_id, source=0).is_null('last_four_price').all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
@@ -533,7 +528,7 @@ async def selectStockMetric():
                             logger.info(f"AI-model-Gemini: {stock_dict}")
                             reason = reason + f"\n\nGemini: {stock_dict['reason']}"
                             if stock_dict and stock_dict['buy']:
-                                await Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, content=reason)
+                                await Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, content=reason, source=0)
                                 send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}")
                             if has_index > 9:
                                 break
@@ -635,7 +630,7 @@ async def updateRecommendPrice():
         if new_day == time.strftime("%Y%m%d"):
             # 更新最新收盘价
             try:
-                new_stocks: list[Recommend] = await Recommend.query().less_equal(price=0.02).all()
+                new_stocks: list[Recommend] = await Recommend.query().equal(source=0).less_equal(price=0.02).all()
                 for r in new_stocks:
                     s = await Detail.get_one((r.code, new_day))
                     await Recommend.update(r.id, price=s.current_price)
@@ -643,7 +638,7 @@ async def updateRecommendPrice():
                 logger.error(traceback.format_exc())
 
             t = time.strftime("%Y-%m-%d") + " 09:00:00"
-            recommend_stocks: list[Recommend] = await Recommend.query().less_equal(create_time=t).is_null('last_five_price').all()
+            recommend_stocks: list[Recommend] = await Recommend.query().equal(source=0).less_equal(create_time=t).is_null('last_five_price').all()
             for r in recommend_stocks:
                 try:
                     stockInfo: Detail = await Detail.get((r.code, new_day))
