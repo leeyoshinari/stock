@@ -538,7 +538,7 @@ async def set_stock(data: SetStockParam) -> Result:
             if not data.buy_time or not data.buy_price:
                 raise
             date_obj = datetime.strptime(data.buy_time.replace("T", " ") + ":58", "%Y-%m-%d %H:%M:%S")
-            r: Recommend = await Recommend.query().equal(code=stock.code, source=1).order_by(Recommend.id.desc()).first()
+            r: Recommend = await Recommend.query().equal(code=stock.code, source=1).is_null('sale_price', 'sale_time').order_by(Recommend.id.desc()).first()
             await Recommend.update(r.id, sale_price=float(data.buy_price), sale_time=date_obj)
             logger.info(f"Set Stock Sale Success - {stock.code} - {stock.name} - {data.operate_type}")
         if data.operate_type == "addFilter":
@@ -746,8 +746,11 @@ async def auto_sell_stock():
         stock: list[Recommend] = await Recommend.query().is_null('sale_price', 'sale_time').all()
         total_source = 3
         index = 0
+        dealed_stock = []
         for s in stock:
             try:
+                if s.code in dealed_stock:
+                    continue
                 current_time = time.strftime("%Y-%m-%d %H:%M:%S")
                 limit_up = getStockLimitUp(s.code, s.name)
                 stock_detail: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(10).all()
@@ -763,6 +766,7 @@ async def auto_sell_stock():
                 day_data = detail2List(stock_detail)
                 buy_time = s.create_time.strftime("%Y%m%d")
                 res = evaluate_sell_strategy(current_time, buy_time, s.price, day_data, minute_data, limit_up)
+                dealed_stock.append(s.code)
                 logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - {res}")
             except:
                 logger.error(f"Auto sell stock - {s.code} - {s.name}")

@@ -32,7 +32,7 @@ function getStockRegion(code) {
 }
 
 function getStockList() {
-    let url = `${prefix}/getRecommend?page=${page}`;
+    let url = `${prefix}/getRecommend?page=${page}&source=${localStorage.getItem('source')}`;
     fetch(url)
         .then(res => res.json())
         .then(data => {
@@ -173,4 +173,13 @@ overlay_data.addEventListener('click', function(event) {
 overlay_chart.addEventListener('click', function(event) {
   if (event.target === overlay_chart) {overlay_chart.style.display = 'none';}
 });
+
+document.getElementById('stock-in-hand').addEventListener('click', () => {
+    let source = localStorage.getItem('source');
+    document.getElementById('stock-in-hand').innerText = source==='1' ? "持仓列表" : "推荐列表";
+    localStorage.setItem('source', source==='1' ? 0 : 1);
+    getStockList();
+})
+
+localStorage.setItem('source', 0);
 getStockList();
