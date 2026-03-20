@@ -134,7 +134,11 @@ async def queryByCode(code: str, site: str = None) -> Result:
             if r.source == 1:
                 coords.append(['B', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M:%S"), r.price])
             if r.sale_price and r.sale_time:
-                coords.append(['S', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M:%S"), r.sale_price])
+                if r.sale_price < 0.1: continue
+                if r.source == 1:
+                    coords.append(['S', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M:%S"), r.sale_price])
+                else:
+                    coords.append(['A', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M:%S"), r.sale_price])
         if x[-1] != day:
             logger.info(f"No real data, start query read data - code: {code}")
             stockDo: dict = await calc_stock_real_data(code, site)
@@ -223,6 +227,18 @@ async def queryRecommendStockList(source: int = 0, page: int = 1) -> Result:
         result.total = total_num
         result.data = stockList
         logger.info("Query Recommend Stock List Success ~")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def deleteRecommendStock(rId: int) -> Result:
+    result = Result()
+    try:
+        _ = await Recommend.query().equal(id=rId).delete()
+        logger.info(f"Delete Recommend Stock {rId} Success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -538,8 +554,11 @@ async def set_stock(data: SetStockParam) -> Result:
             if not data.buy_time or not data.buy_price:
                 raise
             date_obj = datetime.strptime(data.buy_time.replace("T", " ") + ":58", "%Y-%m-%d %H:%M:%S")
-            r: Recommend = await Recommend.query().equal(code=stock.code, source=1).is_null('sale_price', 'sale_time').order_by(Recommend.id.desc()).first()
-            await Recommend.update(r.id, sale_price=float(data.buy_price), sale_time=date_obj)
+            r: list[Recommend] = await Recommend.query().equal(code=stock.code, source=1).is_null('sale_price', 'sale_time').order_by(Recommend.id.desc()).all()
+            await Recommend.update(r[0].id, sale_price=float(data.buy_price), sale_time=date_obj)
+            if data.sell_empty == '1':
+                for i in range(1, len(r)):
+                    await Recommend.update(r[i].id, sale_price=0.0, sale_time=date_obj)
             logger.info(f"Set Stock Sale Success - {stock.code} - {stock.name} - {data.operate_type}")
         if data.operate_type == "addFilter":
             if not data.tag:
@@ -757,11 +776,11 @@ async def auto_sell_stock():
                 stock_detail.reverse()
                 selected = index % total_source
                 if selected == 0:
-                    minute_detail: list[StockMinuteDo] = getMinuteKFromSina("", s.code, logger)
+                    minute_detail: list[StockMinuteDo] = await getMinuteKFromSina("", s.code, logger)
                 elif selected == 1:
-                    minute_detail: list[StockMinuteDo] = getMinuteKFromTencent("", s.code, logger)
+                    minute_detail: list[StockMinuteDo] = await getMinuteKFromTencent("", s.code, logger)
                 else:
-                    minute_detail: list[StockMinuteDo] = getMinuteKFromTongHuaShun("", s.code, logger)
+                    minute_detail: list[StockMinuteDo] = await getMinuteKFromTongHuaShun("", s.code, logger)
                 minute_data = minute2List(minute_detail)
                 day_data = detail2List(stock_detail)
                 buy_time = s.create_time.strftime("%Y%m%d")

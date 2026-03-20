@@ -175,7 +175,7 @@ def analyze_buy_signal_new(stock_data_list: list[dict[str, Any]]) -> dict[str, A
         'min_days_for_trend': 3,  # 检查最近的最小天数，用于均线、价格趋势、MACD等持续性判断
         'qrr_threshold': 1.2,     # 量比阈值，大于此值视为成交量放大（场景3，经验值：1.5表示成交量是过去5日均量的1.5倍以上）
         'upper_shadow_ratio': 0.3,         # 上影线长度比率阈值
-        'open_low_ratio': -0.01,     # 低开百分比
+        'open_low_ratio': -0.015,     # 低开百分比
         'min_score': 6
     }
     params = default_params

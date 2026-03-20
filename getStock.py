@@ -375,9 +375,9 @@ async def startSelectStock():
                 stockList = []
                 for s in stockInfos:
                     try:
-                        if s['fund'] < 100:
+                        if s['fund'] < 500:
                             break
-                        if 5 < s['price'] < 51 and getStockType(s['code']) and 1 <= s['percent'] <= 9:
+                        if 5 < s['price'] < 100 and getStockType(s['code']) and 1 <= s['percent'] <= 9:
                             s_info: Stock = await Stock.get_one(s['code'])
                             if s_info.industry in ["航空机场", "证券", "房地产开发", "房地产服务", "珠宝首饰", "汽车整车", "水泥建材", "多元金融", "燃气", "银行"]:
                                 continue
@@ -389,7 +389,7 @@ async def startSelectStock():
                 await queryTask.put(stockList[: index])
                 await queryTask.put(stockList[index:])
                 logger.info(f"正在更新选股的数据，当前是第 {p + 1} 页，总数 {len(stockList)} 个")
-                if stockInfos[-1]['fund'] < 100:
+                if stockInfos[-1]['fund'] < 500:
                     logger.warning(f"主力资金流入过低，在 {p + 1} 页提前结束")
                     break
                 await asyncio.sleep(3)

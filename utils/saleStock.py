@@ -122,114 +122,6 @@ async def sellAI(api_host: str, model: str, auth_code: str, current_time: str, b
     raise RuntimeError("Gemini 服务持续繁忙")
 
 
-def evaluate_sell_strategy_bak(current_time, buy_date, cost_price, daily_data, minute_data):
-    """
-    :param current_time: str, "%Y-%m-%d %H:%M:%S"
-    :param buy_date: str, "%Y%m%d"
-    :param cost_price: float, 买入成本
-    :param daily_data: dict, 键为字段名，值为列表
-    :param minute_data: dict, 键为字段名，值为列表
-    """
-    # --- 1. 定位时间锚点 ---
-    days = daily_data['day']
-    # 找到买入日期在列表中的起始索引
-    start_idx = -1
-    for i, d in enumerate(days):
-        if d >= buy_date:
-            start_idx = i
-            break
-
-    if start_idx == -1:
-        return {"action": "HOLD", "reason": "未发现买入日后的有效天级数据"}
-
-    # 提取当日（最后一根K线）索引
-    last_idx = len(days) - 1
-    # 提取前一日索引（用于计算跳空和涨停参考价）
-    # prev_idx = last_idx - 1 if last_idx > 0 else last_idx
-
-    # --- 2. 基础变量提取 ---
-    curr_price = daily_data['current_price'][last_idx]
-    prev_close = daily_data['last_price'][last_idx]     # 或者用 daily_data['current_price'][prev_idx]
-    pnl_ratio = (curr_price - cost_price) / cost_price
-
-    # 提取买入后的最高价 (切片 start_idx 到最后)
-    max_prices_after_buy = daily_data['max_price'][start_idx:]
-    max_since_buy = max(max_prices_after_buy)
-    today_max = daily_data['max_price'][last_idx]
-
-    # --- 3. 核心判定规则 (优先级由高到低) ---
-    # A. 强制锁定
-    # 涨停保护 (10% 或 20% 阈值取 9.5% 兼容)
-    if curr_price >= prev_close * 1.095:
-        return {"action": "HOLD", "reason": "触及涨停，锁定持有"}
-
-    # 硬性死线
-    if pnl_ratio <= -0.095:
-        return {"action": "SELL", "reason": f"硬止损触发: 亏损{pnl_ratio:.2%}"}
-
-    # 技术死刑 (MA/MACD/BOLL)
-    is_ma_dead = daily_data['ma_five'][last_idx] < daily_data['ma_ten'][last_idx]
-    is_macd_dead = daily_data['diff'][last_idx] < daily_data['dea'][last_idx]
-    is_boll_break = curr_price < daily_data['boll_low'][last_idx]
-    if (is_ma_dead and is_macd_dead) or is_boll_break:
-        return {"action": "SELL", "reason": "MA+MACD双死叉或破布林下轨"}
-
-    # B. 量价异动
-    qrr = daily_data['qrr'][last_idx]
-    # 分时数据取最后一点
-    m_price = minute_data['price'][-1]
-    m_avg = minute_data['price_avg'][-1]
-    on_avg_line = m_price >= m_avg
-
-    # 时间锚点判断
-    h, m = map(int, current_time.split(':'))
-    time_val = h * 60 + m
-
-    if time_val <= 600:     # 10:00
-        if qrr > 8 and not on_avg_line and pnl_ratio < -0.05:
-            return {"action": "SELL", "reason": "早盘高量比破均线且亏损>5%"}
-    elif time_val <= 660:   # 11:00
-        if qrr > 3 and not on_avg_line and pnl_ratio < -0.05:
-            return {"action": "SELL", "reason": "盘中量比>3破均线且亏损>5%"}
-    else:   # 11:00后
-        if qrr > 1.5 and not on_avg_line and pnl_ratio < -0.06:
-            return {"action": "SELL", "reason": "午后量比>1.5破均线且亏损>6%"}
-
-    # 高位放量止盈
-    if pnl_ratio > 0.05:
-        # 盈利回撤使用买入后最高点
-        drawdown = (max_since_buy - curr_price) / max_since_buy
-        if qrr > 1.5 and drawdown > 0.05:
-            return {"action": "SELL", "reason": "盈利回撤>5%且放量"}
-
-    # 跳空截断
-    if (daily_data['open_price'][last_idx] / prev_close - 1) < -0.06:
-        return {"action": "SELL", "reason": "大幅低开(<-6%)截断"}
-
-    # C. 动态止盈与洗盘识别
-    # 缩量洗盘 (由于是列式，取最后5个元素进行判断)
-    if len(days) >= 5:
-        vols = daily_data['volume'][-5:]
-        closes = daily_data['current_price'][-5:]
-        is_vol_down = all(vols[i] > vols[i + 1] for i in range(len(vols) - 1))
-        is_price_down = all(closes[i] > closes[i + 1] for i in range(len(closes) - 1))
-        if is_vol_down and is_price_down:
-            return {"action": "HOLD", "reason": "识别为缩量洗盘，暂不操作"}
-
-    # 移动止盈 (取当日最高和买入后最高的最大值)
-    ref_max = max(today_max, max_since_buy)
-    current_drawdown = (ref_max - curr_price) / ref_max
-
-    if pnl_ratio > 0:
-        is_slow = qrr < 1.0
-        if is_slow and current_drawdown > 0.01:
-            return {"action": "SELL", "reason": "慢涨/缩量上涨回撤>1%"}
-        if current_drawdown > 0.03:
-            return {"action": "SELL", "reason": "盈利状态最高点回撤>3%"}
-
-    return {"action": "HOLD", "reason": "未触发预设过滤逻辑"}
-
-
 def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minute_data, limit_up):
     """
     :param current_time: str, "%Y-%m-%d %H:%M:%S"
@@ -258,13 +150,13 @@ def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minut
 
     # ---------- 涨停保护 ----------
     if curr_price >= math.floor(today['last_price'] * (1 + limit_up)):
-        return {"action": "HOLD", "reason": "limit_up"}
+        return {"action": "HOLD", "reason": "触及涨停，锁定持有"}
 
     # ---------- 硬止损 ----------
     if pnl <= -1 * limit_up:
-        return {"action": "SELL", "reason": "hard_stop"}
+        return {"action": "SELL", "reason": f"硬止损触发: 亏损{pnl}"}
     if pnl <= -1 * (limit_up - 0.015):
-        return {"action": "AI_CHECK", "reason": "hard_stop"}
+        return {"action": "AI_CHECK", "reason": f"硬止损触发: 亏损{pnl}"}
 
     # ---------- MA死叉 ----------
     ma_dead = (prev['ma_five'] >= prev['ma_ten'] and today['ma_five'] < today['ma_ten'])
@@ -276,12 +168,12 @@ def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minut
     boll_break = curr_price < today['boll_low']
 
     if ma_dead or macd_dead or boll_break:
-        return {"action": "SELL", "reason": "tech_break"}
+        return {"action": "SELL", "reason": "MA+MACD双死叉或破布林下轨"}
 
     # ---------- 跳空低开 ----------
     gap = (today['open_price'] - today['last_price']) / today['last_price']
     if gap < low_open_ratio:
-        return {"action": "SELL", "reason": "gap_down"}
+        return {"action": "SELL", "reason": f"大幅跳空低开 - {gap}"}
 
     # ---------- 分时状态 ----------
     intraday = analyze_intraday_structure(minute_data)
@@ -296,24 +188,24 @@ def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minut
     # ---------- 放量止损 ----------
     if minutes <= 600:
         if qrr > 8 and is_weak and pnl < -0.05:
-            return {"action": "SELL", "reason": "panic_morning"}
+            return {"action": "SELL", "reason": "早盘高量比破均线且亏损>5%"}
 
     elif minutes <= 660:
         if qrr > 3 and is_weak and pnl < -0.05:
-            return {"action": "SELL", "reason": "volume_break"}
+            return {"action": "SELL", "reason": "盘中量比>3破均线且亏损>5%"}
 
     else:
         if qrr > 1.5 and is_weak and pnl < -0.06:
-            return {"action": "SELL", "reason": "afternoon_break"}
+            return {"action": "SELL", "reason": "午后量比>1.5破均线且亏损>6%"}
 
     # ---------- 分钟跳水 ----------
     if pnl > 0.05 and is_dump:
-        return {"action": "SELL", "reason": "minute_dump"}
+        return {"action": "SELL", "reason": "分钟级数据跳水"}
 
     # ---------- 均线向下，当天弱势 ----------
     ma_falling = today['ma_five'] < prev['ma_five']
     if is_weak and ma_falling:
-        return {"action": "SELL", "reason": "trend_and_intraday_weak"}
+        return {"action": "SELL", "reason": "整体趋势向下且当天弱势"}
 
     # ---------- 盈利回撤 ----------
     ref_high = max(today_high, max_price_since_buy)
@@ -321,9 +213,9 @@ def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minut
 
     if pnl > 0.005:
         if qrr < 1 and drawdown > 0.01:
-            return {"action": "SELL", "reason": "slow_up_exit"}
+            return {"action": "SELL", "reason": "慢涨/缩量上涨回撤>1%"}
         if drawdown > 0.03:
-            return {"action": "SELL", "reason": "drawdown_exit"}
+            return {"action": "SELL", "reason": "盈利状态最高点回撤>3%"}
 
     # ---------- 缩量洗盘 ----------
     if len(daily_data['volume']) >= 3:
@@ -332,10 +224,10 @@ def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minut
         vol_down = vol[0] > vol[1] > vol[2]
         price_down = price[0] > price[1] > price[2]
         if vol_down and price_down and today['qrr'] < 0.7:
-            return {"action": "HOLD", "reason": "wash"}
+            return {"action": "HOLD", "reason": "识别为缩量洗盘，暂不操作"}
 
     # ---------- AI判断 ----------
-    return {"action": "AI_CHECK"}
+    return {"action": "AI_CHECK", "reason": "未触发预设过滤逻辑"}
 
 
 def analyze_intraday_structure(minute_data):

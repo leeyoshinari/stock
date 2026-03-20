@@ -23,6 +23,7 @@ class SetStockParam(BaseModel):
     operate_type: str
     buy_time: Optional[str] = None
     buy_price: Optional[str] = None
+    sell_empty: Optional[str] = None
     tag: Optional[str] = None
 
 
@@ -122,6 +123,7 @@ class StockDataList(BaseModel):
 
 
 class RecommendStockDataList(BaseModel):
+    id: int = None
     code: str = None
     name: str = None
     price: float = None
@@ -153,7 +155,7 @@ class RecommendStockDataList(BaseModel):
     def from_orm_format(cls, obj):
         c = obj.create_time.strftime("%Y-%m-%d")
         s = obj.sale_time.strftime("%Y-%m-%d") if obj.sale_time else None
-        return cls(code=obj.code, name=obj.name, price=obj.price, last_one_price=obj.last_one_price, content=obj.content, sale_price=obj.sale_price, sale_time=s,
+        return cls(id=obj.id, code=obj.code, name=obj.name, price=obj.price, last_one_price=obj.last_one_price, content=obj.content, sale_price=obj.sale_price, sale_time=s,
                    last_one_high=obj.last_one_high, last_one_low=obj.last_one_low, last_two_price=obj.last_two_price, last_two_high=obj.last_two_high, source=obj.source,
                    last_two_low=obj.last_two_low, last_three_price=obj.last_three_price, last_three_high=obj.last_three_high, last_three_low=obj.last_three_low, last_four_price=obj.last_four_price,
                    last_four_high=obj.last_four_high, last_four_low=obj.last_four_low, last_five_price=obj.last_five_price, last_five_high=obj.last_five_high, last_five_low=obj.last_five_low, create_time=c)

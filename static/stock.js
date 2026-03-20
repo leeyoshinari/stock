@@ -1,4 +1,5 @@
 const pageSize = 20;
+const showFlag = window.location.href.endsWith("trump");
 let page = 1;
 const originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
@@ -66,7 +67,6 @@ function getStockList() {
     if (concept || concept.trim()) {
         url = url + `&concept=${concept}`;
     }
-    let showFlag = window.location.href.endsWith("trump");
     fetch(url)
         .then(res => res.json())
         .then(data => {
@@ -147,7 +147,7 @@ function show_stock_filter(code) {
 }
 
 function buy_stocks(code, name) {
-    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="datetime-local" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_buy('${code}', 'setBuy');">买入</button><button onclick="set_stock_buy('${code}', 'setSale');">卖出</button></div></div>`;
+    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="datetime-local" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div class="title"><label>卖出时清仓：</label><select id="sell-empty"><option value='1'>清仓卖出</option><option value='0'>不清仓卖出</option></select></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_buy('${code}', 'setBuy');">买入</button><button onclick="set_stock_buy('${code}', 'setSale');">卖出</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
     document.getElementById("data-tips").style.width = "auto";
     document.getElementById("data-tips").style.transform = 'translate(100%,0%)';
@@ -206,7 +206,8 @@ function set_stock_buy(code, operate_type) {
     if (operate_type === "setBuy" || operate_type === "setSale") {
         let buy_time = document.getElementById("buy-time").value;
         let buy_price = document.getElementById("buy-price").value;
-        data = { ...data, buy_time, buy_price };
+        let sell_empty = document.getElementById("sell-empty").value;
+        data = { ...data, buy_time, buy_price, sell_empty };
     }
     if (operate_type === "addFilter" || operate_type === "delFilter") {
         let tag = document.getElementById("filter-values").value;

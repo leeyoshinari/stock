@@ -56,6 +56,13 @@ class StockController(Controller):
             result = await views.queryRecommendStockList(source, page)
         return result
 
+    @get('/deleteRecommend', summary="删除推荐的股票")
+    async def delte_recommend(self, request: Request, rId: int) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.deleteRecommendStock(rId)
+        return result
+
     @get('/query/ai', summary="询问AI股票走势 - 通用")
     async def stock_ai_data(self, request: Request, code: str, site: str = None) -> Result:
         result = Result()
