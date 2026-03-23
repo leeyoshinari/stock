@@ -122,7 +122,7 @@ async def sellAI(api_host: str, model: str, auth_code: str, current_time: str, b
     raise RuntimeError("Gemini 服务持续繁忙")
 
 
-def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minute_data, limit_up):
+def evaluate_sell_strategy(current_time: str, buy_date: str, cost_price: float, daily_data: dict, minute_data: dict, limit_up: float) -> dict:
     """
     :param current_time: str, "%Y-%m-%d %H:%M:%S"
     :param buy_date: str, "%Y%m%d"
@@ -149,7 +149,7 @@ def evaluate_sell_strategy(current_time, buy_date, cost_price, daily_data, minut
     today_high = today['max_price']
 
     # ---------- 涨停保护 ----------
-    if curr_price >= math.floor(today['last_price'] * (1 + limit_up)):
+    if curr_price >= round(math.floor(today['last_price'] * (1 + limit_up) * 100) / 100, 2):
         return {"action": "HOLD", "reason": "触及涨停，锁定持有"}
 
     # ---------- 硬止损 ----------

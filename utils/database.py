@@ -5,7 +5,7 @@
 import asyncio
 from typing import Iterable, Any
 from contextlib import asynccontextmanager
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint, exists, not_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import and_
@@ -74,6 +74,10 @@ class BaseQueryBuilder:
         self._limit = None
         self._offset = None
         self._with_count = False
+        self._distinct = False
+        self._distinct_on = []
+        self._joins = []
+        self._exists = None
 
     # 查询指定的字段
     def select(self, *columns: str):
@@ -137,10 +141,17 @@ class BaseQueryBuilder:
             self._conditions.append(getattr(self.model, c).isnot(None))
         return self
 
-    # group / order / limit
+    # group / distinct / order / limit
     def group_by(self, *columns: str, with_count=True):
         self._group_by = [getattr(self.model, c) for c in columns]
         self._with_count = with_count
+        return self
+
+    def distinct(self, *columns: str):
+        if columns:
+            self._distinct_on = [getattr(self.model, c) for c in columns]
+        else:
+            self._distinct = True
         return self
 
     def order_by(self, *clauses):
@@ -163,6 +174,18 @@ class BaseQueryBuilder:
         self._offset = offset
         return self
 
+    def join(self, model, onclause, isouter=False):
+        self._joins.append((model, onclause, isouter))
+        return self
+
+    def where_exists(self, subquery):
+        self._conditions.append(exists(subquery))
+        return self
+
+    def where_not_exists(self, subquery):
+        self._conditions.append(not_(exists(subquery)))
+        return self
+
     # build select
     def _build_select(self):
         if self._select_columns:
@@ -175,11 +198,19 @@ class BaseQueryBuilder:
 
         stmt = select(*columns)
 
+        if self._group_by and self._distinct:
+            raise ValueError("distinct 和 group_by 不建议同时使用")
+
         if self._conditions:
             stmt = stmt.where(and_(*self._conditions))
 
         if self._group_by:
             stmt = stmt.group_by(*self._group_by)
+
+        if self._distinct_on:
+            stmt = stmt.distinct(*self._distinct_on)
+        elif self._distinct:
+            stmt = stmt.distinct()
 
         if self._order_by:
             stmt = stmt.order_by(*self._order_by)
@@ -188,6 +219,13 @@ class BaseQueryBuilder:
             stmt = stmt.limit(self._limit)
         if self._offset is not None:
             stmt = stmt.offset(self._offset)
+
+        if self._joins:
+            for model, onclause, isouter in self._joins:
+                if isouter:
+                    stmt = stmt.outerjoin(model, onclause)
+                else:
+                    stmt = stmt.join(model, onclause)
 
         return stmt
 
@@ -276,6 +314,8 @@ class CRUDBase:
         """
         users = await User.query().equal(name="Documents", is_delete=0).all()
         rows = await User.query().select("id", "name").equal(is_delete=0).all()
+        rows = await User.query().select("name").distinct().all()
+        rows = await User.query().select("name", "age").distinct().all()
         rows = await User.query().select("id", "name").equal(is_delete=0).group_by("id", "name", with_count=True).all()
         count = await User.query().equal(status=0).greater(id=10).delete()
         """

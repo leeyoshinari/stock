@@ -19,7 +19,7 @@ from utils.results import Result
 from utils.scheduler import scheduler
 from utils.initData import initStockData
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
-from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromTencent, getMinuteKFromSina
+from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
 from utils.database import Recommend, Stock, Detail, Tools
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
@@ -778,7 +778,7 @@ async def auto_sell_stock():
                 if selected == 0:
                     minute_detail: list[StockMinuteDo] = await getMinuteKFromSina("", s.code, logger)
                 elif selected == 1:
-                    minute_detail: list[StockMinuteDo] = await getMinuteKFromTencent("", s.code, logger)
+                    minute_detail: list[StockMinuteDo] = await getMinuteKFromDongcai("", s.code, logger)
                 else:
                     minute_detail: list[StockMinuteDo] = await getMinuteKFromTongHuaShun("", s.code, logger)
                 minute_data = minute2List(minute_detail)

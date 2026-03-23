@@ -6,6 +6,7 @@ import time
 import json
 import traceback
 from logging import Logger
+from warnings import deprecated
 from utils.model import StockModelDo, StockMinuteDo
 from utils.http_client import http
 
@@ -35,6 +36,15 @@ def getStockType(code: str) -> int:
         return 1
     else:
         return 0
+
+
+def getStockRegionNum(code: str) -> str:
+    if code.startswith("60") or code.startswith("68"):
+        return "1"
+    elif code.startswith("00") or code.startswith("30"):
+        return "0"
+    else:
+        return ""
 
 
 def normalizeHourAndMinute() -> str:
@@ -274,6 +284,7 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
     return result
 
 
+@deprecated("缺少均价")
 async def getMinuteKFromTencent(host: str, code: str, logger: Logger) -> list[StockMinuteDo]:
     '''
     从腾讯获取股票当天的分钟级数据
@@ -304,7 +315,7 @@ async def getMinuteKFromTencent(host: str, code: str, logger: Logger) -> list[St
             else:
                 logger.error(f"Tencent-minute({host}) - {code} - {res.text}")
         else:
-            logger.error(f"Tencent-minute({host}) - 请求未正常返回...")
+            logger.error(f"Tencent-minute({host}) - 请求未正常返回... {res.text}")
     except:
         logger.error(traceback.format_exc())
     return result
@@ -327,8 +338,8 @@ async def getMinuteKFromTongHuaShun(host: str, code: str, logger: Logger) -> lis
                 data_list = res_json[f"hs_{code}"]['data'].split(";")
                 for s in data_list:
                     d = s.split(",")
-                    if d[0].strip() > '1500': continue
                     time_str = d[0].strip()
+                    if time_str > '1500': continue
                     stockDo = StockMinuteDo()
                     stockDo.code = code
                     stockDo.time = f"{time_str[: 2]}:{time_str[2:]}"
@@ -340,7 +351,7 @@ async def getMinuteKFromTongHuaShun(host: str, code: str, logger: Logger) -> lis
             else:
                 logger.error(f"TongHuaShun-minute({host}) - {code} - {res.text}")
         else:
-            logger.error(f"TongHuaShun-minute({host}) - 请求未正常返回...")
+            logger.error(f"TongHuaShun-minute({host}) - 请求未正常返回... {res.text}")
     except:
         logger.error(traceback.format_exc())
     return result
@@ -379,7 +390,82 @@ async def getMinuteKFromSina(host: str, code: str, logger: Logger) -> list[Stock
             else:
                 logger.error(f"Sina-minute({host}) - {code} - {res.text}")
         else:
-            logger.error(f"Sina-minute({host}) - 请求未正常返回...")
+            logger.error(f"Sina-minute({host}) - 请求未正常返回... {res.text}")
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
+async def getMinuteKFromDongcai(host: str, code: str, logger: Logger) -> list[StockMinuteDo]:
+    '''
+    从东方财富获取股票当天的分钟级数据: https://quote.eastmoney.com/sh600726.html#fullScreenChart
+    '''
+    result = []
+    try:
+        url = f"https://push2his.eastmoney.com/api/qt/stock/trends2/get?fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f17&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ut=fa5fd1943c7b386f172d6893dbfba10b&secid={getStockRegionNum(code)}.{code}&ndays=1&iscr=0&iscca=0&cb=jsonp{int(time.time() * 1000)}"
+        if host and host.startswith('http'):
+            param_data = {"url": url, "method": "GET"}
+            res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
+        else:
+            res = await http.get(url, headers=headers)
+        if res.status_code == 200:
+            res_json = json.loads(res.text.split("(")[1].split(")")[0])
+            if len(res_json['data']['trends']) > 0:
+                data_list = res_json['data']['trends']
+                for s in data_list:
+                    d = s.split(",")
+                    time_str = d[0].split(' ')[1].strip()
+                    if time_str > '15:00': continue
+                    stockDo = StockMinuteDo()
+                    stockDo.code = code
+                    stockDo.time = time_str
+                    stockDo.price = float(d[2])
+                    stockDo.volume = int(d[5])
+                    stockDo.price_avg = round(float(d[7]), 3)
+                    result.append(stockDo)
+                logger.info(f"DongFangCaiFu-minute({host}) - {code}")
+            else:
+                logger.error(f"DongFangCaiFu-minute({host}) - {code} - {res.text}")
+        else:
+            logger.error(f"DongFangCaiFu-minute({host}) - 请求未正常返回... {res.text}")
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
+@deprecated("需要设置 Cookie")
+async def getMinuteKFromXueQiu(host: str, code: str, logger: Logger) -> list[StockMinuteDo]:
+    '''
+    从雪球获取股票当天的分钟级数据: https://xueqiu.com/S/SH601012
+    '''
+    result = []
+    try:
+        url = f"https://stock.xueqiu.com/v5/stock/chart/minute.json?symbol={getStockRegion(code).upper()}{code}&period=1d"
+        headers.update({"cookie": "xq_a_token=826f0dd021d646522fa7b6413f5be324c52d33e4;"})
+        if host and host.startswith('http'):
+            param_data = {"url": url, "method": "GET", "headers": headers}
+            res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
+        else:
+            res = await http.get(url, headers=headers)
+        if res.status_code == 200:
+            res_json = json.loads(res.text)
+            if len(res_json['data']['items']) > 0:
+                data_list = res_json['data']['items']
+                for d in data_list:
+                    time_str = time.strftime('%H:%M', time.localtime(d['timestamp'] / 1000))
+                    if time_str > '15:00': continue
+                    stockDo = StockMinuteDo()
+                    stockDo.code = code
+                    stockDo.time = time_str
+                    stockDo.price = d['current']
+                    stockDo.volume = int(d['volume'] / 100)
+                    stockDo.price_avg = round(float(d['avg_price']), 3)
+                    result.append(stockDo)
+                logger.info(f"XueQiu-minute({host}) - {code}")
+            else:
+                logger.error(f"XueQiu-minute({host}) - {code} - {res.text}")
+        else:
+            logger.error(f"XueQiu-minute({host}) - 请求未正常返回 - {res.text}")
     except:
         logger.error(traceback.format_exc())
     return result
