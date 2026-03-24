@@ -81,32 +81,56 @@ class BaseQueryBuilder:
 
     # 查询指定的字段
     def select(self, *columns: str):
+        '''
+        rows = await User.query().select("id", "name").all()
+        SELECT id, name FROM user;
+        '''
         self._select_columns = [getattr(self.model, c) for c in columns]
         return self
 
     # where 条件
     def equal(self, **kwargs):
+        '''
+        rows = await User.query().equal(name="Tom").all()
+        SELECT * FROM user WHERE name = 'Tom';
+        '''
         for k, v in kwargs.items():
             self._conditions.append(getattr(self.model, k) == v)
         return self
 
     def not_equal(self, **kwargs):
+        '''
+        rows = await User.query().not_equal(status=0).all()
+        SELECT * FROM user WHERE status != 0;
+        '''
         for k, v in kwargs.items():
             self._conditions.append(getattr(self.model, k) != v)
         return self
 
     def like(self, **kwargs):
+        '''
+        await User.query().like(name="Tom").all()
+        SELECT * FROM user WHERE name LIKE '%Tom%';
+        '''
         for k, v in kwargs.items():
             if v:
                 self._conditions.append(getattr(self.model, k).like(f"%{v}%"))
         return self
 
     def greater_equal(self, **kwargs):
+        '''
+        await User.query().greater_equal(age=18).all()
+        SELECT * FROM user WHERE age >= 18;
+        '''
         for k, v in kwargs.items():
             self._conditions.append(getattr(self.model, k) >= v)
         return self
 
     def greater(self, **kwargs):
+        '''
+        await User.query().greater(age=18).all()
+        SELECT * FROM user WHERE age > 18;
+        '''
         for k, v in kwargs.items():
             self._conditions.append(getattr(self.model, k) > v)
         return self
@@ -117,37 +141,69 @@ class BaseQueryBuilder:
         return self
 
     def less(self, **kwargs):
+        '''
+        await User.query().less(age=30).all()
+        SELECT * FROM user WHERE age < 30;
+        '''
         for k, v in kwargs.items():
             self._conditions.append(getattr(self.model, k) < v)
         return self
 
     def isin(self, **kwargs: dict[str, Iterable[Any]]):
+        '''
+        await User.query().isin(id=[1,2,3]).all()
+        SELECT * FROM user WHERE id IN (1,2,3);
+        '''
         for k, v in kwargs.items():
             self._conditions.append(getattr(self.model, k).in_(v))
         return self
 
     def notin(self, **kwargs: dict[str, Iterable[Any]]):
+        '''
+        await User.query().notin(id=[1,2]).all()
+        SELECT * FROM user WHERE id NOT IN (1,2);
+        '''
         for k, v in kwargs.items():
             self._conditions.append(getattr(self.model, k).notin_(v))
         return self
 
     def is_null(self, *columns: str):
+        '''
+        await User.query().is_null("name").all()
+        SELECT * FROM user WHERE name IS NULL;
+        '''
         for c in columns:
             self._conditions.append(getattr(self.model, c).is_(None))
         return self
 
     def is_not_null(self, *columns: str):
+        '''
+        await User.query().is_not_null("name").all()
+        SELECT * FROM user WHERE name IS NOT NULL;
+        '''
         for c in columns:
             self._conditions.append(getattr(self.model, c).isnot(None))
         return self
 
     # group / distinct / order / limit
     def group_by(self, *columns: str, with_count=True):
+        '''
+        await User.query().select("status").group_by("status").all()
+        SELECT status, COUNT(*) AS count FROM user GROUP BY status;
+        '''
         self._group_by = [getattr(self.model, c) for c in columns]
         self._with_count = with_count
         return self
 
     def distinct(self, *columns: str):
+        '''
+        rows = await User.query().select("name", "age").distinct().all()
+        SELECT DISTINCT name, age FROM user;
+
+        # PostgreSQL DISTINCT ON
+        rows = await User.query().select("name", "age").distinct("name").order_by(User.name, User.age.desc()).all()
+        SELECT DISTINCT ON (name) name, age FROM user ORDER BY name, age DESC;
+        '''
         if columns:
             self._distinct_on = [getattr(self.model, c) for c in columns]
         else:
@@ -155,10 +211,18 @@ class BaseQueryBuilder:
         return self
 
     def order_by(self, *clauses):
+        '''
+        await User.query().order_by(User.age.desc()).all()
+        SELECT * FROM user ORDER BY age DESC;
+        '''
         self._order_by.extend(clauses)
         return self
 
     def order_by_key(self, model, sort: str):
+        '''
+        await User.query().order_by_key(User, "-age").all()
+        SELECT * FROM user ORDER BY age DESC;
+        '''
         order_type = sort.startswith("-")
         key = sort.lstrip("+-")
         col = model.__sortable__.get(key.strip())
@@ -175,10 +239,22 @@ class BaseQueryBuilder:
         return self
 
     def join(self, model, onclause, isouter=False):
+        '''
+        await User.query().join(Order, User.id == Order.user_id).all()
+        SELECT user.* FROM user JOIN order ON user.id = order.user_id;
+
+        await User.query().join(Order, User.id == Order.user_id, isouter=True).all()
+        SELECT user.* FROM user LEFT OUTER JOIN order ON user.id = order.user_id;
+        '''
         self._joins.append((model, onclause, isouter))
         return self
 
     def where_exists(self, subquery):
+        '''
+        subq = Order.query().equal(user_id=User.id)._build_select()
+        await User.query().where_exists(subq).all()
+        SELECT * FROM user WHERE EXISTS (SELECT id FROM order WHERE order.user_id = user.id);
+        '''
         self._conditions.append(exists(subquery))
         return self
 
@@ -280,6 +356,10 @@ class CRUDBase:
 
     @classmethod
     async def create(cls, **kwargs):
+        '''
+        user = await User.create(name="Tom", age=18)
+        INSERT INTO user (name, age) VALUES ('Tom', 18);
+        '''
         loop = asyncio.get_running_loop()
         future = loop.create_future()
 
@@ -295,7 +375,8 @@ class CRUDBase:
     @classmethod
     async def get(cls, value):
         """
-        user = await User.get("cat001")
+        user = await User.get(1)
+        SELECT * FROM user WHERE id = 1;
         """
         async with DBExecutor.session_scope() as session:
             return await session.get(cls, value)
@@ -313,11 +394,6 @@ class CRUDBase:
     def query(cls) -> BaseQueryBuilder:
         """
         users = await User.query().equal(name="Documents", is_delete=0).all()
-        rows = await User.query().select("id", "name").equal(is_delete=0).all()
-        rows = await User.query().select("name").distinct().all()
-        rows = await User.query().select("name", "age").distinct().all()
-        rows = await User.query().select("id", "name").equal(is_delete=0).group_by("id", "name", with_count=True).all()
-        count = await User.query().equal(status=0).greater(id=10).delete()
         """
         return BaseQueryBuilder(cls)
 
@@ -338,7 +414,8 @@ class CRUDBase:
     @classmethod
     async def update(cls, pk, **kwargs):
         """
-        await User.update(user_id, name="New Name", is_backup=1)
+        await User.update(1, name="Jerry", age=20)
+        UPDATE user SET name='Jerry', age=20 WHERE id=1;
         """
         loop = asyncio.get_running_loop()
         future = loop.create_future()

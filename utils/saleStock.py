@@ -14,7 +14,7 @@ max_retry = 1
 
 sellPrompt = '''
 # Role
-你是精通 A 股的量化交易专家，性格冷静、果断。你负责对买入后的持仓进行实时监控，根据量价、技术指标与时间锚点，给出唯一的交易执行指令。
+你是精通 A 股的短线交易专家(20天内的短线交易)，性格冷静、果断。你负责对买入后的持仓进行实时监控，根据量价、技术指标与时间锚点，给出唯一的交易执行指令。
 # 核心判定规则 (优先级由高到低)
 ## 强制锁定 (封板/硬止损)
 - 涨停保护: 若股价触及涨停（10% 或 20%），无论其他指标如何，必须继续持有。
@@ -52,21 +52,34 @@ sellPrompt = '''
 
 decidePrompt = '''
 # Role
-你是一个冷静、犀利的 A 股顶级短线职业交易员。你不仅看数值，更擅长透过量价看到背后的主力意图。
+你是一个冷静、犀利的 A 股顶级短线职业交易专家(20天内的短线交易)。你不仅看数值，更擅长透过量价看到背后的主力意图。你的任务：根据买入后的走势、量价关系、技术趋势和分时结构，判断当前持仓是否应该卖出。
 
-# 复核逻辑（严格按序执行）
-1. **资金面检查**：结合 `fund` 数据。股价回撤但资金净流入（>0）通常是洗盘；股价下跌且资金大幅流出，确认为主力出货。
-2. **多指标共振**：你需要结合多个指标公共分析，如果技术指标趋势出现明显走弱，必须卖出。
-3. **分时支撑**：查看分钟级数据，如果 `price` 长期无法站上 `price_avg`，代表日内抛压极大，反弹无望。
-4. **形态博弈**：若当日的天级别数据出现长上影线，代表多头反击失败，抛压剧增。
+# 分析步骤
+你必须按以下顺序分析：
+1.判断最近趋势: 价格变化、均线趋势、MACD变化、技术指标是否出现明显走弱
+2.判断主力行为: 判断是否出现放量滞涨、是否出现高位放量、主力资金是否持续流出、是否存在出货结构
+3.判断是否洗盘: 下跌是否缩量、是否属于健康回调、是否属于震荡洗盘
+4.分析分时结构: 是否出现放量跳水、日内抛压是否极大
+5.结合盈亏情况: 盈利时重点关注回撤，亏损时重点关注是否破位
+
+# 卖出原则
+必须卖出：
+1.出现明显主力出货
+2.趋势明显转弱
+3.放量跌破关键均线
+4.分时出现明显跳水
+
+必须继续持有：
+1 趋势仍然健康
+2 下跌属于缩量洗盘
+3 主力资金没有明显撤退
 
 # 约束条件
 - **买入锚点**：所有判断必须基于 买入日期 之后的交易数据，严禁将买入前的历史波动作为卖出理由。
-- **最大回撤基准**：当前价相对于股票最高价的回撤幅度。最高价的定义：买入日期之后的所有交易日的最高价，包含当日股票的最高价。
 
 #  输入的数据
-- 当前精确时间。
-- 买入日期和持仓成本。
+- 当前时间，格式："%Y-%m-%d %H:%M:%S"。
+- 股票的买入日期和持仓成本。
 - 最近10日天级数据（含当日实时数据）。每个dict的字段解释: day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。
 - 当天分钟实时分时数据。每个dict的字段解释: time：时间，几点几分；price：当日价格；price_avg：当日分时均线价，volume：当日分钟的成交量。
 
@@ -137,7 +150,7 @@ def evaluate_sell_strategy(current_time: str, buy_date: str, cost_price: float, 
     today = {k: daily_data[k][-1] for k in daily_data if isinstance(daily_data[k], list)}
     prev = {k: daily_data[k][-2] for k in daily_data if isinstance(daily_data[k], list)}
 
-    curr_price = today['current_price']
+    curr_price = minute_data['price'][-1]    # today['current_price']
     pnl = (curr_price - cost_price) / cost_price
 
     # ---------- 计算买入后最高价 ----------
@@ -227,7 +240,7 @@ def evaluate_sell_strategy(current_time: str, buy_date: str, cost_price: float, 
             return {"action": "HOLD", "reason": "识别为缩量洗盘，暂不操作"}
 
     # ---------- AI判断 ----------
-    return {"action": "AI_CHECK", "reason": "未触发预设过滤逻辑"}
+    return {"action": "HOLD", "reason": "未触发预设过滤逻辑"}
 
 
 def analyze_intraday_structure(minute_data):

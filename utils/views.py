@@ -344,7 +344,7 @@ async def query_ai_stock(code: str, site: str = None) -> Result:
         day_line = await getMinuteKFromTongHuaShun('', code, logger)
         stock_dict = await queryAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, None, None, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
-        logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
+        logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -383,7 +383,7 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
         day_line = await getMinuteKFromTongHuaShun('', code, logger)
         stock_dict = await queryAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
-        logger.info(f"query AI suggestion successfully, code: {code}, result: {result.data}")
+        logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -762,7 +762,7 @@ def minute2List(data: list[StockMinuteDo]) -> dict:
 
 async def auto_sell_stock():
     try:
-        stock: list[Recommend] = await Recommend.query().is_null('sale_price', 'sale_time').all()
+        stock: list[Recommend] = await Recommend.query().equal(source=0).is_null('sale_price', 'sale_time').all()
         total_source = 3
         index = 0
         dealed_stock = []
@@ -786,7 +786,15 @@ async def auto_sell_stock():
                 buy_time = s.create_time.strftime("%Y%m%d")
                 res = evaluate_sell_strategy(current_time, buy_time, s.price, day_data, minute_data, limit_up)
                 dealed_stock.append(s.code)
-                logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - {res}")
+                if res['action'] != 'HOLD':
+                    ai_res = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
+                    if ai_res['sell']:
+                        await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"))
+                        logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - cal: {res} - AI: {ai_res}")
+                    else:
+                        logger.info(f"Hold stock AI strategy - {s.code} - {s.name} - cal: {res} - AI: {ai_res}")
+                else:
+                    logger.info(f"Hold stock strategy - {s.code} - {s.name} - cal: {res}")
             except:
                 logger.error(f"Auto sell stock - {s.code} - {s.name}")
                 logger.error(traceback.format_exc())
