@@ -785,16 +785,15 @@ async def auto_sell_stock():
                 day_data = detail2List(stock_detail)
                 buy_time = s.create_time.strftime("%Y%m%d")
                 res = evaluate_sell_strategy(current_time, buy_time, s.price, day_data, minute_data, limit_up)
+                logger.info(f"Calc strategy - {s.code} - {s.name} - calc: {res}")
                 dealed_stock.append(s.code)
                 if res['action'] != 'HOLD':
                     ai_res = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
                     if ai_res['sell']:
                         await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"))
-                        logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - cal: {res} - AI: {ai_res}")
+                        logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
                     else:
-                        logger.info(f"Hold stock AI strategy - {s.code} - {s.name} - cal: {res} - AI: {ai_res}")
-                else:
-                    logger.info(f"Hold stock strategy - {s.code} - {s.name} - cal: {res}")
+                        logger.info(f"Hold stock AI strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
             except:
                 logger.error(f"Auto sell stock - {s.code} - {s.name}")
                 logger.error(traceback.format_exc())

@@ -2,16 +2,32 @@
 <html>
 <head>
     <title>Stock</title>
-    <link rel="icon" type="image/x-icon" href="{{ prefix }}/static/favicon.svg">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ prefix }}/static/favicon.svg">
+    <link rel="apple-touch-icon" href="{{ prefix }}/static/icon_180.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="{{ prefix }}/static/manifest.json">
     <script>
         const prefix = "{{ prefix }}";
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register(prefix + '/static/sw.js').then(registration => {
+                    console.log('SW registered: ', registration);
+                }).catch(registrationError => {
+                    console.log('SW registration failed: ', registrationError);
+                });
+            });
+        }
     </script>
 </head>
 <body>
     <div class="container"><div style="display:flex;flex-direction:column;align-items:center;margin-top:5%;font-size:larger;">
         <div><input id="pwd" style="width:145px;height:22px;" type="text" autocomplete="off" placeholder="" value="" /> <button onclick="save();">Save</button></div> <br>
         <!--div><select id="site" style="width:150px;height:27px;"><option value="sina">新浪</option><option value="tencent">腾讯</option><option value="xueqiu">雪球</option><option value="tonghuashun">同花顺</option><option value="dongfangcaifu">东方财富</option></select> <button onclick="saveSite();">Save</button></div-->
-        <a href="/" style="color: blue; text-decoration: none;"> 推荐列表 </a> <br>
+        <a href="/recommend" style="color: blue; text-decoration: none;"> 推荐列表 </a> <br>
         <!--a href="/s" style="color: blue; text-decoration: none;"> 每天行情数据 </a><br-->
         <a href="/stock" style="color: blue; text-decoration: none;"> 股票信息列表 </a> <br>
         <a href="/topic" style="color: blue; text-decoration: none;"> 热门题材列表 </a> <br>

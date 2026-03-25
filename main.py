@@ -3,7 +3,9 @@
 # @Author: leeyoshinari
 
 import os
+import time
 import asyncio
+import aiofiles
 from contextlib import asynccontextmanager, suppress
 from litestar import Litestar, Request, Router, Controller, get, post
 from litestar.openapi import OpenAPIConfig
@@ -23,6 +25,16 @@ from utils import model, views
 
 db_path = os.path.join(BASE_PATH, 'sqlite3.db')
 zip_path = os.path.join(BASE_PATH, 'static', 'db.zip')
+
+
+async def modify_sw():
+    current_date = time.strftime("%Y-%m-%d-%H-%M-%S")
+    if os.path.exists('static/sw.js'):
+        async with aiofiles.open('static/sw.js', 'r', encoding='utf-8') as f:
+            lines = await f.readlines()
+        lines[0] = f"const CACHE_NAME = 'stock-{current_date}';\n"
+        async with aiofiles.open('static/sw.js', 'w', encoding='utf-8') as f:
+            await f.writelines(lines)
 
 
 class StockController(Controller):
@@ -168,7 +180,7 @@ class StockController(Controller):
         return result
 
 
-@get("/")
+@get("/recommend")
 async def index() -> Template:
     return Template("recommend.html", context={'prefix': PREFIX})
 
@@ -188,7 +200,7 @@ async def topic_list() -> Template:
     return Template("topic.html", context={'prefix': PREFIX})
 
 
-@get("/home")
+@get("/")
 async def home() -> Template:
     return Template("home.html", context={'prefix': PREFIX})
 
@@ -204,6 +216,7 @@ async def lifespan(app: Litestar):
     scheduler.add_job(views.stop_auto_sell_stock, 'cron', hour=14, minute=58, second=58)
     scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
     worker_task = asyncio.create_task(write_worker())
+    await modify_sw()
     yield
     worker_task.cancel()
     with suppress(asyncio.CancelledError):
