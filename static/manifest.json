@@ -1,6 +1,6 @@
 {
     "name": "Stock",
-    "short_name": "AI Select Stock",
+    "short_name": "Stock",
     "display": "standalone",
     "start_url": "/",
     "background_color": "#fff",

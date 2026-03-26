@@ -32,6 +32,7 @@ alpha_sig = 2.0 / (9 + 1)
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
+AI_DECIDE = {}
 
 
 def calc_MA(data: list, window: int) -> float:
@@ -762,44 +763,55 @@ def minute2List(data: list[StockMinuteDo]) -> dict:
 
 async def auto_sell_stock():
     try:
-        stock: list[Recommend] = await Recommend.query().equal(source=0).is_null('sale_price', 'sale_time').all()
-        total_source = 3
-        index = 0
-        dealed_stock = []
-        for s in stock:
-            try:
-                if s.code in dealed_stock:
-                    continue
-                current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-                limit_up = getStockLimitUp(s.code, s.name)
-                stock_detail: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(10).all()
-                stock_detail.reverse()
-                selected = index % total_source
-                if selected == 0:
-                    minute_detail: list[StockMinuteDo] = await getMinuteKFromSina("", s.code, logger)
-                elif selected == 1:
-                    minute_detail: list[StockMinuteDo] = await getMinuteKFromDongcai("", s.code, logger)
-                else:
-                    minute_detail: list[StockMinuteDo] = await getMinuteKFromTongHuaShun("", s.code, logger)
-                minute_data = minute2List(minute_detail)
-                day_data = detail2List(stock_detail)
-                buy_time = s.create_time.strftime("%Y%m%d")
-                res = evaluate_sell_strategy(current_time, buy_time, s.price, day_data, minute_data, limit_up)
-                logger.info(f"Calc strategy - {s.code} - {s.name} - calc: {res}")
-                dealed_stock.append(s.code)
-                if res['action'] != 'HOLD':
-                    ai_res = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
-                    if ai_res['sell']:
-                        await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"))
-                        logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
+        now = datetime.now().time()
+        start_time = datetime.strptime("11:30:00", "%H:%M:%S").time()
+        end_time = datetime.strptime("13:00:00", "%H:%M:%S").time()
+        if start_time <= now <= end_time:
+            logger.info("Evaluate Sell Strategy - 中午休市, 暂不执行...")
+        else:
+            stock: list[Recommend] = await Recommend.query().equal(source=0).is_null('sale_price', 'sale_time').all()
+            total_source = 3
+            index = 0
+            dealed_stock = []
+            for s in stock:
+                try:
+                    if s.code in dealed_stock:
+                        continue
+                    current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+                    limit_up = getStockLimitUp(s.code, s.name)
+                    stock_detail: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(10).all()
+                    stock_detail.reverse()
+                    selected = index % total_source
+                    if selected == 0:
+                        minute_detail: list[StockMinuteDo] = await getMinuteKFromSina("", s.code, logger)
+                    elif selected == 1:
+                        minute_detail: list[StockMinuteDo] = await getMinuteKFromDongcai("", s.code, logger)
                     else:
-                        logger.info(f"Hold stock AI strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
-            except:
-                logger.error(f"Auto sell stock - {s.code} - {s.name}")
-                logger.error(traceback.format_exc())
-            finally:
-                index += 1
-                asyncio.sleep(6)
+                        minute_detail: list[StockMinuteDo] = await getMinuteKFromTongHuaShun("", s.code, logger)
+                    minute_data = minute2List(minute_detail)
+                    day_data = detail2List(stock_detail)
+                    buy_time = s.create_time.strftime("%Y%m%d")
+                    res = evaluate_sell_strategy(current_time, buy_time, s.price, day_data, minute_data, limit_up)
+                    logger.info(f"Calc strategy - {s.code} - {s.name} - calc: {res}")
+                    dealed_stock.append(s.code)
+                    if res['action'] != 'HOLD':
+                        if s.code in AI_DECIDE and time.time() - AI_DECIDE[s.code] < 1200:
+                            continue
+                        ai_res = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
+                        if ai_res['sell']:
+                            await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"))
+                            logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
+                            if s.code in AI_DECIDE:
+                                del AI_DECIDE[s.code]
+                        else:
+                            AI_DECIDE.update({s.code: time.time()})
+                            logger.info(f"Hold stock AI strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
+                except:
+                    logger.error(f"Auto sell stock - {s.code} - {s.name}")
+                    logger.error(traceback.format_exc())
+                finally:
+                    index += 1
+                    asyncio.sleep(6)
     except:
         logger.error(traceback.format_exc())
 
