@@ -89,7 +89,7 @@ async def getStockFromSohu(datas: List, logger):
                         except:
                             stockDo.current_price = float(r[2])
                             stockDo.open_price = float(r[1])
-                            stockDo.volumn = int(r[7])
+                            stockDo.volume = int(r[7])
                             stockDo.max_price = float(r[6])
                             stockDo.min_price = float(r[5])
                             await saveStockInfo(stockDo)
@@ -110,13 +110,13 @@ async def saveStockInfo(stockDo: StockModelDo):
     stock_price.append(stockDo.current_price)
     up, dn = bollinger_bands(stock_price, calc_MA(stock_price, 20))
     await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                        max_price=stockDo.max_price, min_price=stockDo.min_price, volumn=stockDo.volumn, last_price=0, boll_up=round(up, 2),
+                        max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=0, boll_up=round(up, 2),
                         ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), boll_low=round(dn, 2))
     if len(stock_price) > 4:
-        stock_volumn_obj = await Detail.query().select('volumn').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
-        stock_volumn = [r[0] for r in stock_volumn_obj]
-        average_volumn = sum(stock_volumn[-7: -2]) / 5
-        await Detail.update((stockDo.code, stockDo.day), qrr=round(stockDo.volumn / average_volumn, 2))
+        stock_volume_obj = await Detail.query().select('volume').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
+        stock_volume = [r[0] for r in stock_volume_obj]
+        average_volume = sum(stock_volume[-7: -2]) / 5
+        await Detail.update((stockDo.code, stockDo.day), qrr=round(stockDo.volume / average_volume, 2))
 
 
 async def getAllStockData(code, logger):
