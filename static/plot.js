@@ -10,11 +10,11 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
     return {
       name: item[0],  symbolSize: [12, 20], value: item[3], date: item[2],
       symbol: 'path://M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
-      coord: [item[1], item[0]==='B' ? price[x.indexOf(item[1])][2] : price[x.indexOf(item[1])][3]],
+      coord: [item[1], item[0]==='B' || item[0] === 'A' ? price[x.indexOf(item[1])][2] : price[x.indexOf(item[1])][3]],
       itemStyle: { color },
-      symbolRotate: item[0]==='B' ? 180 : 0,
-      symbolOffset: item[0]==='B' ? [0, 12] : [0, -12],
-      label: {show: true, fontSize: 12, offset: item[0]==='B' ? [0, 2] : [0, -2]},
+      symbolRotate: item[0]==='B' || item[0] === 'A' ? 180 : 0,
+      symbolOffset: item[0]==='B' || item[0] === 'A' ? [0, 12] : [0, -12],
+      label: {show: true, fontSize: 12, offset: item[0]==='B' || item[0] === 'A' ? [0, 2] : [0, -2]},
       tooltip: {
           trigger: 'item',
           confine: true,

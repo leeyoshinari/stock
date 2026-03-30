@@ -278,33 +278,36 @@ def analyze_buy_signal_new(stock_data_list: list[dict[str, Any]]) -> dict[str, A
 
 def find_shrink_stock(day_data: dict, intrdday: dict):
     # 找缩量下跌的起点
-    window = 2
     price = day_data['current_price']
     volume = day_data['volume']
     n = len(price)
     price_high = max(price)
     volume_high = max(volume)
     start_index = -1
-    for i in range(n - window - 1, 1, -1):
-        price_seg = price[i: i + window]
-        volume_seg = volume[i: i + window]
+    for i in range(n - 2, 1, -1):
+        price_seg = price[i:]
+        volume_seg = volume[i:]
 
         cond_price = max(price_seg) >= price_high * 0.9
         cond_volume = max(volume_seg) >= volume_high * 0.8
         if cond_price and cond_volume:
-            start_index = i + window - 1
+            start_index = i
     if start_index == -1:
+        return None
+    if n - start_index < 3 or n - start_index > 5:
         return None
     price_list = day_data['current_price'][start_index:]
     qrr_list = day_data['qrr'][start_index:]
     turnover_list = day_data['turnover_rate'][start_index:]
     # 指标必须同步下降
-    is_sync_down = check_down(price_list) and check_down(qrr_list) and check_down(turnover_list)
+    is_sync_down = check_down(price_list) and check_down(qrr_list) and check_down(turnover_list, 1)
     if not is_sync_down:
+        return None
+    if qrr_list[-1] > 0.6:
         return None
     # 跌幅不能太大
     total_drop = (price_list[-1] - price_list[0]) / price_list[0]
-    if total_drop < -0.1:
+    if total_drop < -0.08:
         return None
     # 禁止大跌、阴跌
     for i in range(1, len(price_list)):
@@ -319,6 +322,9 @@ def find_shrink_stock(day_data: dict, intrdday: dict):
     ma5_trend = ma5[-3] > ma5[-4] > ma5[-5]
     if not price_trend or not ma5_trend:
         return None
+    if day_data['diff'][-1] - day_data['dea'][-1] < 0.01:
+        return None
+    return True
 
 
 def check_down(data: list, max_violation=0) -> bool:
