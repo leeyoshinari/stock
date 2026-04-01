@@ -276,7 +276,7 @@ def analyze_buy_signal_new(stock_data_list: list[dict[str, Any]]) -> dict[str, A
     }
 
 
-def find_shrink_stock(day_data: dict, intrdday: dict):
+def find_shrink_stock(day_data: dict):
     # 找缩量下跌的起点
     price = day_data['current_price']
     volume = day_data['volume']
@@ -293,27 +293,27 @@ def find_shrink_stock(day_data: dict, intrdday: dict):
         if cond_price and cond_volume:
             start_index = i
     if start_index == -1:
-        return None
+        return {"fund": False, "reason": "未找到缩量下跌起点"}
     if n - start_index < 3 or n - start_index > 5:
-        return None
+        return {"fund": False, "reason": "缩量下跌不到3天或超过5天"}
     price_list = day_data['current_price'][start_index:]
     qrr_list = day_data['qrr'][start_index:]
     turnover_list = day_data['turnover_rate'][start_index:]
     # 指标必须同步下降
     is_sync_down = check_down(price_list) and check_down(qrr_list) and check_down(turnover_list, 1)
     if not is_sync_down:
-        return None
+        return {"fund": False, "reason": "价格、成交量、换手率没有同步下跌"}
     if qrr_list[-1] > 0.6:
-        return None
+        return {"fund": False, "reason": "最近一天的量比大于0.6"}
     # 跌幅不能太大
     total_drop = (price_list[-1] - price_list[0]) / price_list[0]
     if total_drop < -0.08:
-        return None
+        return {"fund": False, "reason": "缩量下跌阶段总跌幅大于8%"}
     # 禁止大跌、阴跌
     for i in range(1, len(price_list)):
         drop = (price_list[i] - price_list[i - 1]) / price_list[i - 1]
         if drop < -0.05:
-            return None
+            return {"fund": False, "reason": "某一天的跌幅过大，大于5%"}
     ma5 = day_data['ma_five']
     ma10 = day_data['ma_ten']
     ma20 = day_data['ma_twenty']
@@ -321,10 +321,10 @@ def find_shrink_stock(day_data: dict, intrdday: dict):
     price_trend = ma10[-1] > ma10[-2] > ma10[-3] and ma20[-1] > ma20[-2] > ma20[-3] and day_data['current_price'][-1] > ma10[-1]
     ma5_trend = ma5[-3] > ma5[-4] > ma5[-5]
     if not price_trend or not ma5_trend:
-        return None
+        return {"fund": False, "reason": "均线趋势走差"}
     if day_data['diff'][-1] - day_data['dea'][-1] < 0.01:
-        return None
-    return True
+        return {"fund": False, "reason": "MACD出现死叉"}
+    return {"fund": True, "reason": ""}
 
 
 def check_down(data: list, max_violation=0) -> bool:

@@ -788,6 +788,8 @@ async def auto_sell_stock():
                         minute_detail: list[StockMinuteDo] = await getMinuteKFromDongcai("", s.code, logger)
                     else:
                         minute_detail: list[StockMinuteDo] = await getMinuteKFromTongHuaShun("", s.code, logger)
+                    if len(minute_detail) < 3:
+                        continue
                     minute_data = minute2List(minute_detail)
                     day_data = detail2List(stock_detail)
                     buy_time = s.create_time.strftime("%Y%m%d")
@@ -799,7 +801,8 @@ async def auto_sell_stock():
                             continue
                         ai_res = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
                         if ai_res['sell']:
-                            await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"))
+                            content = f"{s.content}LEE{ai_res['reason']}"
+                            await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"), content=content)
                             logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
                             if s.code in AI_DECIDE:
                                 del AI_DECIDE[s.code]
