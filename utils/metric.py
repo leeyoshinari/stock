@@ -277,54 +277,53 @@ def analyze_buy_signal_new(stock_data_list: list[dict[str, Any]]) -> dict[str, A
 
 
 def find_shrink_stock(day_data: dict):
-    # 找缩量下跌的起点
     price = day_data['current_price']
     volume = day_data['volume']
-    n = len(price)
-    price_high = max(price)
-    volume_high = max(volume)
-    start_index = -1
-    for i in range(n - 2, 1, -1):
-        price_seg = price[i:]
-        volume_seg = volume[i:]
-
-        cond_price = max(price_seg) >= price_high * 0.9
-        cond_volume = max(volume_seg) >= volume_high * 0.8
-        if cond_price and cond_volume:
-            start_index = i
-    if start_index == -1:
-        return {"fund": False, "reason": "未找到缩量下跌起点"}
-    if n - start_index < 3 or n - start_index > 5:
-        return {"fund": False, "reason": "缩量下跌不到3天或超过5天"}
-    price_list = day_data['current_price'][start_index:]
-    qrr_list = day_data['qrr'][start_index:]
-    turnover_list = day_data['turnover_rate'][start_index:]
-    # 指标必须同步下降
-    is_sync_down = check_down(price_list) and check_down(qrr_list) and check_down(turnover_list, 1)
-    if not is_sync_down:
-        return {"fund": False, "reason": "价格、成交量、换手率没有同步下跌"}
-    if qrr_list[-1] > 0.6:
-        return {"fund": False, "reason": "最近一天的量比大于0.6"}
-    # 跌幅不能太大
-    total_drop = (price_list[-1] - price_list[0]) / price_list[0]
-    if total_drop < -0.08:
-        return {"fund": False, "reason": "缩量下跌阶段总跌幅大于8%"}
-    # 禁止大跌、阴跌
-    for i in range(1, len(price_list)):
-        drop = (price_list[i] - price_list[i - 1]) / price_list[i - 1]
-        if drop < -0.05:
-            return {"fund": False, "reason": "某一天的跌幅过大，大于5%"}
+    turnover = [float(r.replace('%', '')) for r in day_data['turnover_rate']]
+    qrr = day_data['qrr']
     ma5 = day_data['ma_five']
     ma10 = day_data['ma_ten']
-    ma20 = day_data['ma_twenty']
-    # 10日线、20日线 向上，当前价在10日线上
-    price_trend = ma10[-1] > ma10[-2] > ma10[-3] and ma20[-1] > ma20[-2] > ma20[-3] and day_data['current_price'][-1] > ma10[-1]
+    n = len(price)
+
+    peak = price.index(max(price))
+    if peak < n - 6:
+        return {"fund": False, "reason": "高点在最近6天外，否则无意义"}
+    start_index = peak
+    end = n - 1
+    for i in range(peak + 1, n):
+        price_down = price[i] < price[i - 1]
+        volume_down = volume[i] < volume[i - 1]
+        turnover_down = turnover[i] < turnover[i - 1] * 1.05
+        if not (price_down and volume_down and turnover_down):
+            return {"fund": False, "reason": "价格、成交量、换手率没有同步下跌"}
+        amplitude = (day_data['max_price'][i] - day_data['min_price'][i]) / price[i]
+        if amplitude < 0.015:
+            return {"fund": False, "reason": "振幅过小，疑似阴跌"}
+    length = end - start_index + 1
+    if length < 3 or length > 5:
+        return {"fund": False, "reason": "缩量下跌不到3天或超过5天"}
+    if qrr[-1] > 0.6:
+        return {"fund": False, "reason": "最近一天的量比大于0.6"}
+    total_drop = (price[end] - price[start_index]) / price[start_index]
+    if total_drop < -0.08:
+        return {"fund": False, "reason": "缩量下跌阶段总跌幅大于8%"}
+    for i in range(start_index + 1, end + 1):
+        drop = (price[i] - price[i - 1]) / price[i - 1]
+        if drop < -0.05:
+            return {"fund": False, "reason": "某一天的跌幅过大，大于5%"}
+    price_trend = ma10[-1] > ma10[-2] > ma10[-3] and price[-1] > ma10[-1] and ma5[-1] > ma10[-1]
     ma5_trend = ma5[-3] > ma5[-4] > ma5[-5]
-    if not price_trend or not ma5_trend:
-        return {"fund": False, "reason": "均线趋势走差"}
+    if not price_trend:
+        return {"fund": False, "reason": "10日线未向上，或者当前价在10日线下，或者5日线在10日线下"}
+    if not ma5_trend:
+        return {"fund": False, "reason": "5日均线趋势太差"}
+    if (price[-1] - ma5[-1]) / ma5[-1] > -0.01:
+        return {"fund": False, "reason": "价格不在5日均线下方附近之上"}
+    if day_data['min_price'][-1] >= price[-1] * 0.99:
+        return {"fund": False, "reason": "无下影线，缺乏承接"}
     if day_data['diff'][-1] - day_data['dea'][-1] < 0.01:
         return {"fund": False, "reason": "MACD出现死叉"}
-    return {"fund": True, "reason": ""}
+    return {"fund": True, "reason": "", "start": start_index, "start_date": day_data['day'][start_index]}
 
 
 def check_down(data: list, max_violation=0) -> bool:

@@ -1,5 +1,7 @@
 const pageSize = 20;
 const showFlag = window.location.href.endsWith("trump");
+const currDate = new Date();
+const currentDay = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(currDate);
 let page = 1;
 const originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
@@ -50,7 +52,7 @@ function getStockList() {
                       <div class="three-price"><span style="color:${item.last_three_price>0 ? "red" : item.last_three_price<0 ? "green" : "black"};">收:${item.last_three_price}%</span><span style="color:${item.last_three_high>0 ? "red" : item.last_three_high<0 ? "green" : "black"};">高:${item.last_three_high}%</span><span style="color:${item.last_three_low>0 ? "red" : item.last_three_low<0 ? "green" : "black"};">低:${item.last_three_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_four_price>0 ? "red" : item.last_four_price<0 ? "green" : "black"};">收:${item.last_four_price}%</span><span style="color:${item.last_four_high>0 ? "red" : item.last_four_high<0 ? "green" : "black"};">高:${item.last_four_high}%</span><span style="color:${item.last_four_low>0 ? "red" : item.last_four_low<0 ? "green" : "black"};">低:${item.last_four_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_five_price>0 ? "red" : item.last_five_price<0 ? "green" : "black"};">收:${item.last_five_price}%</span><span style="color:${item.last_five_high>0 ? "red" : item.last_five_high<0 ? "green" : "black"};">高:${item.last_five_high}%</span><span style="color:${item.last_five_low>0 ? "red" : item.last_five_low<0 ? "green" : "black"};">低:${item.last_five_low}%</span></div>
-                      <div class="three-price"><a onclick="show_reason('${item.code}','${item.id}',1);"><span>${item.sale_time}</span><span>${item.sale_price}</span></a></div>${deleteR}<div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
+                      <div class="three-price" style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);"><span>${item.sale_time}</span><span>${item.sale_price}</span></a></div>${deleteR}<div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
