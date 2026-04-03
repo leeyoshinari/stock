@@ -276,7 +276,7 @@ def analyze_buy_signal_new(stock_data_list: list[dict[str, Any]]) -> dict[str, A
     }
 
 
-def find_shrink_stock(day_data: dict):
+def find_shrink_stock(day_data: dict) -> dict[str, Any]:
     price = day_data['current_price']
     volume = day_data['volume']
     turnover = [float(r.replace('%', '')) for r in day_data['turnover_rate']]
@@ -302,7 +302,7 @@ def find_shrink_stock(day_data: dict):
     length = end - start_index + 1
     if length < 3 or length > 5:
         return {"fund": False, "reason": "缩量下跌不到3天或超过5天"}
-    if qrr[-1] > 0.6:
+    if qrr[-1] > 0.6 or qrr[start_index] < 1.2:
         return {"fund": False, "reason": "最近一天的量比大于0.6"}
     total_drop = (price[end] - price[start_index]) / price[start_index]
     if total_drop < -0.08:

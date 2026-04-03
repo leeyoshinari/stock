@@ -180,7 +180,7 @@ class StockController(Controller):
         return result
 
 
-@get("/recommend")
+@get("/r")
 async def index() -> Template:
     return Template("recommend.html", context={'prefix': PREFIX})
 

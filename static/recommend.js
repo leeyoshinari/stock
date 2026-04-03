@@ -2,6 +2,7 @@ const pageSize = 20;
 const showFlag = window.location.href.endsWith("trump");
 const currDate = new Date();
 const currentDay = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(currDate);
+const searchType = document.location.search.split('=')[1];
 let page = 1;
 const originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
@@ -39,21 +40,30 @@ function getStockList() {
     fetch(url)
         .then(res => res.json())
         .then(data => {
-            let s = ""
+            let s = "";
+            let he = "";
             data.data.forEach(item => {
                 let region = getStockRegion(item.code);
                 let deleteR = '';
                 if (showFlag) {
                     deleteR = `<div><a onclick="delete_data('${item.id}')">删除</a></div>`;
                 }
-                s += `<div id="${item.id}" class="item-list" style="height:70px;"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="show_reason('${item.code}','${item.id}',0);">${item.code}</a><!--img id="copy-${item.id}" src="${prefix}/static/copy.svg" alt="" /--></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.price}</a><img id="ai-${item.id}" src="${prefix}/static/sell.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:18px;" /></div><div class="three-price"><span>${item.create_time}</span><span><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">筹码分布</a></span></div>
+                if (searchType === "5") {
+                    he = "<div>名称</div><div>代码</div><div>选出价</div><div>选出日期</div><div>第一天</div><div>第二天</div><div>第三天</div><div>第四天</div><div>第五天</div><div>卖出时间</div>";
+                    s += `<div id="${item.id}" class="item-list" style="height:70px;"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="show_reason('${item.code}','${item.id}',0);">${item.code}</a><!--img id="copy-${item.id}" src="${prefix}/static/copy.svg" alt="" /--></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.price}</a><img id="ai-${item.id}" src="${prefix}/static/sell.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:18px;" /></div><div class="three-price"><span>${item.create_time}</span><span><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">筹码分布</a></span></div>
                       <div class="three-price"><span style="color:${item.last_one_price>0 ? "red" : item.last_one_price<0 ? "green" : "black"};">收:${item.last_one_price}%</span><span style="color:${item.last_one_high>0 ? "red" : item.last_one_high<0 ? "green" : "black"};">高:${item.last_one_high}%</span><span style="color:${item.last_one_low>0 ? "red" : item.last_one_low<0 ? "green" : "black"};">低:${item.last_one_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_two_price>0 ? "red" : item.last_two_price<0 ? "green" : "black"};">收:${item.last_two_price}%</span><span style="color:${item.last_two_high>0 ? "red" : item.last_two_high<0 ? "green" : "black"};">高:${item.last_two_high}%</span><span style="color:${item.last_two_low>0 ? "red" : item.last_two_low<0 ? "green" : "black"};">低:${item.last_two_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_three_price>0 ? "red" : item.last_three_price<0 ? "green" : "black"};">收:${item.last_three_price}%</span><span style="color:${item.last_three_high>0 ? "red" : item.last_three_high<0 ? "green" : "black"};">高:${item.last_three_high}%</span><span style="color:${item.last_three_low>0 ? "red" : item.last_three_low<0 ? "green" : "black"};">低:${item.last_three_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_four_price>0 ? "red" : item.last_four_price<0 ? "green" : "black"};">收:${item.last_four_price}%</span><span style="color:${item.last_four_high>0 ? "red" : item.last_four_high<0 ? "green" : "black"};">高:${item.last_four_high}%</span><span style="color:${item.last_four_low>0 ? "red" : item.last_four_low<0 ? "green" : "black"};">低:${item.last_four_low}%</span></div>
                       <div class="three-price"><span style="color:${item.last_five_price>0 ? "red" : item.last_five_price<0 ? "green" : "black"};">收:${item.last_five_price}%</span><span style="color:${item.last_five_high>0 ? "red" : item.last_five_high<0 ? "green" : "black"};">高:${item.last_five_high}%</span><span style="color:${item.last_five_low>0 ? "red" : item.last_five_low<0 ? "green" : "black"};">低:${item.last_five_low}%</span></div>
-                      <div class="three-price" style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);"><span>${item.sale_time}</span><span>${item.sale_price}</span></a></div>${deleteR}<div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
+                      <div class="three-price" style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);"><span>${item.sale_time}</span><span>${item.sale_price}</span></a></div><div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
+                } else {
+                    he = "<div>名称</div><div>代码</div><div>选出价</div><div>选出日期</div><div>卖出价</div><div>卖出时间</div>";
+                    s += `<div id="${item.id}" class="item-list" style="height:42px;"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="show_reason('${item.code}','${item.id}',0);">${item.code}</a><!--img id="copy-${item.id}" src="${prefix}/static/copy.svg" alt="" /--></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.price}</a><img id="ai-${item.id}" src="${prefix}/static/sell.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:18px;" /></div><div><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">${item.create_time}</a></div>
+                        <div style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);">${item.sale_price}</a></div><div style="color:${item.sale_time === currentDay ? "red" : ""};">${item.sale_time}</div>${deleteR}<div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
+                }
             })
+            document.getElementsByClassName("item-header")[0].innerHTML = he;
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
                 document.getElementById("next-page").disabled = 'true';

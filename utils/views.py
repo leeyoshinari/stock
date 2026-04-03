@@ -223,8 +223,12 @@ async def queryRecommendStockList(source: int = 0, page: int = 1) -> Result:
     pageSize = 20
     try:
         offset = (page - 1) * pageSize
-        total_num: int = await Recommend.query().equal(source=source).count()
-        stockInfo: list[Recommend] = await Recommend.query().equal(source=source).order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
+        if source == 1:
+            total_num: int = await Recommend.query().equal(source=source).count()
+            stockInfo: list[Recommend] = await Recommend.query().equal(source=source).order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
+        else:
+            total_num: int = await Recommend.query().not_equal(source=1).count()
+            stockInfo: list[Recommend] = await Recommend.query().not_equal(source=1).order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
         stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
@@ -258,7 +262,7 @@ async def calc_stock_return(fee) -> Result:
         r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         x = []
         y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
-        stocks: list[Recommend] = await Recommend.query().equal(source=0).order_by(Recommend.id.asc()).all()
+        stocks: list[Recommend] = await Recommend.query().not_equal(source=1).order_by(Recommend.id.asc()).all()
         for s in stocks:
             s_time = s.create_time.strftime("%Y-%m-%d")
             if s_time in x:
@@ -374,7 +378,7 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
         if price and t:
             pass
         else:
-            r: Recommend = await Recommend.query().equal(code=code, source=0).order_by(Recommend.id.desc()).first()
+            r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
             price = r.price
             t = r.create_time.strftime("%Y-%m-%d")
         date_obj = datetime.strptime(day, "%Y%m%d")
@@ -411,7 +415,7 @@ async def ai_sell(code: str, site: str = None) -> Result:
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
         post_data = detail2List_bak(stock_data)
-        r: Recommend = await Recommend.query().equal(code=code, source=0).order_by(Recommend.id.desc()).first()
+        r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
         price = r.price
         t = r.create_time.strftime("%Y-%m-%d %H:%M:%S")
         date_obj = datetime.strptime(day, "%Y%m%d")
@@ -772,7 +776,7 @@ async def auto_sell_stock():
         if start_time <= now <= end_time:
             logger.info("Evaluate Sell Strategy - 中午休市, 暂不执行...")
         else:
-            stock: list[Recommend] = await Recommend.query().equal(source=0).is_null('sale_price', 'sale_time').all()
+            stock: list[Recommend] = await Recommend.query().not_equal(source=1).is_null('sale_price', 'sale_time').all()
             total_source = 3
             index = 0
             dealed_stock = []

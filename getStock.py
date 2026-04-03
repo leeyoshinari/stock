@@ -22,7 +22,7 @@ from utils.send_email import sendEmail
 from utils.initData import initStockData
 from utils.ai_model import queryGemini, queryOpenAi, webSearchTopicBak
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
-from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes
+from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes, find_shrink_stock
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent
 from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina
@@ -449,7 +449,7 @@ async def selectStockMetric():
             stock_metric = []   # 非买入信号的策略选股
             day = ''
             trunc_time = time.strftime("%Y-%m-%d") + " 14:20:20"
-            selected: list[Recommend] = await Recommend.query().equal(source=0).is_null('last_four_price').less(create_time=trunc_time).all()
+            selected: list[Recommend] = await Recommend.query().not_equal(source=1).is_null('last_four_price').less(create_time=trunc_time).all()
             exclued_stock = [r.code for r in selected]
             stockInfos: list[Detail] = await Detail.query().equal(day=current_day).notin(code=exclued_stock).all()
             for s in stockInfos:
@@ -520,11 +520,11 @@ async def selectStockMetric():
                     stock_dict = await queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
                     if stock_dict and stock_dict['buy']:
-                        recommend_stocks: list[Recommend] = await Recommend.query().equal(code=stock_code_id, source=0).is_null('last_four_price').all()
+                        recommend_stocks: list[Recommend] = await Recommend.query().equal(code=stock_code_id).not_equal(source=1).is_null('last_four_price').all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
-                            stock_dict = await queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE)
+                            stock_dict = await queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, 0)
                             logger.info(f"AI-model-Gemini: {stock_dict}")
                             reason = reason + f"\n\nGemini: {stock_dict['reason']}"
                             if stock_dict and stock_dict['buy']:
@@ -630,7 +630,7 @@ async def updateRecommendPrice():
         if new_day == time.strftime("%Y%m%d"):
             # 更新最新收盘价
             try:
-                new_stocks: list[Recommend] = await Recommend.query().equal(source=0).less_equal(price=0.02).all()
+                new_stocks: list[Recommend] = await Recommend.query().not_equal(source=1).less_equal(price=0.02).all()
                 for r in new_stocks:
                     s = await Detail.get_one((r.code, new_day))
                     await Recommend.update(r.id, price=s.current_price)
@@ -638,7 +638,7 @@ async def updateRecommendPrice():
                 logger.error(traceback.format_exc())
 
             t = time.strftime("%Y-%m-%d") + " 09:00:00"
-            recommend_stocks: list[Recommend] = await Recommend.query().equal(source=0).less_equal(create_time=t).is_null('last_five_price').all()
+            recommend_stocks: list[Recommend] = await Recommend.query().not_equal(source=1).less_equal(create_time=t).is_null('last_five_price').all()
             for r in recommend_stocks:
                 try:
                     stockInfo: Detail = await Detail.get((r.code, new_day))
@@ -824,6 +824,56 @@ async def setAllSZStock():
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
+
+
+async def queryStockShrink():
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        current_day = tool.value
+        if current_day == time.strftime("%Y%m%d"):
+            stockList = []
+            stocks: list[Stock] = await Stock.query().equal(running=1).all()
+            for s in stocks:
+                sd: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(3).all()
+                if len(sd) >= 3 and sd[0].ma_ten > sd[1].ma_ten and sd[1].ma_ten > sd[2].ma_ten:
+                    stockList.append({s.code: s.name, f'{s.code}count': 1})
+                else:
+                    logger.warning(f"股票最近不满足上涨趋势, {s.code} - {s.name}")
+                if len(stockList) > BATCH_SIZE:
+                    await queryTask.put(stockList)
+                    stockList = []
+            if len(stockList) > 0:
+                await queryTask.put(stockList)
+            await asyncio.sleep(10)
+
+            trunc_time = time.strftime("%Y-%m-%d") + " 14:20:20"
+            targetStock: list[Detail] = await Detail.query().equal(day=current_day).greater(create_time=trunc_time).all()
+            for s in targetStock:
+                sd: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(10).all()
+                sd.reverse()
+                dataList = detail2List(sd)
+                res = find_shrink_stock(dataList)
+                logger.info(f"Auto Select Shrink Stock is {s.code} - {s.name} - {res}")
+                if res['fund']:
+                    try:
+                        fflow = await getStockZhuLiFundFromTencent(s.code)
+                    except:
+                        logger.error(traceback.format_exc())
+                        try:
+                            fflow = await getStockZhuLiFundFromSina(s.code)
+                        except:
+                            logger.error(traceback.format_exc())
+                            sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {s.code} 的资金流向数据异常～")
+                            fflow = 0.0
+                    dataList['fund'][-1] = fflow
+                    await Detail.update((s.code, current_day), fund=fflow)
+                    stock_dict = await queryGemini(json.dumps(dataList), API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, 1)
+                    logger.info(f"AI-Shrink-Gemini: {s.code} - {s.name} - {stock_dict}")
+                    reason = f"Gemini: {stock_dict['reason']}"
+                    if stock_dict and stock_dict['is_shrink_down']:
+                        await Recommend.create(code=s.code, name=s.name, price=s.current_price, content=reason, source=2)
+    except:
+        logger.error(traceback.format_exc())
 
 
 async def getStockTopic():

@@ -39,7 +39,7 @@ prompt1 = '''你是一个精通中国A股市场的短线交易员，擅长根据
 code：股票代码；hot_topic：当前市场热点题材；industry：所属行业；concept：相关概念；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序升序排列。
 这只股票最近每一天的数据如下：'''
 
-prompt = '''你是一个精通中国A股市场的短线交易员，擅长根据价格、均线、成交量、主力资金和技术指标判断是否应买入股票。你重点使用以下策略：价格站上5/10日均线、成交量大于昨日、主力资金净流入、换手率正常、MACD金叉或柱体变长、KDJ未超买超卖、TRIX向上、布林线指标等。
+upPrompt = '''你是一个精通中国A股市场的短线交易员，擅长根据价格、均线、成交量、主力资金和技术指标判断是否应买入股票。你重点使用以下策略：价格站上5/10日均线、成交量大于昨日、主力资金净流入、换手率正常、MACD金叉或柱体变长、KDJ未超买超卖、TRIX向上、布林线指标等。
 下面将提供1只股票最近多日的数据，这只股票数据已通过均线、量能、MACD、上影线等基础技术条件的程序化过滤，你需要理解每个字段含义，必须要认真分析股票的数据，并重点判断其趋势质量与上涨持续性，需综合最近3日的连续变化趋势进行判断，而不是只看最后一天。
 【判断规则】
 趋势判断（核心逻辑）：在已满足均线站上条件的前提下，判断5日均线是否持续向上、10日均线是否开始拐头向上或已经向上，均线运行是否平滑，是否存在走平或拐头向下迹象；判断价格是否持续运行在5/10日均线之上而非频繁回踩；判断成交量是否保持健康而非衰减；判断主力资金在最近几日内是否持续净流入或由负转正并保持稳定，你需要结合布林线来综合判断股票趋势。
@@ -121,9 +121,13 @@ sellPrompt = '''你是一个精通中国A股市场的短线交易员，非常擅
 '''
 
 
-async def queryGemini(msg: str, api_host: str, model: str, model25: str, auth_code: str) -> dict:
+async def queryGemini(msg: str, api_host: str, model: str, model25: str, auth_code: str, promptType: int = 0) -> dict:
     url = f"{api_host}/api/chat"
     header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
+    if promptType == 1:
+        prompt = shrinkPrompt
+    else:
+        prompt = upPrompt
     data = {"model": model, "messages": [{"role": "user", "content": prompt + msg}]}
     for attempt in range(max_retry):
         try:
@@ -163,7 +167,7 @@ async def queryAI(api_host: str, model: str, auth_code: str, current_time: str, 
 
 async def queryOpenAi(msg: str, api_host: str, model: str, auth_code: str) -> dict:
     client = AsyncOpenAI(api_key=auth_code, base_url=api_host)
-    completion = await client.chat.completions.create(model=model, messages=[{'role': 'user', 'content': prompt + msg}])
+    completion = await client.chat.completions.create(model=model, messages=[{'role': 'user', 'content': upPrompt + msg}])
     res = completion.choices[0].message.content
     return json.loads(res)
 
