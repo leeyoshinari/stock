@@ -58,9 +58,14 @@ function getStockList() {
                       <div class="three-price"><span style="color:${item.last_five_price>0 ? "red" : item.last_five_price<0 ? "green" : "black"};">收:${item.last_five_price}%</span><span style="color:${item.last_five_high>0 ? "red" : item.last_five_high<0 ? "green" : "black"};">高:${item.last_five_high}%</span><span style="color:${item.last_five_low>0 ? "red" : item.last_five_low<0 ? "green" : "black"};">低:${item.last_five_low}%</span></div>
                       <div class="three-price" style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);"><span>${item.sale_time}</span><span>${item.sale_price}</span></a></div><div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
                 } else {
-                    he = "<div>名称</div><div>代码</div><div>选出价</div><div>选出日期</div><div>卖出价</div><div>卖出时间</div>";
+                    he = "<div>名称</div><div>代码</div><div>选出价</div><div>选出日期</div><div>卖出价</div><div>卖出时间</div><div>盈利</div>";
+                    if (item.sale_price === null || item.sale_price === 0) {
+                        win = null;
+                    } else {
+                        win = (item.sale_price - item.price) / item.price;
+                    }
                     s += `<div id="${item.id}" class="item-list" style="height:42px;"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="show_reason('${item.code}','${item.id}',0);">${item.code}</a><!--img id="copy-${item.id}" src="${prefix}/static/copy.svg" alt="" /--></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.price}</a><img id="ai-${item.id}" src="${prefix}/static/sell.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:18px;" /></div><div><a target="_blank" href="https://quote.eastmoney.com/concept/${region}${item.code}.html#chart-k-cyq">${item.create_time}</a></div>
-                        <div style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);">${item.sale_price}</a></div><div style="color:${item.sale_time === currentDay ? "red" : ""};">${item.sale_time}</div>${deleteR}<div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
+                        <div style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);">${item.sale_price}</a></div><div style="color:${item.sale_time === currentDay ? "red" : ""};">${item.sale_time}</div><div style="color:${win > 0 ? "red" : win < 0 ? "green" : ""};">${win ? (win*100).toFixed(2) + "%" : null}</div>${deleteR}<div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
                 }
             })
             document.getElementsByClassName("item-header")[0].innerHTML = he;
