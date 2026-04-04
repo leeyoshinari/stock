@@ -5,9 +5,14 @@ input:-webkit-autofill:focus {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-/* .container {
-    max-width: 1100px;
-} */
+html {
+    -webkit-text-size-adjust: 100%;
+    font-size: 100%;
+}
+
+body {
+    font-size: 1rem;
+}
 
 .header {
     display: flex;
@@ -138,14 +143,13 @@ button {
     color: blue;
     height: 30px;
     cursor: pointer;
-    font-size: medium;
 }
 
 .stock-chart, .stock-data {
     position: fixed;
     background-color: #8d8a8a61;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100dvh;
     display: none;
     top: 0;
     left: 0;
@@ -174,7 +178,7 @@ button {
 }
 
 #data-tips>.header {
-    font-size: larger;
+    font-size: 1.2em;
     font-weight: bold;
 }
 
@@ -184,7 +188,7 @@ button {
 }
 
 #data-tips>div>.title {
-    font-size: large;
+    font-size: 1.1em;
     font-weight: bold;
 }
 

@@ -145,8 +145,6 @@ function query_stock_ai(code, name) {
         .then(res => res.json())
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
-            document.getElementById("data-tips").style.width = '70%';
-            document.getElementById("data-tips").style.transform = 'translate(0%,0%)';
             document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
         .finally(() => {close_modal_cover();})
@@ -177,7 +175,7 @@ document.getElementById("stock-return").addEventListener('click', () => {
     fetch(`${prefix}/query/stock/return?fee=${fee}`)
         .then(res => res.json())
         .then(data => {
-            let s = `<div class="header">每只股票买入5000元的收益</div><div><div class="return-table" style="font-weight:bold;"><span>时间</span><span>第一天</span><span>第二天</span><span>第三天</span><span>第四天</span><span>第五天</span></div>
+            let s = `<div class="header">每只股票买入5000元的收益</div><div style="width:600px"><div class="return-table" style="font-weight:bold;"><span>时间</span><span>第一天</span><span>第二天</span><span>第三天</span><span>第四天</span><span>第五天</span></div>
                     <div class="return-table"><span>收盘时</span><span>${data.data.r1}</span><span>${data.data.r2}</span><span>${data.data.r3}</span><span>${data.data.r4}</span><span>${data.data.r5}</span></div>
                     <div class="return-table"><span>最高时</span><span>${data.data.r1h}</span><span>${data.data.r2h}</span><span>${data.data.r3h}</span><span>${data.data.r4h}</span><span>${data.data.r5h}</span></div>
                     <div class="return-table"><span>最低时</span><span>${data.data.r1l}</span><span>${data.data.r2l}</span><span>${data.data.r3l}</span><span>${data.data.r4l}</span><span>${data.data.r5l}</span></div></div>`
