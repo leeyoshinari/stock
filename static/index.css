@@ -5,9 +5,9 @@ input:-webkit-autofill:focus {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-.container {
+/* .container {
     max-width: 1100px;
-}
+} */
 
 .header {
     display: flex;
@@ -165,8 +165,10 @@ button {
     flex-direction: column;
     gap: 15px;
     padding: 15px;
-    width: 720px;
+    max-width: 80%;
+    max-height: 80%;
     margin: 0 auto;
+    overflow-y:auto;
     background-color: white;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }

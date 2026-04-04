@@ -58,7 +58,7 @@ function getStockList() {
                       <div class="three-price"><span style="color:${item.last_five_price>0 ? "red" : item.last_five_price<0 ? "green" : "black"};">收:${item.last_five_price}%</span><span style="color:${item.last_five_high>0 ? "red" : item.last_five_high<0 ? "green" : "black"};">高:${item.last_five_high}%</span><span style="color:${item.last_five_low>0 ? "red" : item.last_five_low<0 ? "green" : "black"};">低:${item.last_five_low}%</span></div>
                       <div class="three-price" style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);"><span>${item.sale_time}</span><span>${item.sale_price}</span></a></div><div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
                 } else if (searchType === "99") {
-                    he = "<div>名称</div><div>代码</div><div>买入价</div><div>买入日期</div><div>卖出价(A)</div><div>卖出日期(A)</div><div>卖出价(M)</div><div>卖出日期(M)</div><div>对比</div>";
+                    he = "<div>名称</div><div>代码</div><div>买入价</div><div>买入日期</div><div>卖出价A</div><div>卖出日期A</div><div>卖出价M</div><div>卖出日期M</div><div>对比</div>";
                     let win_a = null;
                     if (item.a_sale_price !== null && item.a_sale_price !== 0) {
                         win_a = (item.a_sale_price - item.price) / item.price;
@@ -105,7 +105,7 @@ function get_stock_figure(code) {
             if (data.success) {
                 let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
-                figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
+                figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
                 figure.style.height = '';
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
@@ -126,7 +126,7 @@ function get_stock_real_figure(code) {
             if (data.success) {
                 let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
-                figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
+                figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
                 figure.style.height = '500px';
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
