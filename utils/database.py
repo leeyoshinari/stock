@@ -5,7 +5,7 @@
 import asyncio
 from typing import Iterable, Any
 from contextlib import asynccontextmanager
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint, exists, not_
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint, text, exists, not_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import and_
@@ -62,6 +62,31 @@ class DBExecutor:
             raise
         finally:
             await session.close()
+
+    @staticmethod
+    async def execute_sql(sql: str, params: dict = None, fetch: str = "all"):
+        """
+        执行原生 SQL
+        :param sql: 原生 SQL
+        :param params: 参数
+        :param fetch: all / one / scalar / none
+
+        用法: rows = await DBExecutor.execute_raw(\"""
+            SELECT u.id, u.name, COUNT(o.id) AS order_count
+            FROM user u
+            LEFT JOIN order o ON u.id = o.user_id
+            GROUP BY u.id
+            HAVING COUNT(o.id) > :count
+            \""", {"count": 5})
+        """
+        async with DBExecutor.session_scope() as session:
+            result = await session.execute(text(sql), params or {})
+            if fetch == "one":
+                return result.fetchone()
+            elif fetch == "scalar":
+                return result.scalar()
+            else:
+                return result.fetchall()
 
 
 class BaseQueryBuilder:
