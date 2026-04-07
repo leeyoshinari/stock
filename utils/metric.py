@@ -276,7 +276,7 @@ def analyze_buy_signal_new(stock_data_list: list[dict[str, Any]]) -> dict[str, A
     }
 
 
-def find_shrink_stock(day_data: dict) -> dict[str, Any]:
+def find_shrink_stock(day_data: dict, start_index: int = None) -> dict[str, Any]:
     price = day_data['current_price']
     volume = day_data['volume']
     turnover = [float(r.replace('%', '')) for r in day_data['turnover_rate']]
@@ -285,44 +285,65 @@ def find_shrink_stock(day_data: dict) -> dict[str, Any]:
     ma10 = day_data['ma_ten']
     n = len(price)
 
-    peak = price.index(max(price))
-    if peak < n - 6:
-        return {"fund": False, "reason": "高点在最近6天外，否则无意义"}
-    start_index = peak
+    max_price = max(price)
+    min_price = min(price)
+    up_gain = (max_price - min_price) / min_price
+    if start_index is None:
+        start_index = price.index(max_price)
+    else:
+        # 第一天最高点，可能第二天微跌，然后才开始下跌
+        start_index = price.index(max_price) + 1
+        if (start_index) >= len(price):
+            return {"fund": False, "start": start_index, "reason": "缩量下跌不到3天"}
+        down_drop = (price[start_index] - max_price) / max_price
+        if down_drop < -0.02:
+            return {"fund": False, "start": start_index, "reason": "第二天跌幅大于2%"}
     end = n - 1
-    for i in range(peak + 1, n):
+    length = end - start_index + 1
+    if length < 3 or length > 5:
+        return {"fund": False, "start": start_index, "reason": "缩量下跌不到3天或超过5天"}
+    if up_gain < 0.15:
+        return {"fund": False, "start": start_index, "reason": "前期涨幅太低，不在上涨趋势中"}
+    for i in range(start_index + 1, n):
         price_down = price[i] < price[i - 1]
         volume_down = volume[i] < volume[i - 1]
         turnover_down = turnover[i] < turnover[i - 1] * 1.05
         if not (price_down and volume_down and turnover_down):
-            return {"fund": False, "reason": "价格、成交量、换手率没有同步下跌"}
+            return {"fund": False, "start": start_index, "reason": "价格、成交量、换手率没有同步下跌"}
         amplitude = (day_data['max_price'][i] - day_data['min_price'][i]) / price[i]
         if amplitude < 0.015:
-            return {"fund": False, "reason": "振幅过小，疑似阴跌"}
-    length = end - start_index + 1
-    if length < 3 or length > 5:
-        return {"fund": False, "reason": "缩量下跌不到3天或超过5天"}
+            return {"fund": False, "start": start_index, "reason": "振幅过小，疑似阴跌"}
+    if day_data['open_price'][start_index + 1] > price[start_index]:
+        return {"fund": False, "start": start_index, "reason": "第二天高开"}
     if qrr[-1] > 0.6 or qrr[start_index] < 1.2:
-        return {"fund": False, "reason": "最近一天的量比大于0.6"}
+        return {"fund": False, "start": start_index, "reason": "最近一天的量比大于0.6"}
     total_drop = (price[end] - price[start_index]) / price[start_index]
     if total_drop < -0.08:
-        return {"fund": False, "reason": "缩量下跌阶段总跌幅大于8%"}
+        return {"fund": False, "start": start_index, "reason": "缩量下跌阶段总跌幅大于8%"}
+    if total_drop > -0.03:
+        return {"fund": False, "start": start_index, "reason": "缩量下跌阶段总跌幅小于3%，回撤跌幅不够"}
     for i in range(start_index + 1, end + 1):
         drop = (price[i] - price[i - 1]) / price[i - 1]
         if drop < -0.05:
-            return {"fund": False, "reason": "某一天的跌幅过大，大于5%"}
+            return {"fund": False, "start": start_index, "reason": "某一天的跌幅过大，大于5%"}
     price_trend = ma10[-1] > ma10[-2] > ma10[-3] and price[-1] > ma10[-1] and ma5[-1] > ma10[-1]
     ma5_trend = ma5[-3] > ma5[-4] > ma5[-5]
     if not price_trend:
-        return {"fund": False, "reason": "10日线未向上，或者当前价在10日线下，或者5日线在10日线下"}
+        return {"fund": False, "start": start_index, "reason": "10日线未向上，或者当前价在10日线下，或者5日线在10日线下"}
     if not ma5_trend:
-        return {"fund": False, "reason": "5日均线趋势太差"}
+        return {"fund": False, "start": start_index, "reason": "5日均线趋势太差"}
     if (price[-1] - ma5[-1]) / ma5[-1] > -0.01:
-        return {"fund": False, "reason": "价格不在5日均线下方附近之上"}
+        return {"fund": False, "start": start_index, "reason": "价格不在5日均线下方附近之上"}
     if day_data['min_price'][-1] >= price[-1] * 0.99:
-        return {"fund": False, "reason": "无下影线，缺乏承接"}
+        return {"fund": False, "start": start_index, "reason": "无下影线，缺乏承接"}
     if day_data['diff'][-1] - day_data['dea'][-1] < 0.01:
-        return {"fund": False, "reason": "MACD出现死叉"}
+        return {"fund": False, "start": start_index, "reason": "MACD出现死叉"}
+    p_slope, p_r2 = linear_check(price[start_index:])
+    v_slope, v_r2 = linear_check(volume[start_index:])
+    if p_slope >= 0 or p_r2 < 0.95:
+        return {"fund": False, "start": start_index, "reason": "价格下跌没有线性特征"}
+    if v_slope >= 0 or v_r2 < 0.9:
+        return {"fund": False, "start": start_index, "reason": "成交量下跌没有线性特征"}
     return {"fund": True, "reason": "", "start": start_index, "start_date": day_data['day'][start_index]}
 
 
@@ -376,3 +397,43 @@ def real_traded_minutes() -> int:
     if traded > 240:
         return 240
     return traded
+
+
+def linear_check(arr):
+    """
+    输入: arr - list，表示一段价格/成交量/换手率数据
+    输出: slope - 斜率
+          r2    - 决定系数 R²
+    """
+    n = len(arr)
+    if n < 2:
+        return 0, 0  # 数据太少无法拟合
+
+    x_sum = 0
+    y_sum = 0
+    xy_sum = 0
+    x2_sum = 0
+    y_mean = sum(arr) / n
+
+    for i, y in enumerate(arr):
+        x = i
+        x_sum += x
+        y_sum += y
+        xy_sum += x * y
+        x2_sum += x * x
+
+    # 计算斜率 a 和截距 b
+    denominator = n * x2_sum - x_sum * x_sum
+    if denominator == 0:
+        slope = 0
+        intercept = y_mean
+    else:
+        slope = (n * xy_sum - x_sum * y_sum) / denominator
+        intercept = (y_sum - slope * x_sum) / n
+
+    # 计算 R²
+    ss_tot = sum((y - y_mean) ** 2 for y in arr)
+    ss_res = sum((y - (slope * i + intercept)) ** 2 for i, y in enumerate(arr))
+    r2 = 1 - ss_res / ss_tot if ss_tot != 0 else 0
+
+    return slope, r2

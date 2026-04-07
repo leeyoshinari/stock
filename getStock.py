@@ -13,7 +13,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from settings import BATCH_SIZE, All_STOCK_DATA_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, HTTP_HOST1, HTTP_HOST2
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH, HTTP_HOST3
 from utils.model import StockModelDo, StockDataList
 from utils.scheduler import scheduler
 from utils.writer_queue import writer_queue
@@ -346,17 +346,15 @@ async def queryRecommendStockData():
         try:
             stockList = []
             hasList = []
-            batch_num = All_STOCK_DATA_SIZE - 2
             stockInfo: list[Recommend] = await Recommend.query().is_null('sale_price', 'sale_time').all()
             for s in stockInfo:
                 if s.code in hasList:
                     continue
                 hasList.append(s.code)
                 stockList.append({s.code: s.name, f'{s.code}count': 1})
-            random.shuffle(stockList)
-            one_size = math.ceil(len(stockList) / batch_num)
+            batch_num = math.ceil(len(stockList) / BATCH_SIZE)
             for i in range(batch_num):
-                await queryTask.put(stockList[i * one_size: (i + 1) * one_size])
+                await queryTask.put(stockList[i * BATCH_SIZE: (i + 1) * BATCH_SIZE])
         except:
             logger.error(traceback.format_exc())
 
@@ -936,12 +934,15 @@ async def main():
     asyncio.create_task(getStockFromTencent('base'))
     asyncio.create_task(getStockFromTencent(HTTP_HOST1))
     asyncio.create_task(getStockFromTencent(HTTP_HOST2))
+    asyncio.create_task(getStockFromTencent(HTTP_HOST3))
     # asyncio.create_task(getStockFromXueQiu('base'))
     asyncio.create_task(getStockFromXueQiu(HTTP_HOST1))
     asyncio.create_task(getStockFromXueQiu(HTTP_HOST2))
+    asyncio.create_task(getStockFromXueQiu(HTTP_HOST3))
     asyncio.create_task(getStockFromSina('base'))
     asyncio.create_task(getStockFromSina(HTTP_HOST1))
     asyncio.create_task(getStockFromSina(HTTP_HOST2))
+    asyncio.create_task(getStockFromSina(HTTP_HOST3))
 
     try:
         await asyncio.Event().wait()

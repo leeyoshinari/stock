@@ -229,15 +229,15 @@ async def queryRecommendStockList(source: int = 0, page: int = 1) -> Result:
             stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
         elif source == 99:
             count_sql = """
-                    select count(1) as total_num from (select code, name, price, create_time, sale_price, sale_time, substr(create_time,1,10) as day from recommend where source=1) mm
-                    left join (select code, name, price, create_time, sale_price, sale_time, substr(create_time,1,10) as day from recommend where source!=1) aa on
-                    mm.code=aa.code and mm.day=aa.day where aa.day is not null;
+                    select count(1) as total_num from (select code, sale_price, substr(create_time,1,10) as day from recommend where source=1) mm
+                    left join (select code, sale_price, substr(create_time,1,10) as day from recommend where source!=1) aa on
+                    mm.code=aa.code and mm.day=aa.day where aa.day is not null and aa.sale_price is not null and mm.sale_price is not null;
                 """
             res_sql = """
                     select * from (
-                    select aa.code, aa.name, aa.create_time, aa.price, aa.sale_price as a_sale_price, aa.sale_time as a_sale_time, mm.sale_price as m_sale_price, mm.sale_time as m_sale_time
+                    select aa.id, aa.code, aa.name, aa.create_time, aa.price, aa.sale_price as a_sale_price, aa.sale_time as a_sale_time, mm.sale_price as m_sale_price, mm.sale_time as m_sale_time, aa.content
                     from (select code, name, price, create_time, sale_price, sale_time, substr(create_time,1,10) as day from recommend where source=1) mm
-                    left join (select code, name, price, create_time, sale_price, sale_time, substr(create_time,1,10) as day from recommend where source!=1) aa on
+                    left join (select id, code, name, price, create_time, sale_price, sale_time, content, substr(create_time,1,10) as day from recommend where source!=1) aa on
                     mm.code=aa.code and mm.day=aa.day where aa.day is not null and aa.sale_price is not null and mm.sale_price is not null) order by create_time desc limit :limit offset :offset;
                 """
             res = await DBExecutor.execute_sql(count_sql)

@@ -69,7 +69,7 @@ function getStockList() {
                     }
                     let win = win_m - win_a;
                     s += `<div id="${item.id}" class="item-list" style="height:42px;"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="show_reason('${item.code}','${item.id}',0);">${item.code}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.price}</a></div><div>${item.create_time.split(" ")[0]}</div>
-                        <div style="color:${win_a > 0 ? "red" : win_a < 0 ? "green" : ""};"><a onclick="show_reason('${item.code}','${item.id}',0);">${item.a_sale_price}</a></div><div>${item.a_sale_time ? item.a_sale_time.split(" ")[0] : null}</div><div style="color:${win_m > 0 ? "red" : win_m < 0 ? "green" : ""};">${item.m_sale_price}</div><div>${item.m_sale_time ? item.m_sale_time.split(" ")[0] : null}</div>
+                        <div style="color:${win_a > 0 ? "red" : win_a < 0 ? "green" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);">${item.a_sale_price}</a></div><div>${item.a_sale_time ? item.a_sale_time.split(" ")[0] : null}</div><div style="color:${win_m > 0 ? "red" : win_m < 0 ? "green" : ""};">${item.m_sale_price}</div><div>${item.m_sale_time ? item.m_sale_time.split(" ")[0] : null}</div>
                         <div style="color:${win > 0 ? "red" : win < 0 ? "green" : ""};">${win ? (win*100).toFixed(2) + "%" : null}</div><div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
                 } else {
                     he = "<div>名称</div><div>代码</div><div>选出价</div><div>选出日期</div><div>卖出价</div><div>卖出时间</div><div>利润</div>";

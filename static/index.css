@@ -10,10 +10,6 @@ html {
     font-size: 100%;
 }
 
-body {
-    font-size: 1rem;
-}
-
 .header {
     display: flex;
     flex-direction: row;
@@ -113,7 +109,6 @@ button {
 
 .list>div:hover {
     background-color: #ffeaa7 !important;
-    transform: scale(1.01);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 

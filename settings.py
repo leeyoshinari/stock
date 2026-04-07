@@ -58,6 +58,7 @@ OPENAI_MODEL = get_config("openAIModel")
 OPENAI_KEY = get_config("openAIKey")
 HTTP_HOST1 = get_config("HTTPHost1")
 HTTP_HOST2 = get_config("HTTPHost2")
+HTTP_HOST3 = get_config("HTTPHost3")
 ACCESS_KEY = get_config("accessKey")
 
 
