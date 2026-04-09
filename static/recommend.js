@@ -58,7 +58,7 @@ function getStockList() {
                       <div class="three-price"><span style="color:${item.last_five_price>0 ? "red" : item.last_five_price<0 ? "green" : "black"};">收:${item.last_five_price}%</span><span style="color:${item.last_five_high>0 ? "red" : item.last_five_high<0 ? "green" : "black"};">高:${item.last_five_high}%</span><span style="color:${item.last_five_low>0 ? "red" : item.last_five_low<0 ? "green" : "black"};">低:${item.last_five_low}%</span></div>
                       <div class="three-price" style="color:${item.sale_time === currentDay ? "red" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);"><span>${item.sale_time}</span><span>${item.sale_price}</span></a></div><div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
                 } else if (searchType === "99") {
-                    he = "<div>名称</div><div>代码</div><div>买入价</div><div>买入日期</div><div>卖出价A</div><div>卖出日期A</div><div>卖出价M</div><div>卖出日期M</div><div>对比</div>";
+                    he = "<div>名称</div><div>代码</div><div>买入价</div><div>买入日期</div><div>卖出价A</div><div>卖出日期A</div><div>卖出价M</div><div>卖出日期M</div><div>差值</div>";
                     let win_a = null;
                     if (item.a_sale_price !== null && item.a_sale_price !== 0) {
                         win_a = (item.a_sale_price - item.price) / item.price;
@@ -72,7 +72,11 @@ function getStockList() {
                         <div style="color:${win_a > 0 ? "red" : win_a < 0 ? "green" : ""};"><a onclick="show_reason('${item.code}','${item.id}',1);">${item.a_sale_price}</a></div><div>${item.a_sale_time ? item.a_sale_time.split(" ")[0] : null}</div><div style="color:${win_m > 0 ? "red" : win_m < 0 ? "green" : ""};">${item.m_sale_price}</div><div>${item.m_sale_time ? item.m_sale_time.split(" ")[0] : null}</div>
                         <div style="color:${win > 0 ? "red" : win < 0 ? "green" : ""};">${win ? (win*100).toFixed(2) + "%" : null}</div><div id="${item.id}-reason" style="display:none;">${item.content}</div></div>`;
                 } else {
-                    he = "<div>名称</div><div>代码</div><div>选出价</div><div>选出日期</div><div>卖出价</div><div>卖出时间</div><div>利润</div>";
+                    if (searchType === "8") {
+                        he = "<div>名称</div><div>代码</div><div>买入价</div><div>买入日期</div><div>卖出价</div><div>卖出时间</div><div>盈利(%)</div>";
+                    } else {
+                        he = "<div>名称</div><div>代码</div><div>选出价</div><div>选出日期</div><div>卖出价</div><div>卖出时间</div><div>盈利(%)</div>";
+                    }
                     let win = null;
                     if (item.sale_price !== null && item.sale_price !== 0) {
                         win = (item.sale_price - item.price) / item.price;
@@ -218,7 +222,7 @@ document.getElementById('stock-in-hand').addEventListener('click', () => {
     let source = localStorage.getItem('source');
     document.getElementById('stock-in-hand').innerText = source==='1' ? "持仓列表" : "推荐列表";
     localStorage.setItem('source', source==='1' ? 0 : 1);
-    searchType = null;
+    searchType = source==='1' ? null : "8";
     page = 1;
     getStockList();
 })

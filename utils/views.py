@@ -247,7 +247,12 @@ async def queryRecommendStockList(source: int = 0, page: int = 1) -> Result:
         else:
             total_num: int = await Recommend.query().not_equal(source=1).count()
             stockInfo: list[Recommend] = await Recommend.query().not_equal(source=1).order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
-            stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
+            if offset == 0:
+                current_day = time.strftime("%Y-%m-%d") + " 09:20:20"
+                stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo if f.sale_time and f.sale_time.strftime("%Y-%m-%d %H:%M:%S") > current_day] + \
+                            [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo if not f.sale_time or f.sale_time.strftime("%Y-%m-%d %H:%M:%S") < current_day]
+            else:
+                stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
         logger.info("Query Recommend Stock List Success ~")
@@ -826,7 +831,7 @@ async def auto_sell_stock():
                             continue
                         ai_res = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
                         if ai_res['sell']:
-                            content = f"{s.content}LEE{ai_res['reason']}"
+                            content = f"{s.content}LEE{res['reason']}/n/n{ai_res['reason']}"
                             await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"), content=content)
                             logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
                             if s.code in AI_DECIDE:

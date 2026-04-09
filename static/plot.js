@@ -1,7 +1,7 @@
 function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund, boll_up, boll_low, coords) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
-  total_len = parseInt(100 / 720 * document.body.clientWidth * 0.8);
+  total_len = parseInt(100 / 600 * document.body.clientWidth * 0.8);
   let startValue = x.length > total_len ? (1 - total_len / x.length) * 100 : 0;
   const markPoints = coords.map(item => {
     let color = '#00CCFF';
@@ -221,7 +221,13 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           type: 'inside',
           xAxisIndex: [0, 1, 2, 3, 4],
           start: startValue,
-          end: 100
+          end: 100,
+          zoomLock: false,
+          throttle: 0,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          preventDefaultMouseMove: true
         },
         {
           show: false,
