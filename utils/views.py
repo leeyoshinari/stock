@@ -708,12 +708,11 @@ async def get_data_by_day(code: str, day: str) -> Result:
     return result
 
 
-async def test(code: str, day: str) -> Result:
+async def test(code: ToolsInfoList) -> Result:
     result = Result()
     try:
-        s: list[Recommend] = await Recommend.query().is_null('last_one_price').all()
-        result.data = [r.code for r in s]
-        logger.info(result.data)
+        await Recommend.update(int(code.key), content=code.value)
+        logger.info(f"{code}")
     except:
         logger.error(traceback.format_exc())
     return result
@@ -831,7 +830,7 @@ async def auto_sell_stock():
                             continue
                         ai_res = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
                         if ai_res['sell']:
-                            content = f"{s.content}LEE{res['reason']}/n/n{ai_res['reason']}"
+                            content = f"{s.content}LEE{res['reason']}\n\n{ai_res['reason']}"
                             await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"), content=content)
                             logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
                             if s.code in AI_DECIDE:

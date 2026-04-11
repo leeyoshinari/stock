@@ -174,9 +174,9 @@ class StockController(Controller):
         result = await views.get_data_by_day(code, day)
         return result
 
-    @get('/test')
-    async def test(self, request: Request, code: str, day: str) -> Result:
-        result = await views.test(code, day)
+    @post('/test')
+    async def test(self, request: Request, data: model.ToolsInfoList) -> Result:
+        result = await views.test(data)
         return result
 
 
@@ -211,7 +211,7 @@ route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(
 @asynccontextmanager
 async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
-    scheduler.add_job(zip_file, 'cron', hour=21, minute=20, second=20, args=[[db_path], zip_path, logger], misfire_grace_time=10)  # 备份数据库
+    scheduler.add_job(zip_file, 'cron', hour=16, minute=20, second=20, args=[[db_path], zip_path, logger], misfire_grace_time=10)  # 备份数据库
     scheduler.add_job(views.start_auto_sell_stock, 'cron', hour=9, minute=34, second=50)
     scheduler.add_job(views.stop_auto_sell_stock, 'cron', hour=14, minute=58, second=58)
     scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
