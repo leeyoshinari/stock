@@ -22,7 +22,7 @@ from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getSto
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
 from utils.database import Recommend, Stock, Detail, Tools, DBExecutor
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH
 
 
 alpha_trix = 2.0 / (12 + 1)
@@ -371,7 +371,7 @@ async def query_ai_stock(code: str, site: str = None) -> Result:
         if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
             current_time = open_date
         day_line = await getMinuteKFromTongHuaShun('', code, logger)
-        stock_dict = await queryAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, None, None, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
+        stock_dict = await queryAI(API_URL, AUTH_CODE, current_time, None, None, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
@@ -410,7 +410,7 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
         if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
             current_time = open_date
         day_line = await getMinuteKFromTongHuaShun('', code, logger)
-        stock_dict = await queryAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
+        stock_dict = await queryAI(API_URL, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
@@ -447,7 +447,7 @@ async def ai_sell(code: str, site: str = None) -> Result:
         if current_time > open_date:
             current_time = open_date
         day_line: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
-        stock_dict = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), 'sellPrompt', logger)
+        stock_dict = await sellAI(API_URL, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), 'sellPrompt', logger)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"sell stock AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
@@ -828,7 +828,7 @@ async def auto_sell_stock():
                     if res['action'] != 'HOLD':
                         if s.code in AI_DECIDE and time.time() - AI_DECIDE[s.code] < 1200:
                             continue
-                        ai_res = await sellAI(API_URL, AI_MODEL25, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
+                        ai_res = await sellAI(API_URL, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
                         if ai_res['sell']:
                             content = f"{s.content}LEE{res['reason']}\n\n{ai_res['reason']}"
                             await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"), content=content)

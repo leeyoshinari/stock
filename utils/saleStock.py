@@ -7,10 +7,12 @@ import json
 import math
 import traceback
 from logging import Logger
+from settings import AI_MODEL, AI_MODEL25
 from utils.http_client import http
 
 
-max_retry = 1
+MODEL_LIST = [AI_MODEL, AI_MODEL25]
+max_retry = len(MODEL_LIST)
 
 sellPrompt = '''
 # Role
@@ -107,16 +109,17 @@ def getStockLimitUp(code: str, name: str) -> int:
     return 10
 
 
-async def sellAI(api_host: str, model: str, auth_code: str, current_time: str, buyPrice: str, buyDate: str, k_line: str, day_line: str, promptType: str, logger: Logger) -> dict:
+async def sellAI(api_host: str, auth_code: str, current_time: str, buyPrice: str, buyDate: str, k_line: str, day_line: str, promptType: str, logger: Logger) -> dict:
     url = f"{api_host}/api/chat"
     header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
     if promptType == 'decidePrompt':
         prompt = decidePrompt
     else:
         prompt = sellPrompt
-    data = {"model": model, "messages": [{"role": "user", "content": prompt.format(current_time, buyDate, buyPrice, k_line, day_line)}]}
     for attempt in range(max_retry):
         try:
+            model = MODEL_LIST[attempt]
+            data = {"model": model, "messages": [{"role": "user", "content": prompt.format(current_time, buyDate, buyPrice, k_line, day_line)}]}
             res = await http.post(url=url, json_data=data, headers=header)
             try:
                 gemini_res = json.loads(res.text)

@@ -13,7 +13,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from settings import BATCH_SIZE, All_STOCK_DATA_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, HTTP_HOST1, HTTP_HOST2
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, FILE_PATH, HTTP_HOST3
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HTTP_HOST3
 from utils.model import StockModelDo, StockDataList
 from utils.scheduler import scheduler
 from utils.writer_queue import writer_queue
@@ -522,7 +522,7 @@ async def selectStockMetric():
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
-                            stock_dict = await queryGemini(json.dumps(stockData), API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, 0)
+                            stock_dict = await queryGemini(json.dumps(stockData), API_URL, AUTH_CODE, 0)
                             logger.info(f"AI-model-Gemini: {stock_dict}")
                             reason = reason + f"\n\nGemini: {stock_dict['reason']}"
                             if stock_dict and stock_dict['buy']:
@@ -865,7 +865,7 @@ async def queryStockShrink():
                             fflow = 0.0
                     dataList['fund'][-1] = fflow
                     await Detail.update((s.code, current_day), fund=fflow)
-                    stock_dict = await queryGemini(json.dumps(dataList), API_URL, AI_MODEL, AI_MODEL25, AUTH_CODE, 1)
+                    stock_dict = await queryGemini(json.dumps(dataList), API_URL, AUTH_CODE, 1)
                     logger.info(f"AI-Shrink-Gemini: {s.code} - {s.name} - {stock_dict}")
                     reason = f"Gemini: {stock_dict['reason']}"
                     if stock_dict and stock_dict['is_shrink_down']:
