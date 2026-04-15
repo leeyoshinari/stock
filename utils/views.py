@@ -808,7 +808,7 @@ async def auto_sell_stock():
                         continue
                     current_time = time.strftime("%Y-%m-%d %H:%M:%S")
                     limit_up = getStockLimitUp(s.code, s.name)
-                    stock_detail: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(10).all()
+                    stock_detail: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(15).all()
                     stock_detail.reverse()
                     selected = index % total_source
                     if selected == 0:
