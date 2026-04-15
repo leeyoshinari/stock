@@ -187,23 +187,17 @@ async def index(request: Request) -> Template:
 
 @get("/s")
 async def recommend(request: Request) -> Template:
-    if checkout(request.headers.get('referered', '123')):
-        return Template("index.html", context={'prefix': PREFIX})
-    return Result()
+    return Template("index.html", context={'prefix': PREFIX})
 
 
 @get("/stock")
 async def stock_list(request: Request) -> Template:
-    if checkout(request.headers.get('referered', '123')):
-        return Template("stock.html", context={'prefix': PREFIX})
-    return Result()
+    return Template("stock.html", context={'prefix': PREFIX})
 
 
 @get("/topic")
 async def topic_list(request: Request) -> Template:
-    if checkout(request.headers.get('referered', '123')):
-        return Template("topic.html", context={'prefix': PREFIX})
-    return Result()
+    return Template("topic.html", context={'prefix': PREFIX})
 
 
 @get("/")
