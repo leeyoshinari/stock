@@ -181,27 +181,33 @@ class StockController(Controller):
 
 
 @get("/r")
-async def index() -> Template:
+async def index(request: Request) -> Template:
     return Template("recommend.html", context={'prefix': PREFIX})
 
 
 @get("/s")
-async def recommend() -> Template:
-    return Template("index.html", context={'prefix': PREFIX})
+async def recommend(request: Request) -> Template:
+    if checkout(request.headers.get('referered', '123')):
+        return Template("index.html", context={'prefix': PREFIX})
+    return Result()
 
 
 @get("/stock")
-async def stock_list() -> Template:
-    return Template("stock.html", context={'prefix': PREFIX})
+async def stock_list(request: Request) -> Template:
+    if checkout(request.headers.get('referered', '123')):
+        return Template("stock.html", context={'prefix': PREFIX})
+    return Result()
 
 
 @get("/topic")
-async def topic_list() -> Template:
-    return Template("topic.html", context={'prefix': PREFIX})
+async def topic_list(request: Request) -> Template:
+    if checkout(request.headers.get('referered', '123')):
+        return Template("topic.html", context={'prefix': PREFIX})
+    return Result()
 
 
 @get("/")
-async def home() -> Template:
+async def home(request: Request) -> Template:
     return Template("home.html", context={'prefix': PREFIX})
 
 

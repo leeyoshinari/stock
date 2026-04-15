@@ -149,7 +149,7 @@ async def queryGemini(msg: str, api_host: str, auth_code: str, promptType: int =
             res_json = json.loads(result_text.replace('```', '').replace('json', '').replace('\n', ''))
             return res_json
         except:
-            sleep_time = 2 ** attempt
+            sleep_time = 5
             await asyncio.sleep(sleep_time)
     raise RuntimeError("Gemini 服务持续繁忙")
 
@@ -171,7 +171,7 @@ async def queryAI(api_host: str, auth_code: str, current_time: str, buyPrice: st
             return res_json
         except:
             logger.error(traceback.format_exc())
-            sleep_time = 2 ** attempt
+            sleep_time = 5  # 2 ** attempt
             await asyncio.sleep(sleep_time)
     raise RuntimeError("Gemini 服务持续繁忙")
 

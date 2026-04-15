@@ -137,7 +137,7 @@ async def sellAI(api_host: str, auth_code: str, current_time: str, buyPrice: str
                 logger.error(traceback.format_exc())
         except:
             logger.error(traceback.format_exc())
-            sleep_time = 2 ** attempt
+            sleep_time = 5  # 2 ** attempt
             await asyncio.sleep(sleep_time)
     raise RuntimeError("Gemini 服务持续繁忙")
 

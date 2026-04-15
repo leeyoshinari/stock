@@ -57,7 +57,7 @@ function getStockList() {
                 let zhang = (item.current_price - item.last_price) / item.last_price * 100;
                 let zhen = (item.max_price - item.min_price) / item.last_price * 100;
                 let color = zhang >= 0 ? zhang > 0 ? 'red' : 'black' : 'green';
-                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
+                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a style="cursor:pointer;" onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a style="cursor:pointer;" onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
                       <div>${item.volume}</div><div>${item.qrr}</div><div>${item.turnover_rate}%</div><div>${item.fund.toFixed(0)}万</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
@@ -90,6 +90,27 @@ function get_stock_figure(code) {
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
                 plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.trix, data.data.trma, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
+                document.getElementsByClassName("stock-chart")[0].style.display = "flex";
+            }
+        })
+        .finally(() => {close_modal_cover();})
+}
+
+function get_stock_real_figure(code) {
+    show_modal_cover();
+    let site = localStorage.getItem('site');
+    fetch(`${prefix}/query/day/k?code=${code}&site=${site}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
+                let figure = document.getElementById("figure");
+                figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
+                figure.style.height = '500px';
+                figure.removeAttribute("_echarts_instance_")
+                figure.innerHTML = '';
+                let stockChart = echarts.init(figure);
+                plot_minute_line(stockChart, title, data.data.x, data.data.price, data.data.price_avg, data.data.volume);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })

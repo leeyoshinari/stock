@@ -249,7 +249,8 @@ async def queryRecommendStockList(source: int = 0, page: int = 1) -> Result:
             stockInfo: list[Recommend] = await Recommend.query().not_equal(source=1).order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
             if offset == 0:
                 current_day = time.strftime("%Y-%m-%d") + " 09:20:20"
-                stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo if f.sale_time and f.sale_time.strftime("%Y-%m-%d %H:%M:%S") > current_day] + \
+                todaySellStock: list[Recommend] = await Recommend.query().not_equal(source=1).greater(sale_time=current_day).all()
+                stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in todaySellStock] + \
                             [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo if not f.sale_time or f.sale_time.strftime("%Y-%m-%d %H:%M:%S") < current_day]
             else:
                 stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
