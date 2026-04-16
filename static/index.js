@@ -43,11 +43,15 @@ function getStockList() {
     let url = `${prefix}/list?pageSize=20&page=${page}&sortField=${sortField}`;
     let stock_name = document.getElementById("stock-name").value;
     let stock_code = document.getElementById("stock-code").value;
+    let stock_date = document.getElementById("stock-date").value;
     if (stock_code || stock_code.trim()) {
         url = url + `&code=${stock_code}`;
     }
     if (stock_name || stock_name.trim()) {
         url = url + `&name=${stock_name}`;
+    }
+    if (stock_date || stock_date.trim()) {
+        url = url + `&day=${stock_date}`;
     }
     fetch(url)
         .then(res => res.json())
@@ -143,3 +147,4 @@ document.getElementById("pre-page").disabled = 'true';
 getStockList();
 watchInput(document.getElementById('stock-name'), getStockList);
 watchInput(document.getElementById('stock-code'), getStockList);
+watchInput(document.getElementById('stock-date'), getStockList);

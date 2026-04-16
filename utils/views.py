@@ -184,29 +184,22 @@ async def queryByCode(code: str, site: str = None) -> Result:
 async def queryStockList(query: SearchStockParam) -> Result:
     result = Result()
     try:
-        tool: Tools = await Tools.get_one("openDoor")
-        day = tool.value
-        tool: Tools = await Tools.get_one("openDoor2")
-        day2 = tool.value
+        if query.day:
+            day = query.day
+        else:
+            tool: Tools = await Tools.get_one("openDoor")
+            day = tool.value
         if query.code:
             stockInfo: Detail = await Detail.get((query.code, day))
-            if not stockInfo:
-                stockInfo = await Detail.get((query.code, day2))
             stockList = [StockModelDo.model_validate(stockInfo).model_dump()] if stockInfo else []
         elif query.name:
             stockInfo: list[Detail] = await Detail.query().equal(day=day).like(name=query.name).all()
-            if len(stockInfo) < 1:
-                stockInfo: list[Detail] = await Detail.query().equal(day=day2).like(name=query.name).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
         else:
             logger.info(query)
             offset = (query.page - 1) * query.pageSize
             total_num: int = await Detail.query().equal(day=day).count()
-            if total_num < 1:
-                total_num: int = await Detail.query().equal(day=day2).count()
-                stockInfo: list[Detail] = await Detail.query().equal(day=day2).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
-            else:
-                stockInfo: list[Detail] = await Detail.query().equal(day=day).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
+            stockInfo: list[Detail] = await Detail.query().equal(day=day).order_by_key(Detail, query.sortField).offset(offset).limit(query.pageSize).all()
             stockList = [StockModelDo.model_validate(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList

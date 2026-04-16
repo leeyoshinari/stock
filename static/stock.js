@@ -7,14 +7,26 @@ window.fetch = function(url, options = {}) {
   const headers = {...defaultHeaders,...(options.headers || {})};
   return originalFetch(url, {...options,headers});
 };
-document.getElementById("search").addEventListener("click", () => {
-    page = 1; getStockList();
-})
-document.addEventListener('keypress', function(event) {
-    if (event.key === 'Enter') {
-        page = 1; getStockList();
-    }
-});
+function watchInput(el, callback, delay = 500) {
+  let timer = null, composing = false;
+  const fire = e => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      callback({
+        value: el.value ?? el.innerText,
+        type: e.inputType || e.type
+      });
+    }, delay);
+  };
+  el.addEventListener('compositionstart', () => composing = true);
+  el.addEventListener('compositionend', e => { composing = false; fire(e); });
+  el.addEventListener('input', e => { if (!composing) fire(e); });
+}
+// document.addEventListener('keypress', function(event) {
+//     if (event.key === 'Enter') {
+//         page = 1; getStockList();
+//     }
+// });
 
 document.getElementById("pre-page").addEventListener("click", () => {
     page -= 1;
@@ -226,3 +238,8 @@ overlay_data.addEventListener('click', function(event) {
 
 document.getElementById("pre-page").disabled = 'true';
 getStockList();
+watchInput(document.getElementById('stock-name'), getStockList);
+watchInput(document.getElementById('stock-code'), getStockList);
+watchInput(document.getElementById('stock-region'), getStockList);
+watchInput(document.getElementById('stock-industry'), getStockList);
+watchInput(document.getElementById('stock-concept'), getStockList);

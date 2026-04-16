@@ -13,6 +13,7 @@ class SearchStockParam(BaseModel):
     industry: Optional[str] = None
     concept: Optional[str] = None
     filter: Optional[str] = None
+    day: Optional[str] = None
     pageSize: int = 20
     page: int = 1
     sortField: str = 'qrr'

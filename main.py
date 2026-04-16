@@ -42,12 +42,13 @@ class StockController(Controller):
     tags = ['stock']
 
     @get("/list", summary="查询股票列表")
-    async def query_stock_list(self, request: Request, code: str = "", name: str = "", sortField: str = '-qrr', page: int = 1, pageSize: int = 20) -> Result:
+    async def query_stock_list(self, request: Request, code: str = "", name: str = "", day: str = "", sortField: str = '-qrr', page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             query = model.SearchStockParam()
             query.code = code if code else ""
             query.name = name if name else ""
+            query.day = day.replace("-", "") if day else ""
             query.sortField = sortField if sortField else '-qrr'
             query.page = page
             query.pageSize = pageSize
