@@ -76,25 +76,18 @@ class StockController(Controller):
             result = await views.deleteRecommendStock(rId)
         return result
 
-    @get('/query/ai', summary="询问AI股票走势 - 通用")
-    async def stock_ai_data(self, request: Request, code: str, site: str = None) -> Result:
+    @get('/buy/stock', summary="询问AI股票走势 - 通用")
+    async def stock_ai_data(self, request: Request, code: str, site: str | None = None, source: str | None = None, day: str | None = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.query_ai_stock(code, site)
+            result = await views.buy_stock(code, site, source, day)
         return result
 
-    @get('/sell/stock', summary="AI股票卖出判断 - 通用")
-    async def sell_stock(self, request: Request, code: str, price: str, t: str, site: str = None) -> Result:
+    @get('/sell/stock', summary="AI股票卖出判断")
+    async def sell_stock(self, request: Request, code: str, price: str | None = None, t: str | None = None, site: str | None = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.sell_stock(code, price, t, site)
-        return result
-
-    @get('/ai/sell', summary="AI股票卖出策略")
-    async def ai_sell_stock(self, request: Request, code: str, site: str = None) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.ai_sell(code, site)
         return result
 
     @get('/query/stock/return', summary="查询选出来的股票的收益")

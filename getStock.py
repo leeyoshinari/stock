@@ -494,7 +494,8 @@ async def selectStockMetric():
                         continue
                 stock_data_list: list[Detail] = await Detail.query().equal(code=stock_code_id).order_by(Detail.day.desc()).limit(6).all()
                 stock_data_list.reverse()
-                stockData = detail2List(stock_data_list)
+                stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stock_data_list]
+                # stockData = detail2List(stock_data_list)
                 try:
                     fflow = await getStockZhuLiFundFromTencent(stock_code_id)
                 except:
@@ -505,7 +506,8 @@ async def selectStockMetric():
                         logger.error(traceback.format_exc())
                         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {stock_code_id} 的资金流向数据异常～")
                         fflow = 0.0
-                stockData['fund'][-1] = fflow
+                # stockData['fund'][-1] = fflow
+                stock_data[-1]['fund'] = fflow
                 await Detail.update((stock_code_id, current_day), fund=fflow)
                 # 请求大模型
                 try:
@@ -515,14 +517,14 @@ async def selectStockMetric():
                     # stockData['industry'] = s_info.industry
                     # stockData['concept'] = s_info.concept
                     reason = f"主动性买盘: {da_dan['b']}%, 主动性卖盘: {da_dan['s']}%, 中性盘: {da_dan['m']}%\n\n"
-                    stock_dict = await queryOpenAi(json.dumps(stockData), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
+                    stock_dict = await queryOpenAi(json.dumps(stock_data), OPENAI_URL, OPENAI_MODEL, OPENAI_KEY)
                     logger.info(f"AI-model-OpenAI: {stock_dict}")
-                    if stock_dict and stock_dict['buy']:
+                    if stock_dict['buy']:
                         recommend_stocks: list[Recommend] = await Recommend.query().equal(code=stock_code_id).not_equal(source=1).is_null('last_four_price').all()
                         if len(recommend_stocks) < 1:   # 如果已经推荐过了，就跳过，否则再次推荐
                             has_index += 1
                             reason = reason + f"ChatGPT: {stock_dict['reason']}"
-                            stock_dict = await queryGemini(json.dumps(stockData), API_URL, AUTH_CODE, 0)
+                            stock_dict = await queryGemini(json.dumps(stock_data), API_URL, AUTH_CODE)
                             logger.info(f"AI-model-Gemini: {stock_dict}")
                             reason = reason + f"\n\nGemini: {stock_dict['reason']}"
                             if stock_dict and stock_dict['buy']:
@@ -532,8 +534,6 @@ async def selectStockMetric():
                                 break
                         else:
                             logger.info(f"Has been recommended stock - {stock_code_id} - {ai_model_list[i]['name']}")
-                    else:
-                        logger.error(f"大模型返回结果为空 - {stock_dict}")
                 except:
                     logger.error(traceback.format_exc())
                     stock_dict = {}
@@ -927,6 +927,7 @@ async def main():
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=45, second=50, misfire_grace_time=10)       # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)        # 更新股票行业、概念等数据
+    # scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
     scheduler.start()
     await asyncio.sleep(2)
 

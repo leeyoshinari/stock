@@ -2,147 +2,68 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import os
 import asyncio
 import json
 import traceback
 from logging import Logger
 from openai import AsyncOpenAI
-from settings import AI_MODEL, AI_MODEL25
+from settings import AI_MODEL, AI_MODEL25, PROMPT_PATH
 from utils.http_client import http
 
 
+def read_prompt(file_path) -> str:
+    with open(file_path, 'r', encoding='utf-8') as f:
+        res = f.read()
+    return res
+
+
+# 支持的模型
 MODEL_LIST = [AI_MODEL, AI_MODEL25]
+# 重试，每次换一个模型
 max_retry = len(MODEL_LIST)
 
-# prompt = '''你是一个精通中国A股股票市场的交易员，你特别擅长做短线交易，有着足够股票交易知识，精通分析股票的数据来判断是否应该买入股票，特别擅长基于 价格站上5日/10日/20日均线、当日主力资金净流入、成交量大于昨日、换手率正常、MACD金叉或柱变长、KDJ金叉或向上、TRIX向上 等策略选股，下面将会给你1只股票的数据，你需要知道每个指标的含义并深入仔细严谨地分析各种指标数据，要重点分析最近连续几日的价格、均线价格、主力资金净流入情况、MACD、KDJ、TRIX指标，你需要判断股票所在的行业、概念是否是最近热门题材，然后判断每只股票是否处于强势上涨阶段且属于热门题材，你需要在强势上涨阶段买入股票，对于上涨趋势很弱的股票，不应该买入，你需要尽可能识别出最近几日高开低走、上下波动巨大、主力诱多、假金叉、较长的上影线、超买高位钝化、上涨动能很弱、主力出货(高换手率+小阳线/上影线)、单日暴涨但量能异常放大、均线系统未修复等这种假信号，你需要综合观察最近3-5日的数据变化趋势，而不仅仅是最后一天。请你直接返回一个判断结果列表的JSON，格式是{"code": "603128", "buy": true/false, "reason": ""}，buy表示是否买入，reason表示判断的简单依据，你直接输出结果，不要输出你的判断过程。\n
-# 股票数据每个字段的含义如下：code：股票代码，day：交易日期，current_price：当前价，last_price：前一天的收盘价，open_price：当天的开盘价，max_price：当天最高价，min_price：当天最低价，volume：当天成交量，fund：主力资金净流入，单位是万，turnover_rate：换手率，ma_five：5日均线价，ma_ten：10日均线价，ma_twenty：20日均线价，qrr：量比，diff：MACD指标的DIFF值，dea：MACD指标的DEA值，k：KDJ指标的K值，d：KDJ指标的D值，j：KDJ指标的J值，trix：TRIX指标的TRIX的值，trma：TRIX指标的MATRIX值。每个字段的数组值按照day的时间顺序排序。\n
-# 这只股票的每一天的数据如下：'''
+# 每天自动选股任务的提示词
+auto_buy_prompt = read_prompt(os.path.join(PROMPT_PATH, 'buy.md'))
 
-# prompt = '''你是一个精通中国A股短线交易的专业交易员，有着足够股票交易知识，精通分析股票的数据来判断是否应该买入股票，你根据股票最近3–5日的量价、均线、主力资金与技术指标变化，判断该股是否真正处于短线强势上涨阶段。你的任务是：判断该股是否值得买入（是否进入真正的上涨趋势）。输出格式必须为：{"code": "603128", "buy": true/false, "reason": ""}。你不能输出分析过程，只能输出最终结论和简短理由。
-# 你需要根据下面的逻辑来判断，同时还要结合其他专业知识、综合所有给出来的指标来辅助判断：
-# 1. 不买的假信号：1、下跌趋势中的“站上均线”（属于反抽，不是反转）；2、冲高回落、长上影线；3、连续多日主力资金流出；4、单日涨幅大但次日承接弱；5、放量突破但未站稳几日新高；6、单日暴涨且量能异常放大（量比大于5才认为量能异常放大）；7、最近3–5日股价整体呈下降趋势。
-# 2. 买入条件：1、5/10日均线走平并开始拐头向上，收盘价持续站稳5日线；2、MACD绿柱衰减或DIFF金叉DEA；3、主力近2–3日呈现净流出减少到开始净流入的趋势，当日主力资金净流入、成交量大于昨日；4、换手率正常，不能过高也不能过低；5、当天无长上影线；
-# 股票数据每个字段的含义如下：code：股票代码，name：股票名字，day：交易日期，current_price：当前价，last_price：前一天的收盘价，open_price：当天的开盘价，max_price：当天最高价，min_price：当天最低价，volume：当天成交量，fund：主力资金净流入，单位是万，turnover_rate：换手率，ma_five：5日均线价，ma_ten：10日均线价，ma_twenty：20日均线价，qrr：量比，diff：MACD指标的DIFF值，dea：MACD指标的DEA值，k：KDJ指标的K值，d：KDJ指标的D值，j：KDJ指标的J值，trix：TRIX指标的TRIX的值，trma：TRIX指标的MATRIX值。
-# 这只股票的每一天的数据如下：
-# '''
+# 缩量下跌的提示词
+shrink_prompt = read_prompt(os.path.join(PROMPT_PATH, 'shrink.md'))
 
-prompt1 = '''你是一个精通中国A股市场的短线交易员，擅长根据价格、均线、成交量、主力资金和技术指标判断是否应买入股票。你重点使用以下策略：价格站上5/10日均线、成交量大于昨日、主力资金净流入、换手率正常、MACD金叉或柱体变长、KDJ金叉或向上、TRIX向上等。
-下面将提供1只股票最近多日的数据，这只股票数据已通过均线、量能、MACD、上影线等基础技术条件的程序化过滤，你需要理解每个字段含义，并重点判断其趋势质量与上涨持续性，需综合最近3日的连续变化趋势进行判断，而不是只看最后一天。
-【判断规则】
-题材与行业：判断industry/concept是否匹配hot_topic，若不匹配或关联度一般，直接判定不买入。
-趋势判断（核心逻辑）：在已满足均线站上条件的前提下，判断5日均线是否持续向上、10日均线是否开始拐头向上或已经向上，均线运行是否平滑，是否存在走平或拐头向下迹象；判断价格是否持续运行在5/10日均线之上而非频繁回踩；判断成交量是否保持健康而非衰减；判断主力资金在最近几日内是否持续净流入或由负转正并保持稳定。
-必须识别并规避的假信号：高开低走、长上影线、单日暴涨但量能异常、高换手率+小阳线或上影线（疑似出货）、假金叉、指标高位钝化、上涨动能明显减弱、均线系统未修复，或最近1–2日涨幅明显加速、价格远离均线导致短线情绪透支；若上述情况明显，应直接不买入。
-【交易原则】
-只在“热点题材+强势但仍处于趋势中段的上涨阶段”买入；若最近3日内价格、成交量、资金方向出现明显背离，应直接不买入；趋势不清晰、信号矛盾或偏弱，一律不买。
-【输出要求】
-只输出最终判断结果，不要输出分析过程；返回单个JSON对象，格式是：{"code":"603128","buy":true,"reason":"简要说明核心判断依据"}
-【字段含义说明】
-code：股票代码；hot_topic：当前市场热点题材；industry：所属行业；concept：相关概念；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序升序排列。
-这只股票最近每一天的数据如下：'''
+# 通用判断是否买入的提示词
+buy_common_prompt = read_prompt(os.path.join(PROMPT_PATH, 'buy-common.md'))
 
-upPrompt = '''你是一个精通中国A股市场的短线交易员，擅长根据价格、均线、成交量、主力资金和技术指标判断是否应买入股票。你重点使用以下策略：价格站上5/10日均线、成交量大于昨日、主力资金净流入、换手率正常、MACD金叉或柱体变长、KDJ未超买超卖、TRIX向上、布林线指标等。
-下面将提供1只股票最近多日的数据，这只股票数据已通过均线、量能、MACD、上影线等基础技术条件的程序化过滤，你需要理解每个字段含义，必须要认真分析股票的数据，并重点判断其趋势质量与上涨持续性，需综合最近3日的连续变化趋势进行判断，而不是只看最后一天。
-【判断规则】
-趋势判断（核心逻辑）：在已满足均线站上条件的前提下，判断5日均线是否持续向上、10日均线是否开始拐头向上或已经向上，均线运行是否平滑，是否存在走平或拐头向下迹象；判断价格是否持续运行在5/10日均线之上而非频繁回踩；判断成交量是否保持健康而非衰减；判断主力资金在最近几日内是否持续净流入或由负转正并保持稳定，你需要结合布林线来综合判断股票趋势。
-量能异常放大：若当日成交量异常放大，或换手率突然激增，需警惕‘量能高潮’后的反杀，要警惕高位派发和主力诱多，除非有极强的一字板预期，否则不买入。
-必须识别并规避的假信号：高开低走、长上影线、单日暴涨但量能异常、高换手率+小阳线或上影线（疑似出货）、高位派发、主力资金异常、假金叉、指标高位钝化、上涨动能明显减弱、均线系统未修复，或最近1日涨幅明显加速、价格远离均线导致短线情绪透支；若上述情况明显，应直接不买入。
-【交易原则】
-只在“强势但仍处于趋势中段的上涨阶段”买入；若最近3日内价格、成交量、资金方向出现明显背离，应直接不买入；趋势不清晰、信号矛盾或偏弱，一律不买。
-【输出要求】
-只输出最终判断结果，不要输出分析过程；返回单个JSON对象，格式是：{"code":"603128","buy":true,"reason":"简要说明核心判断依据"}
-【字段含义说明】
-code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序升序排列。
-这只股票最近每一天的数据如下：'''
+# 自动判断是否继续持有的提示词 (自动卖出决策, 先使用代码过滤, 然后用AI决策)
+auto_sell_prompt = read_prompt(os.path.join(PROMPT_PATH, 'sell.md'))
 
-shrinkPrompt = '''
-你是一个极度严格的交易决策AI, 你必须完全基于用户提供的数据，按照下面的要求做出严格准确的判断。
-
-【你的任务】
-判断该股票当前是否属于：上涨趋势中的真实缩量下跌
-
-【核心原则】
-1. 必须是上涨后的回调，不是下跌趋势
-2. 必须是量价同步收缩，不是阴跌
-3. 必须是有承接的回调，不是无人交易
-4. 只要有任何不确定性 → 直接判定不是
-
-【判断流程】
-一、趋势前提（必须成立）
-- 最近一段时间存在明显上涨（不是横盘或下跌）
-- 当前价格仍在10日均线之上（没有破位）
-
-二、识别缩量下跌区间（核心）
-必须满足：
-- 最近3~5天整体价格下降
-- 最近3~5天成交量同步下降
-- 最近3~5天换手率下降（市场热度降低）
-
-禁止：
-- 成交量忽大忽小（不稳定）
-- 放量下跌
-- 连续阴跌无反弹迹象
-
-三、线性衰减特征（关键）
-判断最近3~5天：
-- 价格变化路径应接近一条平滑下降曲线（接近直线）
-- 成交量变化路径应接近逐步减少的直线
-
-禁止：
-- 价格锯齿震荡下跌
-- 一天大跌一天小跌（不稳定）
-- 成交量忽大忽小
-
-四、跌幅约束（防止大跌）
-- 缩量下跌区间总跌幅不能过大（通常 ≤8%）
-- 不允许出现单日大跌（如 >5%）
-
-五、形态判断（区分洗盘 vs 阴跌）
-判断K线行为是健康回调（洗盘），还是阴跌
-
-【最终判断】
-必须满足所有条件才能判定为 true, 否则一律 false
-
-【输出格式】
-只输出最终判断结果，不要输出分析过程；返回单个JSON对象，格式是：{"code": "股票代码", "is_shrink_down": true 或 false, "reason": "说明是否属于上涨后的缩量回调，是否存在阴跌等问题"}
-
-【用户提供的数据字段含义说明】
-code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序升序排列。
-
-这只股票最近每一天的数据如下：
-'''
-
-buyPrompt = '''你是一个精通中国A股市场的短线交易员(持股时间最长20天)，非常擅长根据技术指标分析股票，下面将给你一只股票的最近多日的数据，你需要全面仔细地分析各个指标，并判断是否应该可以买入股票。你必须识别并规避的假信号：高开低走、长上影线、单日暴涨但量能异常、高换手率+小阳线或上影线（疑似出货）、高位派发、主力资金异常、假金叉、指标高位钝化、上涨动能明显减弱、均线系统未修复，或最近1日涨幅明显加速、价格远离均线导致短线情绪透支；若上述情况明显，应直接不买入。
-【输出要求】
-请输出分析过程和最终判断结果；返回单个JSON对象，格式是：{{"code":"603128","buy":true,"reason":"分析过程和最终判断结果"}}
-【字段含义说明】
-天级数据字段含义：code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序升序排列。
-当天分钟级数据字段含义：time：时间，几点几分；price：当前价格；price_avg：当前分时均线价，volume：当前分钟的成交量。
-这只股票的最近10日天级数据是(请注意当前时间是{})：{}
-当天分钟级数据是：{}
-'''
-
-sellPrompt = '''你是一个精通中国A股市场的短线交易员，非常擅长根据技术指标分析股票，下面将给你一只股票的买入时间、持仓成本和最近多日的数据（包括当天的实时数据），你需要全面仔细地分析各个指标，判断是否应该卖出股票。你必须要准确判断出股票的走势，识别出主力是否在洗盘、低位吸筹、拉高出货、主力出逃等场景。
-【输出要求】
-请输出分析过程和最终判断结果；返回单个JSON对象，格式是：{{"code":"603128","sell":true,"reason":"分析过程和最终判断结果"}}
-【字段含义说明】
-天级数据字段含义：code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序升序排列。
-当天分钟级数据字段含义：time：时间，几点几分；price：当前价格；price_avg：当前分时均线价，volume：当前分钟的成交量。
-这只股票的买入时间是{}，持仓成本是{}，最近10日天级数据是(请注意当前时间是{})：{}
-当天分钟级数据是：{}
-'''
+# 通用判断是否卖出的提示词
+sell_common_prompt = read_prompt(os.path.join(PROMPT_PATH, 'sell-common.md'))
 
 
 async def queryGemini(msg: str, api_host: str, auth_code: str, promptType: int = 0) -> dict:
+    """
+    promptType:
+        0 - 每天选股任务的提示词
+        1 - 缩量下跌的提示词
+        2 - 通用判断是否买入的提示词
+        3 - 自动判断是否继续持有的提示词 (自动卖出决策, 先使用代码过滤, 然后用AI决策)
+        4 - 通用判断是否卖出的提示词
+    """
     url = f"{api_host}/api/chat"
     header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
     if promptType == 1:
-        prompt = shrinkPrompt
+        prompt = shrink_prompt
+    elif promptType == 2:
+        prompt = buy_common_prompt
+    elif promptType == 3:
+        prompt = auto_sell_prompt
+    elif promptType == 4:
+        prompt = sell_common_prompt
     else:
-        prompt = upPrompt
+        prompt = auto_buy_prompt
     for attempt in range(max_retry):
         try:
             model = MODEL_LIST[attempt]
-            data = {"model": model, "messages": [{"role": "user", "content": prompt + msg}]}
+            data = {"model": model, "messages": [{"role": "user", "content": msg}], "systemRole": prompt, "temperature": 0}
             res = await http.post(url=url, json_data=data, headers=header)
             gemini_res = json.loads(res.text)
             result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
@@ -154,31 +75,20 @@ async def queryGemini(msg: str, api_host: str, auth_code: str, promptType: int =
     raise RuntimeError("Gemini 服务持续繁忙")
 
 
-async def queryAI(api_host: str, auth_code: str, current_time: str, buyPrice: str, buyDate: str, k_line: str, day_line: str, logger: Logger) -> dict:
-    url = f"{api_host}/api/chat"
-    header = {"Content-Type": "application/json", "Connection": "keep-alive", "Authorization": f"Bearer {auth_code}"}
-    for attempt in range(max_retry):
-        try:
-            model = MODEL_LIST[attempt]
-            if buyPrice and buyDate:
-                data = {"model": model, "messages": [{"role": "user", "content": sellPrompt.format(buyDate, buyPrice, current_time, k_line, day_line)}]}
-            else:
-                data = {"model": model, "messages": [{"role": "user", "content": buyPrompt.format(current_time, k_line, day_line)}]}
-            res = await http.post(url=url, json_data=data, headers=header)
-            gemini_res = json.loads(res.text)
-            result_text = gemini_res['candidates'][0]['content']['parts'][0]['text']
-            res_json = json.loads(result_text.replace('```', '').replace('json', '').replace('\n', ''))
-            return res_json
-        except:
-            logger.error(traceback.format_exc())
-            sleep_time = 5  # 2 ** attempt
-            await asyncio.sleep(sleep_time)
-    raise RuntimeError("Gemini 服务持续繁忙")
-
-
-async def queryOpenAi(msg: str, api_host: str, model: str, auth_code: str) -> dict:
+async def queryOpenAi(msg: str, api_host: str, model: str, auth_code: str, promptType: int = 0) -> dict:
+    if promptType == 1:
+        prompt = shrink_prompt
+    elif promptType == 2:
+        prompt = buy_common_prompt
+    elif promptType == 3:
+        prompt = auto_sell_prompt
+    elif promptType == 4:
+        prompt = sell_common_prompt
+    else:
+        prompt = auto_buy_prompt
     client = AsyncOpenAI(api_key=auth_code, base_url=api_host)
-    completion = await client.chat.completions.create(model=model, messages=[{'role': 'user', 'content': upPrompt + msg}])
+    completion = await client.chat.completions.create(model=model, temperature=0,
+                                                      messages=[{'role': 'system', 'content': prompt}, {'role': 'user', 'content': msg}])
     res = completion.choices[0].message.content
     return json.loads(res)
 

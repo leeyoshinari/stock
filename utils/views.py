@@ -12,15 +12,14 @@ from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
 from utils.selectStock import getStockZhuLiFundFromTencent
-from utils.ai_model import queryAI, webSearchTopicBak
-from utils.saleStock import sellAI, evaluate_sell_strategy
+from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi
 from utils.logging import logger
 from utils.results import Result
 from utils.scheduler import scheduler
 from utils.initData import initStockData
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
-from utils.metric import real_traded_minutes, bollinger_bands
+from utils.metric import real_traded_minutes, bollinger_bands, getStockLimitUp, evaluate_sell_strategy
 from utils.database import Recommend, Stock, Detail, Tools, DBExecutor
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH
 
@@ -68,14 +67,6 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
     trix_list[0] = trix
     trma = sum(trix_list[: 9]) / 9
     return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
-
-
-def getStockLimitUp(code: str, name: str) -> float:
-    if 'st' in name.lower():
-        return 0.05
-    if code.startswith("30") or code.startswith("68"):
-        return 0.2
-    return 0.1
 
 
 async def queryByCode(code: str, site: str = None) -> Result:
@@ -342,12 +333,15 @@ async def calc_stock_return(fee) -> Result:
     return result
 
 
-async def query_ai_stock(code: str, site: str = None) -> Result:
+async def buy_stock(code: str, site: str = None, source: str = None, day: str = None) -> Result:
     result = Result()
     try:
-        tool: Tools = await Tools.get_one("openDoor")
-        day = tool.value
-        stockList: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
+        if day:
+            day = day.replace('-', '')
+        else:
+            tool: Tools = await Tools.get_one("openDoor")
+            day = tool.value
+        stockList: list[Detail] = await Detail.query().equal(code=code).less_equal(day=day).order_by(Detail.day.desc()).limit(10).all()
         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
         is_stock = [item for item in stock_data if item['day'] == day]
         if not is_stock:
@@ -358,14 +352,18 @@ async def query_ai_stock(code: str, site: str = None) -> Result:
             fflow = await getStockZhuLiFundFromTencent(code)
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
-        post_data = detail2List_bak(stock_data)
-        date_obj = datetime.strptime(day, "%Y%m%d")
-        open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
-        current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}，最新日期的所有数据都是截至当前时间实时计算出来的，不一定是一整天的数据，不能和其他日期的数据弄混了'
-        if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
-            current_time = open_date
-        day_line = await getMinuteKFromTongHuaShun('', code, logger)
-        stock_dict = await queryAI(API_URL, AUTH_CODE, current_time, None, None, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
+        if source == 'shrink':
+            stock_dict = await queryGemini(json.dumps(stock_data, ensure_ascii=False), API_URL, AUTH_CODE, 1)
+        else:
+            # post_data = detail2List_bak(stock_data)
+            date_obj = datetime.strptime(day, "%Y%m%d")
+            open_date = date_obj.strftime("%Y-%m-%d") + " 14:50:00"
+            current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}, 所有数据都是截至当前时间实时计算出来的, 是盘中数据, 不是一整天的数据'
+            if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
+                current_time = open_date
+            day_line = await getMinuteKFromTongHuaShun('', code, logger)
+            prompt = f"当前时间是: {current_time} \n这只股票的最近10日天级数据是: {json.dumps(stock_data, ensure_ascii=False)} \n当天分钟级数据是: {json.dumps(minute2List(day_line), ensure_ascii=False)}"
+            stock_dict = await queryGemini(prompt, API_URL, AUTH_CODE, 2)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
@@ -391,59 +389,23 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
             fflow = await getStockZhuLiFundFromTencent(code)
             stock_data[0]['fund'] = fflow
         stock_data.reverse()
-        post_data = detail2List_bak(stock_data)
+        # post_data = detail2List_bak(stock_data)
         if price and t:
             pass
         else:
-            r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
+            r: Recommend = await Recommend.query().equal(code=code).not_equal(source=1).order_by(Recommend.id.desc()).first()
             price = r.price
             t = r.create_time.strftime("%Y-%m-%d")
         date_obj = datetime.strptime(day, "%Y%m%d")
-        open_date = date_obj.strftime("%Y-%m-%d") + " 15:00:00"
-        current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}，最新日期的所有数据都是截至当前时间实时计算出来的，不一定是一整天的数据，不能和其他日期的数据弄混了'
+        open_date = date_obj.strftime("%Y-%m-%d") + " 14:50:00"
+        current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}, 所有数据都是截至当前时间实时计算出来的, 是盘中数据, 不是一整天的数据'
         if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
             current_time = open_date
         day_line = await getMinuteKFromTongHuaShun('', code, logger)
-        stock_dict = await queryAI(API_URL, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), logger)
+        prompt = f"当前时间是: {current_time} \n股票的买入时间是: {t} \n持仓成本是: {price} \n最近10日天级数据是: {json.dumps(stock_data, ensure_ascii=False)} \n当天分钟级数据是: {json.dumps(minute2List(day_line), ensure_ascii=False)}"
+        stock_dict = await queryGemini(prompt, API_URL, AUTH_CODE, 4)
         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
         logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = str(e)
-    return result
-
-
-async def ai_sell(code: str, site: str = None) -> Result:
-    '''Recommend list only'''
-    result = Result()
-    try:
-        tool: Tools = await Tools.get_one("openDoor")
-        day = tool.value
-        stockList: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
-        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
-        is_stock = [item for item in stock_data if item['day'] == day]
-        if not is_stock:
-            logger.info(f"query newest data - {code}")
-            stockDo: dict = await calc_stock_real_data(code, site)
-            stock_data.insert(0, stockDo)
-        else:
-            fflow = await getStockZhuLiFundFromTencent(code)
-            stock_data[0]['fund'] = fflow
-        stock_data.reverse()
-        post_data = detail2List_bak(stock_data)
-        r: Recommend = await Recommend.query().equal(code=code).order_by(Recommend.id.desc()).first()
-        price = r.price
-        t = r.create_time.strftime("%Y-%m-%d %H:%M:%S")
-        date_obj = datetime.strptime(day, "%Y%m%d")
-        open_date = date_obj.strftime("%Y-%m-%d") + " 15:30:00"
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        if current_time > open_date:
-            current_time = open_date
-        day_line: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
-        stock_dict = await sellAI(API_URL, AUTH_CODE, current_time, price, t, json.dumps(post_data, ensure_ascii=False), json.dumps(minute2List(day_line), ensure_ascii=False), 'sellPrompt', logger)
-        result.data = stock_dict['reason'].replace("#", "").replace("*", "")
-        logger.info(f"sell stock AI suggestion successfully, code: {code}, result: {stock_dict}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -792,6 +754,8 @@ async def auto_sell_stock():
         if start_time <= now <= end_time:
             logger.info("Evaluate Sell Strategy - 中午休市, 暂不执行...")
         else:
+            tool: Tools = await Tools.get_one("openDoor")
+            day = tool.value
             stock: list[Recommend] = await Recommend.query().not_equal(source=1).is_null('sale_price', 'sale_time').all()
             total_source = 3
             index = 0
@@ -822,7 +786,13 @@ async def auto_sell_stock():
                     if res['action'] != 'HOLD':
                         if s.code in AI_DECIDE and time.time() - AI_DECIDE[s.code] < 1200:
                             continue
-                        ai_res = await sellAI(API_URL, AUTH_CODE, current_time, s.price, buy_time, json.dumps(day_data, ensure_ascii=False), json.dumps(minute_data, ensure_ascii=False), 'decidePrompt', logger)
+                        date_obj = datetime.strptime(day, "%Y%m%d")
+                        open_date = date_obj.strftime("%Y-%m-%d") + " 14:50:00"
+                        current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}, 所有数据都是截至当前时间实时计算出来的, 是盘中数据, 不是一整天的数据'
+                        if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
+                            current_time = open_date
+                        prompt = f"当前时间是: {current_time} \n股票的买入时间是: {buy_time} \n持仓成本是: {s.price} \n最近10日天级数据是: {json.dumps(day_data, ensure_ascii=False)} \n当天分钟级数据是: {json.dumps(minute_data, ensure_ascii=False)}"
+                        ai_res = await queryGemini(prompt, API_URL, AUTH_CODE, 3)
                         if ai_res['sell']:
                             content = f"{s.content}LEE{res['reason']}\n\n{ai_res['reason']}"
                             await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"), content=content)

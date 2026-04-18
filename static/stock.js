@@ -89,8 +89,8 @@ function getStockList() {
                     setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" /><img id="buy-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="buy_stocks('${item.code}', '${item.name}');" />`;
                 }
                 s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a>${setFlag}</div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
-                      <div><img id="dc-${item.code}" src="${prefix}/static/dc.ico" alt="" onclick="window.open('https://quote.eastmoney.com/concept/${getStockRegion(item.code) + item.code}.html#chart-k-cyq');" style="width:18px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}');" style="width:20px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:20px;" /></div>
-                      <div>${item.region}</div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
+                      <div><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}', 'buy');" style="width:20px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:20px;margin-right:3%;" /><img id="shrink-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}', 'shrink');" style="width:20px;" /></div>
+                      <div><a target="_blank" href="https://quote.eastmoney.com/concept/${getStockRegion(item.code)}${item.code}.html#chart-k-cyq">${item.region}</a></div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -189,10 +189,10 @@ function sell_stock_ai(code, name) {
         .finally(() => {close_modal_cover();})
 }
 
-function query_stock_ai(code, name) {
+function query_stock_ai(code, name, source) {
     show_modal_cover();
     let site = localStorage.getItem('site');
-    fetch(`${prefix}/query/ai?code=${code}&site=${site}`)
+    fetch(`${prefix}/buy/stock?code=${code}&site=${site}&source=${source}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
