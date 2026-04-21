@@ -336,11 +336,12 @@ async def calc_stock_return(fee) -> Result:
 async def buy_stock(code: str, site: str = None, source: str = None, day: str = None) -> Result:
     result = Result()
     try:
+        tool: Tools = await Tools.get_one("openDoor")
+        current_day = tool.value
         if day:
             day = day.replace('-', '')
         else:
-            tool: Tools = await Tools.get_one("openDoor")
-            day = tool.value
+            day = current_day
         stockList: list[Detail] = await Detail.query().equal(code=code).less_equal(day=day).order_by(Detail.day.desc()).limit(10).all()
         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
         is_stock = [item for item in stock_data if item['day'] == day]
@@ -349,8 +350,9 @@ async def buy_stock(code: str, site: str = None, source: str = None, day: str = 
             stockDo: dict = await calc_stock_real_data(code, site)
             stock_data.insert(0, stockDo)
         else:
-            fflow = await getStockZhuLiFundFromTencent(code)
-            stock_data[0]['fund'] = fflow
+            if stock_data[0]['day'] == current_day:
+                fflow = await getStockZhuLiFundFromTencent(code)
+                stock_data[0]['fund'] = fflow
         stock_data.reverse()
         if source == 'shrink':
             stock_dict = await queryGemini(json.dumps(stock_data, ensure_ascii=False), API_URL, AUTH_CODE, 1)
@@ -489,7 +491,6 @@ async def get_current_topic() -> Result:
         current_day = tool.value
         current_date = tool.update_time.strftime("%Y年%m月%d日")
         res = await webSearchTopicBak(API_URL, AUTH_CODE, current_date)
-        print(res)
         file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(res)
@@ -795,7 +796,7 @@ async def auto_sell_stock():
                         ai_res = await queryGemini(prompt, API_URL, AUTH_CODE, 3)
                         if ai_res['sell']:
                             content = f"{s.content}LEE{res['reason']}\n\n{ai_res['reason']}"
-                            await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S"), content=content)
+                            await Recommend.update(s.id, sale_price=minute_detail[-1].price, sale_time=datetime.now(), content=content)
                             logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
                             if s.code in AI_DECIDE:
                                 del AI_DECIDE[s.code]

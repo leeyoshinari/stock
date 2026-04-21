@@ -30,6 +30,7 @@ from utils.database import Stock, Detail, Tools, Recommend, write_worker
 from utils.logging_getstock import logger
 
 
+splitTime = " 14:47:20"     # 前面必须有空格
 queryTask = asyncio.Queue()
 running_job_id = "interval_stock_data"
 current_topic = []
@@ -446,10 +447,10 @@ async def selectStockMetric():
         if current_day == time.strftime("%Y%m%d"):
             stock_metric = []   # 非买入信号的策略选股
             day = ''
-            trunc_time = time.strftime("%Y-%m-%d") + " 14:20:20"
+            trunc_time = time.strftime("%Y-%m-%d") + splitTime
             selected: list[Recommend] = await Recommend.query().not_equal(source=1).is_null('last_four_price').less(create_time=trunc_time).all()
             exclued_stock = [r.code for r in selected]
-            stockInfos: list[Detail] = await Detail.query().equal(day=current_day).notin(code=exclued_stock).all()
+            stockInfos: list[Detail] = await Detail.query().equal(day=current_day).greater(update_time=trunc_time).notin(code=exclued_stock).all()
             for s in stockInfos:
                 try:
                     stockList: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(5).all()
@@ -489,7 +490,7 @@ async def selectStockMetric():
                     if da_dan['b'] > da_dan['s'] and da_dan['m'] < da_dan['s']:
                         pass
                     else:
-                        logger.error(f"DaDan Stock - {stock_code_id} - no meet 60% / 30% / 10% 这样的数值, - {da_dan}")
+                        logger.warning(f"DaDan Stock - {stock_code_id} - no meet 60% / 30% / 10% 这样的数值, - {da_dan}")
                         await asyncio.sleep(2)
                         continue
                 stock_data_list: list[Detail] = await Detail.query().equal(code=stock_code_id).order_by(Detail.day.desc()).limit(6).all()
@@ -844,7 +845,7 @@ async def queryStockShrink():
                 await queryTask.put(stockList)
             await asyncio.sleep(10)
 
-            trunc_time = time.strftime("%Y-%m-%d") + " 14:20:20"
+            trunc_time = time.strftime("%Y-%m-%d") + splitTime
             targetStock: list[Detail] = await Detail.query().equal(day=current_day).greater(create_time=trunc_time).all()
             for s in targetStock:
                 sd: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(10).all()
@@ -895,6 +896,9 @@ async def getStockTopic():
             logger.info(f"Current hot topic is {res}")
             current_topic = [normalize_topic(r) for r in res_list]
             logger.info(f"Normalized topic: {current_topic}")
+    except IndexError:
+        logger.error(traceback.format_exc())
+        logger.error(res)
     except:
         logger.error(traceback.format_exc())
         logger.error("数据更新异常...")
@@ -922,7 +926,7 @@ async def main():
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=48, second=30, misfire_grace_time=10)  # 开始选股
     scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
     scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)          # 停止任务
-    scheduler.add_job(setAvailableStock, 'cron', hour=15, minute=28, second=20)     # 收盘后更新数据
+    scheduler.add_job(setAvailableStock, 'cron', hour='11,14,15', minute=30, second=20)     # 收盘后更新数据
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=36, second=20, args=[1], misfire_grace_time=10)  # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=45, second=50, misfire_grace_time=10)       # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据

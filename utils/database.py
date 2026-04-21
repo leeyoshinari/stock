@@ -509,6 +509,7 @@ class Detail(Base, CRUDBase):
     boll_up = Column(Float, nullable=True, comment="Boll up")
     boll_low = Column(Float, nullable=True, comment="Boll low")
     create_time = Column(DateTime, default=datetime.now)
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     __sortable__ = {
         'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate, 'fund': fund, 'create_time': create_time
