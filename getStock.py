@@ -13,14 +13,14 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from settings import BATCH_SIZE, All_STOCK_DATA_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, HTTP_HOST1, HTTP_HOST2
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HTTP_HOST3
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HTTP_HOST3, HISTORY_PATH
 from utils.model import StockModelDo, StockDataList
 from utils.scheduler import scheduler
 from utils.writer_queue import writer_queue
 from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
-from utils.ai_model import queryGemini, queryOpenAi, webSearchTopicBak
+from utils.ai_model import queryGemini, queryOpenAi, webSearchTopicBak, auto_buy_prompt
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes, find_shrink_stock
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
@@ -531,6 +531,10 @@ async def selectStockMetric():
                             if stock_dict and stock_dict['buy']:
                                 await Recommend.create(code=stock_code_id, name=ai_model_list[i]['name'], price=0.01, content=reason, source=0)
                                 send_msg.append(f"{stock_code_id} - {ai_model_list[i]['name']}, 当前价: {ai_model_list[i]['price']}")
+                                history_file = os.path.join(HISTORY_PATH, stock_code_id + "-buy.txt")
+                                history_txt = f"#这是买入提示词:\n{auto_buy_prompt} \n\n#这是股票数据:\n{json.dumps(stock_data)}\n\n#这是你识别出来的买入决策:\n{reason}"
+                                with open(history_file, 'w', encoding='utf-8') as f:
+                                    f.write(history_txt)
                             if has_index > 9:
                                 break
                         else:

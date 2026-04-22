@@ -182,7 +182,8 @@ document.getElementById("stock-return").addEventListener('click', () => {
             let s = `<div class="header">每只股票买入5000元的收益</div><div style="width:600px"><div class="return-table" style="font-weight:bold;"><span>时间</span><span>第一天</span><span>第二天</span><span>第三天</span><span>第四天</span><span>第五天</span></div>
                     <div class="return-table"><span>收盘时</span><span>${data.data.r1}</span><span>${data.data.r2}</span><span>${data.data.r3}</span><span>${data.data.r4}</span><span>${data.data.r5}</span></div>
                     <div class="return-table"><span>最高时</span><span>${data.data.r1h}</span><span>${data.data.r2h}</span><span>${data.data.r3h}</span><span>${data.data.r4h}</span><span>${data.data.r5h}</span></div>
-                    <div class="return-table"><span>最低时</span><span>${data.data.r1l}</span><span>${data.data.r2l}</span><span>${data.data.r3l}</span><span>${data.data.r4l}</span><span>${data.data.r5l}</span></div></div>`
+                    <div class="return-table"><span>最低时</span><span>${data.data.r1l}</span><span>${data.data.r2l}</span><span>${data.data.r3l}</span><span>${data.data.r4l}</span><span>${data.data.r5l}</span></div>
+                    <div class="return-table"><span></span><span></span><span></span><span></span><span style="font-size:large;">自动收益:</span><span style="color:${data.data.sale > 0 ? 'red' : 'green'};">${data.data.sale}</span></div></div>`
             document.getElementById("data-tips").innerHTML = s;
             document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
@@ -198,7 +199,7 @@ document.getElementById("stock-return-line").addEventListener('click', () => {
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
                 plot_trend(stockChart, data.data.x, data.data.y1, data.data.y1h, data.data.y1l, data.data.y2, data.data.y2h, data.data.y2l,
-                    data.data.y3, data.data.y3h, data.data.y3l, data.data.y4, data.data.y4h, data.data.y4l, data.data.y5, data.data.y5h, data.data.y5l
+                    data.data.y3, data.data.y3h, data.data.y3l, data.data.y4, data.data.y4h, data.data.y4l, data.data.y5, data.data.y5h, data.data.y5l, data.data.saleList
                 );
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }

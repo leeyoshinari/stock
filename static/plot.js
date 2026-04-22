@@ -424,7 +424,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
   option && myChart.setOption(option);
 };
 
-function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l) {
+function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l, saleList) {
   option = {
     title: {
       text: '每只股票买入5000元的收益',
@@ -450,9 +450,10 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
     },
     legend: [
       {
-        data: ['第一天收盘价', '第一天最高价', '第一天最低价', '第二天收盘价', '第二天最高价', '第二天最低价', '第三天收盘价', '第三天最高价', '第三天最低价', '第四天收盘价', '第四天最高价', '第四天最低价', '第五天收盘价', '第五天最高价', '第五天最低价'],
+        data: ['第一天收盘价', '第一天最高价', '第一天最低价', '第二天收盘价', '第二天最高价', '第二天最低价', '第三天收盘价', '第三天最高价', '第三天最低价', '第四天收盘价', '第四天最高价', '第四天最低价', '第五天收盘价', '第五天最高价', '第五天最低价', '自动卖出价'],
         x: 'center',
         y: 40,
+        selected: { '第一天收盘价': false, '第一天最高价': false, '第一天最低价': false, '第二天收盘价': false, '第二天最高价': false, '第二天最低价': false, '第三天收盘价': false, '第三天最高价': false, '第三天最低价': false, '第四天收盘价': false, '第四天最高价': false, '第四天最低价': false, '第五天收盘价': false, '第五天最高价': false, '第五天最低价': false}
       }
     ],
     dataZoom: [{
@@ -613,6 +614,14 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
         showSymbol: false,
         lineStyle: {width: 1},
         data: y5l
+      },{
+        name: '自动卖出价',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        showSymbol: false,
+        lineStyle: {width: 1},
+        data: saleList
       }
     ]
   };

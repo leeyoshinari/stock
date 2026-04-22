@@ -12,7 +12,7 @@ from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
 from utils.selectStock import getStockZhuLiFundFromTencent
-from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi
+from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sell_prompt
 from utils.logging import logger
 from utils.results import Result
 from utils.scheduler import scheduler
@@ -21,7 +21,7 @@ from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getSto
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands, getStockLimitUp, evaluate_sell_strategy
 from utils.database import Recommend, Stock, Detail, Tools, DBExecutor
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HISTORY_PATH
 
 
 alpha_trix = 2.0 / (12 + 1)
@@ -267,10 +267,10 @@ async def calc_stock_return(fee) -> Result:
         coupon = 13
         if fee > 0:
             coupon = 0
-        r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l, sale = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         x = []
-        y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
-        stocks: list[Recommend] = await Recommend.query().not_equal(source=1).order_by(Recommend.id.asc()).all()
+        y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l, saleList = [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
+        stocks: list[Recommend] = await Recommend.query().not_equal(source=1).greater(create_time='2026-03-27 00:00:00').order_by(Recommend.id.asc()).all()
         for s in stocks:
             s_time = s.create_time.strftime("%Y-%m-%d")
             if s_time in x:
@@ -290,6 +290,7 @@ async def calc_stock_return(fee) -> Result:
                 y5[index] = y5[index] + round(init_fund * (s.last_five_price or 0) / 100 - coupon, 2)
                 y5h[index] = y5h[index] + round(init_fund * (s.last_five_high or 0) / 100 - coupon, 2)
                 y5l[index] = y5l[index] + round(init_fund * (s.last_five_low or 0) / 100 - coupon, 2)
+                saleList[index] = round(saleList[index] + init_fund * ((s.sale_price or s.price) - s.price) / s.price - coupon, 2)
             else:
                 x.append(s_time)
                 y1.append(round(init_fund * (s.last_one_price or 0) / 100 - coupon, 2))
@@ -307,6 +308,7 @@ async def calc_stock_return(fee) -> Result:
                 y5.append(round(init_fund * (s.last_five_price or 0) / 100 - coupon, 2))
                 y5h.append(round(init_fund * (s.last_five_high or 0) / 100 - coupon, 2))
                 y5l.append(round(init_fund * (s.last_five_low or 0) / 100 - coupon, 2))
+                saleList.append(round(init_fund * ((s.sale_price or s.price) - s.price) / s.price - coupon, 2))
             r1 += round(init_fund * (s.last_one_price or 0) / 100 - coupon, 2)
             r1h += round(init_fund * (s.last_one_high or 0) / 100 - coupon, 2)
             r1l += round(init_fund * (s.last_one_low or 0) / 100 - coupon, 2)
@@ -322,11 +324,12 @@ async def calc_stock_return(fee) -> Result:
             r5 += round(init_fund * (s.last_five_price or 0) / 100 - coupon, 2)
             r5h += round(init_fund * (s.last_five_high or 0) / 100 - coupon, 2)
             r5l += round(init_fund * (s.last_five_low or 0) / 100 - coupon, 2)
+            sale += round(init_fund * ((s.sale_price or s.price) - s.price) / s.price - coupon, 2)
 
         result.data = {'r1': r1, 'r1h': r1h, 'r1l': r1l, 'r2': r2, 'r2h': r2h, 'r2l': r2l, 'r3': r3, 'r3h': r3h,
                        'r3l': r3l, 'r4': r4, 'r4h': r4h, 'r4l': r4l, 'r5': r5, 'r5h': r5h, 'r5l': r5l, 'x': x,
-                       'y1': y1, 'y1h': y1h, 'y1l': y1l, 'y2': y2, 'y2h': y2h, 'y2l': y2l, 'y3': y3, 'y3h': y3h,
-                       'y3l': y3l, 'y4': y4, 'y4h': y4h, 'y4l': y4l, 'y5': y5, 'y5h': y5h, 'y5l': y5l}
+                       'y1': y1, 'y1h': y1h, 'y1l': y1l, 'y2': y2, 'y2h': y2h, 'y2l': y2l, 'y3': y3, 'y3h': y3h, 'sale': sale,
+                       'y3l': y3l, 'y4': y4, 'y4h': y4h, 'y4l': y4l, 'y5': y5, 'y5h': y5h, 'y5l': y5l, 'saleList': saleList}
     except:
         logger.error(traceback.format_exc())
         result.success = False
@@ -800,6 +803,10 @@ async def auto_sell_stock():
                             logger.info(f"Auto sell stock strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
                             if s.code in AI_DECIDE:
                                 del AI_DECIDE[s.code]
+                            history_file = os.path.join(HISTORY_PATH, s.code + "-sell.txt")
+                            history_txt = f"#这是卖出系统提示词:\n{auto_sell_prompt} \n\n#这是股票数据:\n{prompt}\n\n#这是你识别出来的卖出决策:\n{ai_res['reason']}"
+                            with open(history_file, 'w', encoding='utf-8') as f:
+                                f.write(history_txt)
                         else:
                             AI_DECIDE.update({s.code: time.time()})
                             logger.info(f"Hold stock AI strategy - {s.code} - {s.name} - calc: {res} - AI: {ai_res}")
