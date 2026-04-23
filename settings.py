@@ -37,7 +37,7 @@ def get_config(key):
 sync_with_dotenv()  # 更新配置
 load_dotenv()   # 加载配置
 FILE_PATH = os.path.join(BASE_PATH, "files")
-HISTORY_PATH = os.path.join(BASE_PATH, "hostorys")
+HISTORY_PATH = os.path.join(BASE_PATH, "historys")
 PROMPT_PATH = os.path.join(BASE_PATH, "prompts")
 PREFIX = get_config("backEndPrefix")
 HOST = get_config("host")

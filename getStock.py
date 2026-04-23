@@ -715,7 +715,7 @@ async def setAllSHStock():
                             stock_list = res_json['pageHelp']['data']
                             for s in stock_list:
                                 code = s['A_STOCK_CODE']
-                                name = s['COMPANY_ABBR']
+                                name = s['COMPANY_ABBR'].replace(' ', '')
                                 if code.startswith("68"):
                                     continue
                                 try:
@@ -784,7 +784,7 @@ async def setAllSZStock():
                             stock_list = res_json['data']
                             for s in stock_list:
                                 code = s['agdm']
-                                name = s['agjc'].split('<u>')[-1].split('</u>')[0]
+                                name = s['agjc'].split('<u>')[-1].split('</u>')[0].replace(' ', '')
                                 if code.startswith("68"):
                                     continue
                                 try:

@@ -5,7 +5,6 @@
 import os
 import asyncio
 import json
-import traceback
 from logging import Logger
 from openai import AsyncOpenAI
 from settings import AI_MODEL, AI_MODEL25, PROMPT_PATH

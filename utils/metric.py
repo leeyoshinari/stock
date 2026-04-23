@@ -423,17 +423,17 @@ def analyze_intraday_structure(minute_data):
             current_streak = 0
 
     # ---------- 3. 尾盘跳水 ----------
-    last_price = prices[-1]
-    last5 = prices[-5:]
-    max5 = max(last5)
+    is_dump = False
+    if len(prices) > 10:
+        last_price = prices[-1]
+        last5 = prices[-10:]
+        max5 = max(last5)
 
-    drop = (max5 - last_price) / max5
-
-    is_dump = drop > 0.02   # 2%跳水
+        drop = (max5 - last_price) / max5
+        is_dump = drop > 0.02   # 2%跳水
 
     # ---------- 4. 综合弱势判断 ----------
     is_weak = False
-
     if below_ratio > 0.6 or max_streak > n * 0.3:
         is_weak = True
 
