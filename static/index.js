@@ -53,6 +53,7 @@ function getStockList() {
     if (stock_date || stock_date.trim()) {
         url = url + `&day=${stock_date}`;
     }
+    show_modal_cover();
     fetch(url)
         .then(res => res.json())
         .then(data => {
@@ -76,6 +77,7 @@ function getStockList() {
                 })
             })
         })
+        .finally(() => {close_modal_cover();})
 }
 
 function change_select() {page=1;getStockList();}
