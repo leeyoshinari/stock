@@ -324,11 +324,11 @@ async def calc_stock_return(fee) -> Result:
             r5 += round(init_fund * (s.last_five_price or 0) / 100 - coupon, 2)
             r5h += round(init_fund * (s.last_five_high or 0) / 100 - coupon, 2)
             r5l += round(init_fund * (s.last_five_low or 0) / 100 - coupon, 2)
-            sale += round(init_fund * ((s.sale_price or s.price) - s.price) / s.price - coupon, 2)
+            sale += init_fund * ((s.sale_price or s.price) - s.price) / s.price - coupon
 
         result.data = {'r1': r1, 'r1h': r1h, 'r1l': r1l, 'r2': r2, 'r2h': r2h, 'r2l': r2l, 'r3': r3, 'r3h': r3h,
                        'r3l': r3l, 'r4': r4, 'r4h': r4h, 'r4l': r4l, 'r5': r5, 'r5h': r5h, 'r5l': r5l, 'x': x,
-                       'y1': y1, 'y1h': y1h, 'y1l': y1l, 'y2': y2, 'y2h': y2h, 'y2l': y2l, 'y3': y3, 'y3h': y3h, 'sale': sale,
+                       'y1': y1, 'y1h': y1h, 'y1l': y1l, 'y2': y2, 'y2h': y2h, 'y2l': y2l, 'y3': y3, 'y3h': y3h, 'sale': round(sale, 2),
                        'y3l': y3l, 'y4': y4, 'y4h': y4h, 'y4l': y4l, 'y5': y5, 'y5h': y5h, 'y5l': y5l, 'saleList': saleList}
     except:
         logger.error(traceback.format_exc())

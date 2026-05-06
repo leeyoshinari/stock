@@ -230,7 +230,7 @@ async def getStockBanKuaiFromDOngCai(code: str) -> dict:
                 a = d['BOARD_NAME']
                 if ('昨日' in a or '连板' in a or '涨停' in a or '预增' in a or '预减' in a or '扭亏' in a or '财富热' in a or '百元股' in a or '次新股' in a or '最近' in a or 'ST股' in a or '0' in a or '创业' in a or '融资' in a or '沪股' in a or '转债' in a or '深股' in a or 'MSCI中国' in a or '标准普尔' in a or '富时罗素' in a or '证金持股' in a or '重仓' in a or '价值股' in a or '宁组合' in a or '茅指数' in a or '周期股' in a):
                     continue
-                concept.append(d['BOARD_NAME'].rstrip('_'))
+                concept.append(d['BOARD_NAME'].rstrip('_').strip())
         res = {'region': region, 'industry': industry, 'concept': ','.join(concept)}
     except Exception as e:
         res = {'msg': type(e).__name__}
