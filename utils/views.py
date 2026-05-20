@@ -547,7 +547,7 @@ async def set_stock(data: SetStockParam) -> Result:
             await Recommend.update(r[0].id, sale_price=float(data.buy_price), sale_time=date_obj)
             if data.sell_empty == '1':
                 for i in range(1, len(r)):
-                    await Recommend.update(r[i].id, sale_price=0.0, sale_time=date_obj)
+                    await Recommend.update(r[i].id, sale_price=float(data.buy_price), sale_time=date_obj)
             logger.info(f"Set Stock Sale Success - {stock.code} - {stock.name} - {data.operate_type}")
         if data.operate_type == "addFilter":
             if not data.tag:

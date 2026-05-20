@@ -440,7 +440,7 @@ async def checkTradeDay():
 
 
 async def selectStockMetric():
-    global current_topic
+    # global current_topic
     try:
         tool: Tools = await Tools.get_one("openDoor")
         current_day = tool.value

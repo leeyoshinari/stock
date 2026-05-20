@@ -156,7 +156,7 @@ class StockController(Controller):
             result = await views.get_topic_file(code)
         return result
 
-    @post('/set/stock', summary="查询完整题材分析")
+    @post('/set/stock', summary="设置股票数据")
     async def set_stock(self, request: Request, data: model.SetStockParam) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
