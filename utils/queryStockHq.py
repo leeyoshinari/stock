@@ -31,7 +31,7 @@ def getStockType(code: str) -> int:
     elif code.startswith("00"):
         return 1
     elif code.startswith("68"):
-        return 0
+        return 1
     elif code.startswith("30"):
         return 1
     else:

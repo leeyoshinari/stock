@@ -60,7 +60,7 @@ def getStockType(code: str) -> int:
     elif code.startswith("00"):
         return 1
     elif code.startswith("68"):
-        return 0
+        return 1
     elif code.startswith("30"):
         return 1
     else:
@@ -716,8 +716,6 @@ async def setAllSHStock():
                             for s in stock_list:
                                 code = s['A_STOCK_CODE']
                                 name = s['COMPANY_ABBR'].replace(' ', '')
-                                if code.startswith("68"):
-                                    continue
                                 try:
                                     s: Stock = await Stock.get_one(code)
                                     is_running = s.running
@@ -785,8 +783,6 @@ async def setAllSZStock():
                             for s in stock_list:
                                 code = s['agdm']
                                 name = s['agjc'].split('<u>')[-1].split('</u>')[0].replace(' ', '')
-                                if code.startswith("68"):
-                                    continue
                                 try:
                                     s: Stock = await Stock.get_one(code)
                                     is_running = s.running

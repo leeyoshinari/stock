@@ -142,6 +142,26 @@ class BaseQueryBuilder:
                 self._conditions.append(getattr(self.model, k).like(f"%{v}%"))
         return self
 
+    def startLike(self, **kwargs):
+        '''
+        await User.query().like(name="Tom").all()
+        SELECT * FROM user WHERE name LIKE 'Tom%';
+        '''
+        for k, v in kwargs.items():
+            if v:
+                self._conditions.append(getattr(self.model, k).like(f"{v}%"))
+        return self
+
+    def endLike(self, **kwargs):
+        '''
+        await User.query().like(name="Tom").all()
+        SELECT * FROM user WHERE name LIKE '%Tom';
+        '''
+        for k, v in kwargs.items():
+            if v:
+                self._conditions.append(getattr(self.model, k).like(f"%{v}"))
+        return self
+
     def greater_equal(self, **kwargs):
         '''
         await User.query().greater_equal(age=18).all()
