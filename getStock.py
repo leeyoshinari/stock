@@ -688,7 +688,7 @@ async def updateStockBanKuai(ban=0):
         logger.error(traceback.format_exc())
 
 
-async def setAllSHStock():
+async def setAllSHStock(stock_type: str = "1"):
     tool: Tools = await Tools.get_one("openDoor")
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
@@ -699,7 +699,10 @@ async def setAllSHStock():
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
                 'host': 'query.sse.com.cn', 'referer': 'https://www.sse.com.cn/'
             }
-            res = await http.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={page}&pageHelp.pageSize=50&pageHelp.pageNo={page}&pageHelp.endPage={page}&_={t}", headers=hh)
+            if stock_type == '8':
+                res = await http.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback93570008&STOCK_TYPE=8&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={page}&pageHelp.pageSize=50&pageHelp.pageNo={page}&pageHelp.endPage={page}&_={t}", headers=hh)
+            else:
+                res = await http.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={page}&pageHelp.pageSize=50&pageHelp.pageNo={page}&pageHelp.endPage={page}&_={t}", headers=hh)
             if res.status_code == 200:
                 res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
                 res_json = json.loads('{' + res_text + '}')
@@ -708,7 +711,10 @@ async def setAllSHStock():
                 for p in range(total_page):
                     try:
                         t = int(time.time() * 1000)
-                        res = await http.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={p + 1}&pageHelp.pageSize=50&pageHelp.pageNo={p + 1}&pageHelp.endPage={p + 1}&_={t}", headers=hh)
+                        if stock_type == '8':
+                            res = await http.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback93570008&STOCK_TYPE=8&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={p + 1}&pageHelp.pageSize=50&pageHelp.pageNo={p + 1}&pageHelp.endPage={p + 1}&_={t}", headers=hh)
+                        else:
+                            res = await http.get(f"https://query.sse.com.cn/sseQuery/commonQuery.do?jsonCallBack=jsonpCallback48155236&STOCK_TYPE=1&REG_PROVINCE=&CSRC_CODE=&STOCK_CODE=&sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L&COMPANY_STATUS=2%2C4%2C5%2C7%2C8&type=inParams&isPagination=true&pageHelp.cacheSize=1&pageHelp.beginPage={p + 1}&pageHelp.pageSize=50&pageHelp.pageNo={p + 1}&pageHelp.endPage={p + 1}&_={t}", headers=hh)
                         if res.status_code == 200:
                             res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
                             res_json = json.loads('{' + res_text + '}')
@@ -728,7 +734,7 @@ async def setAllSHStock():
                                     if 'ST' in s.name.upper() and 'ST' not in name.upper() and '退' not in name:
                                         is_running = min(getStockType(code), 1)
                                         await Stock.update(s.code, running=is_running, name=name)
-                                        logger.info(f"股票 {s.name} - {s.code}  | {name} - {code} 重新上市, 继续处理...")
+                                        logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 重新上市, 继续处理...")
                                         resubmit_list.append(f"{name} - {code}")
                                         await initStockData(code, name, logger)
                                         continue
@@ -752,6 +758,7 @@ async def setAllSHStock():
                 await updateStockBanKuai(ban=1)
                 if (len(resubmit_list) > 0):
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{','.join(resubmit_list)}，请检查数据～")
+            scheduler.add_job(setAllSHStock, 'date', run_date=datetime.now() + timedelta(seconds=30), args=["1"])
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
@@ -793,7 +800,8 @@ async def setAllSZStock():
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 处于退市状态, 忽略掉...")
                                         continue
                                     if 'ST' in s.name.upper() and 'ST' not in name.upper() and '退' not in name:
-                                        await Stock.update(s.code, running=1, name=name)
+                                        is_running = min(getStockType(code), 1)
+                                        await Stock.update(s.code, running=is_running, name=name)
                                         logger.info(f"股票 {s.name} - {s.code} | {name} - {code} 重新上市, 继续处理...")
                                         resubmit_list.append(f"{name} - {code}")
                                         await initStockData(code, name, logger)
@@ -921,7 +929,7 @@ async def clearStockData():
 
 async def main():
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)    # 启动任务
-    scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=5, second=20)    # 中午更新股票信息
+    scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"])    # 中午更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20)    # 中午更新股票信息
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=48, second=30, misfire_grace_time=10)  # 开始选股
     scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
