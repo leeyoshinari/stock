@@ -4,3 +4,6 @@ port=$(cat .env | grep -E "^port" | awk -F '=' '{print $2}' | awk -F '\r' '{prin
 gcmd=$(cat .env | grep -E "^gunicornCmd" | awk -F '=' '{print $2}' | awk -F '\r' '{print $1}' | tr -d '[:space:]')
 $gcmd main:app -b $ip:$port -k uvicorn.workers.UvicornWorker --timeout 30 --daemon
 echo "start server success ~"
+
+nohup python3 getStock.py 2>&1 &
+echo "start run python3 getStock.py ~"

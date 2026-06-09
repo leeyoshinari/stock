@@ -7,3 +7,6 @@ else
 	ss -antp|grep $port |awk -F 'pid=' '{print $2 $3}'|awk -F ',' '{print $1, $4}' |xargs kill -9
 fi
 echo "Stop $port success ~"
+
+ps -ef|grep getStock |grep -v grep |awk -F ' ' '{print $2}' | xargs kill -9
+echo "Stop getStock success ~"
