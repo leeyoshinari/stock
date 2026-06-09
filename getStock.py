@@ -758,7 +758,8 @@ async def setAllSHStock(stock_type: str = "1"):
                 await updateStockBanKuai(ban=1)
                 if (len(resubmit_list) > 0):
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '股票重新上市', f"{','.join(resubmit_list)}，请检查数据～")
-            scheduler.add_job(setAllSHStock, 'date', run_date=datetime.now() + timedelta(seconds=30), args=["1"])
+            if stock_type == '8':
+                scheduler.add_job(setAllSHStock, 'date', run_date=datetime.now() + timedelta(seconds=30), args=["1"])
         except:
             logger.error(traceback.format_exc())
             logger.error("数据更新异常...")
