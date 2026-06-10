@@ -106,7 +106,10 @@ async def getStockHqFromTencent(host: str, datas: list[dict], logger: Logger) ->
                     if int(stockInfo[6]) < 2:
                         logger.info(f"Tencent({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                         continue
-                    stockDo.volume = int(int(stockInfo[6]))
+                    if stockInfo[2].startswith('68'):
+                        stockDo.volume = int(int(stockInfo[6]) / 100)
+                    else:
+                        stockDo.volume = int(int(stockInfo[6]))
                     stockDo.max_price = float(stockInfo[33])
                     stockDo.min_price = float(stockInfo[34])
                     stockDo.turnover_rate = float(stockInfo[38])
