@@ -215,8 +215,12 @@ async def update_stock_turnover_rate(code, logger):
 
 
 async def getStockFundFlow(code, logger):
-    '''从东方财富获取资金流向'''
-    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    '''从东方财富获取资金流向
+    https://data.eastmoney.com/zjlx/002149.html
+    '''
+    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+              'host': 'push2his.eastmoney.com', 'origin': 'https://data.eastmoney.com', 'referer': 'https://data.eastmoney.com',
+              'cookie': 'qgqp_b_id=90ff9cece2b5376eed839c7647c1a384; st_nvi=DAEZmT6_IGPV69Jnwsext19b4; nid18=0ce3a2e7865907ec479232c109e9c66d; nid18_create_time=1774771963378; gviem=LnbiLwS1OD_EouwM6TNqufe83; gviem_create_time=1774771963378; st_si=99964515563219; fullscreengg=1; fullscreengg2=1; st_asi=delete; st_pvi=30251663156867; st_sp=2026-03-29%2016%3A12%3A42; st_inirUrl=http%3A%2F%2F127.0.0.1%3A15200%2F; st_sn=3; st_psi=20260610114559276-113300300815-4160101167'}
     try:
         rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
         url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{int(time.time() * 1000)}&klt=101&_={int(time.time() * 1000)}'

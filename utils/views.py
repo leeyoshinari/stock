@@ -16,7 +16,7 @@ from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sel
 from utils.logging import logger
 from utils.results import Result
 from utils.scheduler import scheduler
-from utils.initData import initStockData
+from utils.initData import initStockData, getStockFundFlow
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands, getStockLimitUp, evaluate_sell_strategy
@@ -609,9 +609,10 @@ async def init_stock_data_bak() -> Result:
             if 'ST' in s.name.upper() or '退' in s.name:
                 logger.warning(f'跳过 {s.name} - {s.code}')
                 continue
-            await initStockData(s.code, s.name, logger)
+            # await initStockData(s.code, s.name, logger)
+            await getStockFundFlow(s.code, logger)
             logger.info(f"成功： {s.code} - {s.name}")
-            await asyncio.sleep(8)
+            await asyncio.sleep(5)
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
