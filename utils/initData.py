@@ -142,6 +142,9 @@ async def getAllStockData(code, logger):
             ema3 = float(data_basic[-1][2])
             pre_ema3 = ema3
             trix_list = []
+            # 第一天初始化
+            kdjj = 3 * (2.0 * kdjk / 3 + 50 / 3) - 2 * (2.0 * kdjd / 3 + (2.0 * kdjk / 3 + 50 / 3) / 3)
+            await Detail.update((code, data_basic[-1][0]), emas=ema1, emal=ema1, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj, trix_ema_one=ema1, trix_ema_two=ema2, trix_ema_three=ema3, trix=0, trma=0)
             for item in data_basic[::-1][1:]:
                 price = float(item[2])
                 high_price.append(float(item[3]))
