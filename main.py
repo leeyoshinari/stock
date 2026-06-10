@@ -208,6 +208,7 @@ async def lifespan(app: Litestar):
     scheduler.add_job(zip_file, 'cron', hour=16, minute=20, second=20, args=[[db_path], zip_path, logger], misfire_grace_time=10)  # 备份数据库
     scheduler.add_job(views.start_auto_sell_stock, 'cron', hour=9, minute=34, second=50)
     scheduler.add_job(views.stop_auto_sell_stock, 'cron', hour=14, minute=58, second=58)
+    scheduler.add_job(views.init_stock_data_bak, 'cron', hour=16, minute=8, second=58)
     scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
     worker_task = asyncio.create_task(write_worker())
     await modify_sw()

@@ -601,6 +601,24 @@ async def init_stock_data(code: str) -> Result:
     return result
 
 
+async def init_stock_data_bak() -> Result:
+    result = Result()
+    try:
+        stocks: list[Stock] = await Stock.query().equal(running=1).startLike(code="68").all()
+        for s in stocks:
+            if 'ST' in s.name.upper() or '退' in s.name:
+                logger.warning(f'跳过 {s.name} - {s.code}')
+                continue
+            await initStockData(s.code, s.name, logger)
+            logger.info(f"成功： {s.code} - {s.name}")
+            await asyncio.sleep(8)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
 async def calc_stock_real_data(code: str, site: str = None) -> dict:
     if site == 'sina':
         res_stock: dict = await getStockHqFromSina('', [{code: "-"}], logger)
