@@ -216,7 +216,7 @@ async def getStockFundFlow(code, logger):
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     try:
         rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
-        url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{int(time.time() * 1000)}'
+        url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{int(time.time() * 1000)}&klt=101&_={int(time.time() * 1000)}'
         res = await http.get(url, headers=header)
         res_json = json.loads(res.text.split('(')[1].split(')')[0])
         klines = res_json['data']['klines']
@@ -234,6 +234,7 @@ async def getStockFundFlow(code, logger):
                 logger.info(f"fund: {day} - {code} - {money}")
             except:
                 logger.error(f"Error fund - {code} - {day}")
+                logger.error(traceback.format_exc())
     except:
         logger.error(traceback.format_exc())
 
