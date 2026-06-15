@@ -132,6 +132,13 @@ class StockController(Controller):
             result = await views.init_stock_data(code)
         return result
 
+    @post('/stock/fund/update', summary="更新股票主力资金数据")
+    async def init_stock_fund_data(self, request: Request, data: model.updateFundDo) -> Result:
+        result = Result()
+        if not checkout(request.headers.get('referered', '123')):
+            result = await views.init_stock_fund_data(data)
+        return result
+
     @get('/topic/list', summary="查询热门题材列表")
     async def all_topic_list(self, request: Request, page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
@@ -208,7 +215,6 @@ async def lifespan(app: Litestar):
     scheduler.add_job(zip_file, 'cron', hour=16, minute=20, second=20, args=[[db_path], zip_path, logger], misfire_grace_time=10)  # 备份数据库
     scheduler.add_job(views.start_auto_sell_stock, 'cron', hour=9, minute=34, second=50)
     scheduler.add_job(views.stop_auto_sell_stock, 'cron', hour=14, minute=58, second=58)
-    scheduler.add_job(views.init_stock_data_bak, 'cron', hour=16, minute=8, second=58)
     scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
     worker_task = asyncio.create_task(write_worker())
     await modify_sw()

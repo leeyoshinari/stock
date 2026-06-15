@@ -9,7 +9,7 @@ import asyncio
 import traceback
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
-from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo
+from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sell_prompt
@@ -601,18 +601,12 @@ async def init_stock_data(code: str) -> Result:
     return result
 
 
-async def init_stock_data_bak() -> Result:
+async def init_stock_fund_data(query: updateFundDo) -> Result:
     result = Result()
     try:
-        stocks: list[Stock] = await Stock.query().equal(running=1).startLike(code="68").all()
-        for s in stocks:
-            if 'ST' in s.name.upper() or '退' in s.name:
-                logger.warning(f'跳过 {s.name} - {s.code}')
-                continue
-            # await initStockData(s.code, s.name, logger)
-            await getStockFundFlow(s.code, logger)
-            logger.info(f"成功： {s.code} - {s.name}")
-            await asyncio.sleep(5)
+        stock: Stock = await Stock.get_one(query.code)
+        await getStockFundFlow(query.code, query.cookie, logger)
+        logger.info(f"更新股票主力资金数据成功 - {query.code} - {stock.name}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
