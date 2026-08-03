@@ -576,3 +576,22 @@ class Tools(Base, CRUDBase):
     key = Column(String(8), primary_key=True, comment="键")
     value = Column(String(255), nullable=False, comment="值")
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class Holds(Base, CRUDBase):
+    __tablename__ = 'holds'
+    __table_args__ = (
+        Index('idx_recommend_code', 'code'),
+        {'sqlite_autoincrement': True}
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(8), nullable=False, comment="股票代码")
+    name = Column(String(8), nullable=False, comment="股票名称")
+    price = Column(Float, nullable=False, comment="持仓成本")
+    shares = Column(Integer, default=0, nullable=False, comment="持仓数量")
+    sale_price = Column(Float, nullable=True, comment="清仓价格")
+    sale_time = Column(DateTime, nullable=True, comment="卖出时间")
+    user_id = Column(Integer, nullable=False, comment="用户Id")
+    create_time = Column(DateTime, default=datetime.now)
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="icon" type="image/x-icon" href="{{ prefix }}/static/favicon.svg">
+    <link rel="stylesheet" href="{{ prefix }}/static/index.css">
+    <script>
+        const prefix = "{{ prefix }}";
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-filter">
+                <div>
+                    <button id="pre-page">上一页</button>
+                </div>
+                <div>
+                    <button id="next-page">下一页</button>
+                </div>
+            </div>
+        </div>
+        <div class="stock-list">
+            <div class="item-header">
+                <div>股票名称</div>
+                <div>股票代码</div>
+                <div>持仓成本</div>
+                <div>持仓股数</div>
+                <div>买入时间</div>
+                <div>持仓天数</div>
+                <div>收益(%)</div>
+            </div>
+            <div class="list"></div>
+        </div>
+        <div class="stock-chart"><div id="figure"></div></div>
+        <div class="stock-data"><div id="data-tips"></div></div>
+        <div class="modal_cover"><div class="modal_gif"></div></div>
+    </div>
+</body>
+<script src="{{ prefix }}/static/hold.js"></script>
+<script src="{{ prefix }}/static/echarts.min.js"></script>
+<script src="{{ prefix }}/static/plot.js"></script>
+</html>

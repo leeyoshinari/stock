@@ -34,4 +34,4 @@ def sendEmail(sender, receiver, password, subject, msg):
 
 
 if __name__ == '__main__':
-    sendEmail("测试一下\n小米\t20.21\n没制止\t34.5")
+    sendEmail("测试一下")

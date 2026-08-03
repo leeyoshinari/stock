@@ -88,7 +88,7 @@ function getStockList() {
                 if (showFlag) {
                     setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" /><img id="buy-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="buy_stocks('${item.code}', '${item.name}');" />`;
                 }
-                s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a>${setFlag}</div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
+                s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a><img id="hold-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="hold_stock('${item.code}', '${item.name}');" />${setFlag}</div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
                       <div><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}', 'buy');" style="width:20px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:20px;margin-right:3%;" /><img id="shrink-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}', 'shrink');" style="width:20px;" /></div>
                       <div><a target="_blank" href="https://quote.eastmoney.com/concept/${getStockRegion(item.code)}${item.code}.html#chart-k-cyq">${item.region}</a></div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })
@@ -162,6 +162,12 @@ function buy_stocks(code, name) {
     document.getElementsByClassName("stock-data")[0].style.display = "flex";
 }
 
+function hold_stock(code, name) {
+    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="datetime-local" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div class="title"><label>数量：</label><input type="text" id="buy-number" placeholder="" autocomplete="off"></div><div class="title"><label>用户：</label><select id="hold-user"><option value='1'>用户1</option><option value='2'>用户2</option></select></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_hold('${code}', '1');">买入</button><button onclick="set_stock_hold('${code}', '0');">卖出</button></div></div>`;
+    document.getElementById("data-tips").innerHTML = s;
+    document.getElementsByClassName("stock-data")[0].style.display = "flex";
+}
+
 function show_concept(code) {
     let codeEle = document.getElementById('concept-' + code);
     document.getElementById("data-tips").innerText = code + '\n' + codeEle.innerText;
@@ -215,6 +221,24 @@ function set_stock_buy(code, operate_type) {
     }
     let headers = {'content-type': 'application/json;charset=UTF-8'};
     fetch(`${prefix}/set/stock`, {
+        method: "POST",
+        headers: { ...headers },
+        body: JSON.stringify(data)
+    }).then(res => res.json())
+    .then(data => {
+        if (!data.success) {alert(data.msg);} else {document.getElementsByClassName("stock-data")[0].style.display = "none";}
+    })
+}
+
+function set_stock_hold(code, status) {
+    let time = document.getElementById("buy-time").value;
+    let price = document.getElementById("buy-price").value;
+    let number = document.getElementById("buy-number").value;
+    let userId = document.getElementById("hold-user").value;
+    let data = { code, status, time, price, number, userId };
+
+    let headers = {'content-type': 'application/json;charset=UTF-8'};
+    fetch(`${prefix}/hold/set`, {
         method: "POST",
         headers: { ...headers },
         body: JSON.stringify(data)

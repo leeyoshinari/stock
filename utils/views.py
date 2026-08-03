@@ -9,8 +9,8 @@ import asyncio
 import traceback
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
-from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo
-from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
+from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo, HoldStockList
+from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam, SetStockHold
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sell_prompt
 from utils.logging import logger
@@ -20,7 +20,7 @@ from utils.initData import initStockData, getStockFundFlow
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands, getStockLimitUp, evaluate_sell_strategy
-from utils.database import Recommend, Stock, Detail, Tools, DBExecutor
+from utils.database import Recommend, Stock, Detail, Tools, DBExecutor, Holds
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HISTORY_PATH
 
 
@@ -444,6 +444,22 @@ async def calc_stock_real(code: str, site: str = None) -> Result:
     return result
 
 
+async def get_current_price(code: str, site: str = None) -> Result:
+    result = Result()
+    try:
+        if site == 'sina':
+            res: list[StockMinuteDo] = await getMinuteKFromSina('', code, logger)
+        else:
+            res: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
+        result.data = res[-1].price
+        logger.info(f"query current stock price success - {code}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
 async def all_stock_info(query: SearchStockParam) -> Result:
     result = Result()
     try:
@@ -678,6 +694,86 @@ async def get_data_by_day(code: str, day: str) -> Result:
         logger.info(result.data)
     except:
         logger.error(traceback.format_exc())
+    return result
+
+
+async def get_user_hold(userId: str) -> Result:
+    result = Result()
+    try:
+        data = []
+        stock: list[Holds] = await Holds.query().equal(user_id=userId).greater(shares=0).order_by(Holds.create_time.asc()).all()
+        for s in stock:
+            d = f"中国A股市场，当前持有股票:{s.name}，代码:{s.code}，买入时间:{s.create_time.strftime("%Y-%m-%d")}，持仓成本:{s.price}，持仓数量:{s.shares}股"
+            data.append(d)
+        result.data = data
+        logger.info(f"查询用户{userId} 持仓：{';'.join(data)}")
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
+async def set_user_hold(data: SetStockHold) -> Result:
+    result = Result()
+    try:
+        cost = 0
+        shares = 0
+        stock: Stock = await Stock.get_one(data.code)
+        has_hold: list[Holds] = await Holds.query().equal(code=data.code, user_id=data.userId).greater(shares=0).all()
+        if has_hold and len(has_hold) == 1:
+            cost = has_hold[0].price
+            shares = has_hold[0].shares
+        if data.status == 1:    # 建仓/加仓
+            total_value = cost * shares + data.price * data.number
+            shares += data.number
+            cost = round(total_value / shares, 6)
+            if has_hold and len(has_hold) == 1:
+                await Holds.update(has_hold[0].id, name=stock.name, price=cost, shares=shares)
+            else:
+                date_obj = datetime.strptime(data.time.replace("T", " ") + ":00", "%Y-%m-%d %H:%M:%S")
+                await Holds.create(code=data.code, name=stock.name, price=cost, shares=shares, user_id=data.userId, create_time=date_obj)
+        if data.status == 0:    # 减仓/清仓
+            if data.number > shares:
+                raise Exception("卖出数量大于持仓数量")
+            profit = (data.price - cost) * data.number
+            shares -= data.number
+            if shares != 0:
+                cost = cost - (profit / shares)
+            date_obj = datetime.strptime(data.time.replace("T", " ") + ":00", "%Y-%m-%d %H:%M:%S")
+            await Holds.update(has_hold[0].id, name=stock.name, price=cost, shares=shares, sale_price=data.price, sale_time=date_obj)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def queryHoldStockList(page: int = 1) -> Result:
+    result = Result()
+    pageSize = 20
+    try:
+        offset = (page - 1) * pageSize
+        total_num: int = await Holds.query().count()
+        stockInfo: list[Holds] = await Holds.query().order_by(Holds.create_time.desc()).offset(offset).limit(pageSize).all()
+        stockList = [HoldStockList.from_orm_format(f).model_dump() for f in stockInfo]
+        result.total = total_num
+        result.data = stockList
+        logger.info("Query Hold Stock List Success ~")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def deleteHoldStock(rId: int) -> Result:
+    result = Result()
+    try:
+        _ = await Holds.query().equal(id=rId).delete()
+        logger.info(f"Delete Hold Stock {rId} Success ~")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
     return result
 
 

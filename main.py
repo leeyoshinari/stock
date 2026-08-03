@@ -102,6 +102,13 @@ class StockController(Controller):
             result = await views.calc_stock_real(code, site)
         return result
 
+    @get('/query/price', summary="查询股票当前价格")
+    async def stock_current_price(self, request: Request, code: str, site: str = None) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.get_current_price(code, site)
+        return result
+
     @get('/stock/list', summary="查询股票信息")
     async def all_stock_list(self, request: Request, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
@@ -175,6 +182,30 @@ class StockController(Controller):
         result = await views.get_data_by_day(code, day)
         return result
 
+    @get('/hold/list', summary="查询仓位列表")
+    async def get_hold_list(self, request: Request, page: int = 1) -> Result:
+        result = await views.queryHoldStockList(page)
+        return result
+
+    @get('/hold/get/{userId: str}', summary="查询仓位数据")
+    async def get_user_hold(self, userId: str) -> Result:
+        result = await views.get_user_hold(userId)
+        return result
+
+    @post('/hold/set', summary="设置仓位数据")
+    async def set_hold(self, request: Request, data: model.SetStockHold) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.set_user_hold(data)
+        return result
+
+    @get('/deleteHold', summary="删除持仓的股票")
+    async def delte_hold(self, request: Request, hId: int) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.deleteHoldStock(hId)
+        return result
+
     @post('/test')
     async def test(self, request: Request, data: model.ToolsInfoList) -> Result:
         result = await views.test(data)
@@ -201,12 +232,17 @@ async def topic_list(request: Request) -> Template:
     return Template("topic.html", context={'prefix': PREFIX})
 
 
+@get("/h")
+async def hold_list(request: Request) -> Template:
+    return Template("hold.html", context={'prefix': PREFIX})
+
+
 @get("/")
 async def home(request: Request) -> Template:
     return Template("home.html", context={'prefix': PREFIX})
 
 
-route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[home, index, recommend, stock_list, topic_list])]
+route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[home, index, recommend, stock_list, topic_list, hold_list])]
 
 
 @asynccontextmanager
