@@ -700,13 +700,13 @@ async def get_data_by_day(code: str, day: str) -> Result:
 async def get_user_hold(userId: str) -> Result:
     result = Result()
     try:
-        data = []
         stock: list[Holds] = await Holds.query().equal(user_id=userId).greater(shares=0).order_by(Holds.create_time.asc()).all()
-        for s in stock:
-            d = f"中国A股市场，当前持有股票:{s.name}，代码:{s.code}，买入时间:{s.create_time.strftime("%Y-%m-%d")}，持仓成本:{s.price}，持仓数量:{s.shares}股"
-            data.append(d)
-        result.data = data
-        logger.info(f"查询用户{userId} 持仓：{';'.join(data)}")
+        # for s in stock:
+        #     d = f"中国A股市场，当前持有股票:{s.name}，代码:{s.code}，买入时间:{s.create_time.strftime("%Y-%m-%d")}，持仓成本:{s.price}，持仓数量:{s.shares}股"
+        #     data.append(d)
+        stockList = [HoldStockList.from_orm_format(f).model_dump() for f in stock]
+        result.data = stockList
+        logger.info(f"查询用户{userId} 持仓：{result.data}")
     except:
         logger.error(traceback.format_exc())
     return result
