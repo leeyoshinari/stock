@@ -706,8 +706,10 @@ async def get_user_hold(userId: str) -> Result:
         #     data.append(d)
         stockList = [HoldStockList.from_orm_format(f).model_dump() for f in stock]
         result.data = stockList
+        result.total = len(stockList)
         logger.info(f"查询用户{userId} 持仓：{result.data}")
     except:
+        result.success = False
         logger.error(traceback.format_exc())
     return result
 

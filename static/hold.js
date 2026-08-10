@@ -19,9 +19,18 @@ function currentDate() {
 function getDayDiff(startDateStr, endDateStr) {
     const start = new Date(startDateStr);
     const end = new Date(endDateStr);
-    const diffInMs = end - start;
-    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-    return diffInDays + 1;
+    if (start > end) return 0;
+    let workDaysCount = 0;
+    let currentDate = new Date(start);
+
+    while (currentDate <= end) {
+        const dayOfWeek = currentDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            workDaysCount++;
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return workDaysCount;
 }
 
 document.getElementById("pre-page").addEventListener("click", () => {
