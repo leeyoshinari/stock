@@ -786,7 +786,7 @@ async def getHoldAiText(rId: int) -> Result:
     try:
         stock = await Holds.get_one(rId)
         result.data = stock.content
-        logger.info(f"get Hold Stock AI text {rId} Success ~")
+        logger.info(f"get Hold Stock AI text {rId} - {stock.code} - {stock.name} Success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
