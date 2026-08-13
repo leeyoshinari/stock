@@ -5,15 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link rel="icon" type="image/x-icon" href="{{ prefix }}/static/favicon.svg">
     <link rel="stylesheet" href="{{ prefix }}/static/index.css">
-    <!-- 引入 GitHub 浅色样式 (指定 light 版本最稳定) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-light.min.css">
-    <!-- 代码高亮样式 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
-
-    <!-- 核心 JS 库 -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
+    <link rel="stylesheet" href="{{ prefix }}/static/github-markdown-light.min.css">
+    <link rel="stylesheet" href="{{ prefix }}/static/github.min.css">
+    <script src="{{ prefix }}/static/marked.min.js"></script>
+    <script src="{{ prefix }}/static/highlight.min.js"></script>
+    <script src="{{ prefix }}/static/purify.min.js"></script>
     <script>
         const prefix = "{{ prefix }}";
     </script>
