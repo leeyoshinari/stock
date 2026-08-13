@@ -10,7 +10,7 @@ import traceback
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo, HoldStockList
-from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam, SetStockHold
+from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam, SetStockHold, SetStockAiText
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sell_prompt
 from utils.logging import logger
@@ -742,6 +742,20 @@ async def set_user_hold(data: SetStockHold) -> Result:
                 cost = cost - (profit / shares)
             date_obj = datetime.strptime(data.time.replace("T", " ") + ":00", "%Y-%m-%d %H:%M:%S")
             await Holds.update(has_hold[0].id, name=stock.name, price=cost, shares=shares, sale_price=data.price, sale_time=date_obj)
+        logger.info(f"设置用户持仓数据成功, 用户: {data.userId}, 股票: {data.code}, 数据: {data}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def set_hold_ai_text(data: SetStockAiText) -> Result:
+    result = Result()
+    try:
+        stock = await Holds.get_one(data.id)
+        await Holds.update(stock.id, content=data.content)
+        logger.info(f"设置买入股票分析内容成功, 用户: {stock.user_id}, 股票: {stock.code} - {stock.name}, 内容: {data.content}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -760,6 +774,19 @@ async def queryHoldStockList(page: int = 1) -> Result:
         result.total = total_num
         result.data = stockList
         logger.info("Query Hold Stock List Success ~")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def getHoldAiText(rId: int) -> Result:
+    result = Result()
+    try:
+        stock = await Holds.get_one(rId)
+        result.data = stock.content
+        logger.info(f"get Hold Stock AI text {rId} Success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

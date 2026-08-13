@@ -61,18 +61,22 @@ function getStockList() {
                 if (item.sale_time && item.sale_time.length > 6) {
                     sale_time = item.sale_time;
                 }
-                let profit = `<div><a onclick="query_profit('${item.id}', '${item.code}')" style="cursor:pointer;">查看</a></div>`;
+                let profit = `<a onclick="query_profit('${item.id}', '${item.code}')" style="cursor:pointer;">查看</a>`;
                 let profit_color = '';
                 if (item.sale_price && item.sale_price > 0 && item.shares === 0) {
                     profit = ((item.sale_price - item.price) / item.price * 100).toFixed(2) + '%';
                     profit_color = item.sale_price > item.price ? "red" : item.sale_price < item.price ? "green" : "";
                 }
+                let ai_ele = `<a onclick="set_ai_figure('${item.id}', '${item.code}')" style="cursor:pointer;">设置</a>`;
+                if (item.content && item.content.length > 20) {
+                    ai_ele = `<a onclick="query_ai_hold('${item.id}')" style="cursor:pointer;">查看</a>`;
+                }
                 let deleteR = '';
                 if (showFlag) {
-                    deleteR = `<div><a onclick="delete_data('${item.id}')">删除</a></div>`;
+                    deleteR = `<div><a onclick="set_ai_figure('${item.id}', '${item.code}')" style="cursor:pointer;">设置</a></div><div><a onclick="delete_data('${item.id}')">删除</a></div>`;
                 }
                 s += `<div id="${item.code}-${item.create_time}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div>
-                      <div id="price-${item.id}">${item.price}</div><div>${item.shares > 0 ? item.shares : "已清仓"}</div><div>${item.create_time}</div><div>${getDayDiff(item.create_time, sale_time)}</div><div id="profit-${item.id}" style="color:${profit_color};">${profit}</div>${deleteR}</div>`;
+                      <div id="price-${item.id}">${item.price}</div><div>${item.shares > 0 ? item.shares : "已清仓"}</div><div>${item.create_time}</div><div>${getDayDiff(item.create_time, sale_time)}</div><div id="profit-${item.id}" style="color:${profit_color};">${profit}</div><div>${ai_ele}</div>${deleteR}</div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -123,6 +127,58 @@ function get_stock_real_figure(code) {
         .finally(() => {close_modal_cover();})
 }
 
+function set_ai_figure(itemId, code) {
+    let s = `<div class="header">${code}</div><div><textarea id="aicomment" rows="15" style="width:600px;" required></textarea></div><div><button onclick="set_ai_text('${itemId}')">确定</button></div>`;
+    document.getElementById("data-tips").innerHTML = s;
+    document.getElementsByClassName("stock-data")[0].style.display = "flex";
+}
+
+function set_ai_text(itemId) {
+    show_modal_cover();
+    let post_data = {
+        id: itemId,
+        content: document.getElementById("aicomment").value
+    }
+    let headers = {'content-type': 'application/json;charset=UTF-8'};
+    fetch(`${prefix}/hold/ai/set`, {
+        method: "POST",
+        headers: { ...headers },
+        body: JSON.stringify(post_data)
+    }).then(res => res.json())
+    .then(data => {
+        if (!data.success) {
+            console.log(data.msg);
+        } else {
+            getStockList();
+        }
+    })
+    .finally(() => {close_modal_cover();})
+}
+
+function query_ai_hold(itemId) {
+    show_modal_cover();
+    fetch(`${prefix}/hold/ai/get?hId=${itemId}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                marked.use({
+                    renderer: {
+                        code({ text, lang }) {
+                            const validLang = (lang && hljs.getLanguage(lang)) ? lang : 'plaintext';
+                            const highlighted = hljs.highlight(text, { language: validLang }).value;
+                            return `<pre><code class="hljs ${validLang}">${highlighted}</code></pre>`;
+                        }
+                    }
+                });
+                const rawHtml = marked.parse(data.data);
+                const cleanHtml = DOMPurify.sanitize(rawHtml);
+                document.getElementById("stock-content").innerHTML = cleanHtml;
+                document.getElementById("stock-content-ai").style.display = "block";
+            }
+        })
+        .finally(() => {close_modal_cover();})
+}
+
 function query_profit(itemId, code) {
     show_modal_cover();
     fetch(`${prefix}/query/price?code=${code}&site=`)
@@ -150,11 +206,15 @@ function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style
 
 const overlay = document.querySelector('.stock-chart');
 const overlay_data = document.querySelector('.stock-data');
+const overlay_content = document.querySelector('#stock-content-ai');
 overlay.addEventListener('click', function(event) {
   if (event.target === overlay) {overlay.style.display = 'none';}
 });
 overlay_data.addEventListener('click', function(event) {
   if (event.target === overlay_data) {overlay_data.style.display = 'none';}
+});
+overlay_content.addEventListener('click', function(event) {
+  if (event.target === overlay_content) {overlay_content.style.display = 'none';}
 });
 
 document.getElementById("pre-page").disabled = 'true';

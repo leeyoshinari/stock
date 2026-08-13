@@ -199,6 +199,20 @@ class StockController(Controller):
             result = await views.set_user_hold(data)
         return result
 
+    @post('/hold/ai/set', summary="设置AI分析结果")
+    async def set_ai_hold(self, request: Request, data: model.SetStockAiText) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.set_hold_ai_text(data)
+        return result
+
+    @get('/hold/ai/get', summary="查询AI分析结果")
+    async def get_ai_hold(self, request: Request, hId: int) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.getHoldAiText(hId)
+        return result
+
     @get('/deleteHold', summary="删除持仓的股票")
     async def delte_hold(self, request: Request, hId: int) -> Result:
         result = Result()

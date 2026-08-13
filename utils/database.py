@@ -593,5 +593,6 @@ class Holds(Base, CRUDBase):
     sale_price = Column(Float, nullable=True, comment="清仓价格")
     sale_time = Column(DateTime, nullable=True, comment="卖出时间")
     user_id = Column(Integer, nullable=False, comment="用户Id")
+    content = Column(Text, nullable=True, comment="AI分析")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)

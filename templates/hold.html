@@ -1,13 +1,100 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN" data-color-mode="light" data-light-theme="light">
 <head>
     <title>Stock</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link rel="icon" type="image/x-icon" href="{{ prefix }}/static/favicon.svg">
     <link rel="stylesheet" href="{{ prefix }}/static/index.css">
+    <!-- 引入 GitHub 浅色样式 (指定 light 版本最稳定) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-light.min.css">
+    <!-- 代码高亮样式 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+
+    <!-- 核心 JS 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
     <script>
         const prefix = "{{ prefix }}";
     </script>
+    <style>
+        .markdown-body {
+            box-sizing: border-box;
+            max-width: 800px;
+            
+            /* 1. 限制高度，开启【纵向滚动条】 (可以根据需要调整 600px 或 80vh) */
+            height: 600px; 
+            overflow-y: auto; 
+            
+            /* 2. 强制长文本自动换行，防止【横向撑开】 */
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+
+            margin: 0 auto;
+            padding: 30px;
+            background-color: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            line-height: 1.6;
+        }
+
+        /* 3. 防止表格把页面横向撑变型（超宽表格内部横向滑动） */
+        .markdown-body table {
+            border-collapse: collapse;
+            width: 100%;
+            display: block;
+            overflow-x: auto; /* 表格极宽时只在表格区域内横滚 */
+            margin: 16px 0;
+        }
+
+        .markdown-body table th,
+        .markdown-body table td {
+            padding: 8px 13px;
+            border: 1px solid #d0d7de;
+            min-width: 100px; /* 保证表格列有基本宽度 */
+        }
+
+        .markdown-body table th {
+            background-color: #f6f8fa;
+            font-weight: 600;
+        }
+
+        /* 4. 引用块样式 */
+        .markdown-body blockquote {
+            margin: 1em 0;
+            padding: 0.5em 1em;
+            color: #57606a;
+            background-color: #f6f8fa;
+            border-left: 0.25em solid #0969da;
+        }
+        .markdown-body blockquote p { margin: 0; }
+
+        /* 5. 分割线样式 */
+        .markdown-body hr {
+            height: 2px;
+            padding: 0;
+            margin: 24px 0;
+            background-color: #d0d7de;
+            border: none;
+        }
+
+        /* 6. 代码块溢出处理 */
+        .markdown-body pre {
+            color: #fff;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto; /* 代码超长时内部滑动 */
+            white-space: pre;
+        }
+        .markdown-body code {
+            background-color: rgba(175,184,193,0.2);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+        .markdown-body pre code { background: none; padding: 0; }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -30,11 +117,13 @@
                 <div>买入时间</div>
                 <div>持仓天数</div>
                 <div>收益(%)</div>
+                <div>AI分析</div>
             </div>
             <div class="list"></div>
         </div>
         <div class="stock-chart"><div id="figure"></div></div>
         <div class="stock-data"><div id="data-tips"></div></div>
+        <div class="stock-data" id="stock-content-ai"><div id="stock-content" class="markdown-body"></div></div>
         <div class="modal_cover"><div class="modal_gif"></div></div>
     </div>
 </body>

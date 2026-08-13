@@ -187,6 +187,11 @@ class SetStockHold(BaseModel):
     userId: int
 
 
+class SetStockAiText(BaseModel):
+    id: int
+    content: str
+
+
 class HoldStockList(BaseModel):
     id: int = None
     code: str = None
@@ -196,6 +201,7 @@ class HoldStockList(BaseModel):
     user_id: int = None
     sale_price: Optional[float] = None
     sale_time: Optional[str] = None
+    content: Optional[str] = None
     create_time: str = None
     update_time: str = None
 
@@ -208,4 +214,4 @@ class HoldStockList(BaseModel):
         u = obj.update_time.strftime("%Y-%m-%d")
         s = obj.sale_time.strftime("%Y-%m-%d") if obj.sale_time else None
         return cls(id=obj.id, code=obj.code, name=obj.name, price=round(obj.price, 2), shares=obj.shares, sale_time=s,
-                   sale_price=obj.sale_price, user_id=obj.user_id, update_time=u, create_time=c)
+                   sale_price=obj.sale_price, user_id=obj.user_id, update_time=u, create_time=c, content=obj.content)
