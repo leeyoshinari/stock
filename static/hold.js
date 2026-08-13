@@ -30,7 +30,7 @@ function getDayDiff(startDateStr, endDateStr) {
         }
         currentDate.setDate(currentDate.getDate() + 1);
     }
-    return workDaysCount;
+    return workDaysCount > 0 ? workDaysCount - 1 : 0;
 }
 
 document.getElementById("pre-page").addEventListener("click", () => {
