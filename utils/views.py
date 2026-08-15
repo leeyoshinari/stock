@@ -122,15 +122,15 @@ async def queryByCode(code: str, site: str = None) -> Result:
         coords = []
         for r in recommends:
             if r.source == 0:
-                coords.append(['R', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M:%S"), r.price])
+                coords.append(['R', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M"), r.price])
             if r.source == 1:
-                coords.append(['B', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M:%S"), r.price])
+                coords.append(['B', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M"), r.price])
             if r.sale_price and r.sale_time:
                 if r.sale_price < 0.1: continue
                 if r.source == 1:
-                    coords.append(['S', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M:%S"), r.sale_price])
+                    coords.append(['S', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M"), r.sale_price])
                 else:
-                    coords.append(['A', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M:%S"), r.sale_price])
+                    coords.append(['A', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M"), r.sale_price])
         if x[-1] != day:
             logger.info(f"No real data, start query read data - code: {code}")
             stockDo: dict = await calc_stock_real_data(code, site)

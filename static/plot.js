@@ -1,7 +1,7 @@
 function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund, boll_up, boll_low, coords) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
-  total_len = parseInt(100 / 600 * document.body.clientWidth * 0.8);
+  total_len = parseInt(120 / 600 * document.body.clientWidth * 0.8);
   let startValue = x.length > total_len ? (1 - total_len / x.length) * 100 : 0;
   const markPoints = coords.map(item => {
     let color = '#00CCFF';
@@ -21,12 +21,12 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           backgroundColor: 'rgba(255, 255, 255, 0.85)',
           formatter: function (params) {
             if (params.data.name === 'R') {
-              return `<div style="max-width:100px;font-weight:bold;">选出时间: ${params.data.date}<br>选出价: ${params.data.value}</div>`;
+              return `<div style="max-width:100px;font-weight:bold;">R: ${params.data.date} - ${params.data.value}</div>`;
             } else {
               if (params.data.name === 'B') {
-                return `<div style="max-width:100px;font-weight:bold;">买入时间: ${params.data.date}<br>买入价: ${params.data.value}</div>`;
+                return `<div style="max-width:100px;font-weight:bold;">B: ${params.data.date} - ${params.data.value}</div>`;
               } else {
-                return `<div style="max-width:100px;font-weight:bold;">卖出时间: ${params.data.date}<br>卖出价: ${params.data.value}</div>`;
+                return `<div style="max-width:100px;font-weight:bold;">S: ${params.data.date} - ${params.data.value}</div>`;
               }
             }
           }
