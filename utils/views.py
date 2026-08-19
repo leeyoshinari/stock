@@ -447,11 +447,13 @@ async def calc_stock_real(code: str, site: str = None) -> Result:
 async def get_current_price(code: str, site: str = None) -> Result:
     result = Result()
     try:
-        if site == 'sina':
-            res: list[StockMinuteDo] = await getMinuteKFromSina('', code, logger)
-        else:
+        try:
             res: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
-        result.data = res[-1].price
+            result.data = res[-1].price
+        except IndexError:
+            logger.error(f"query stock real data error, {traceback.format_exc}")
+            res: list[StockMinuteDo] = await getMinuteKFromSina('', code, logger)
+            result.data = res[-1].price
         logger.info(f"query current stock price success - {code}")
     except Exception as e:
         logger.error(traceback.format_exc())

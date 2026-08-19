@@ -949,7 +949,7 @@ async def main():
     asyncio.create_task(getStockFromTencent(HTTP_HOST1))
     asyncio.create_task(getStockFromTencent(HTTP_HOST2))
     asyncio.create_task(getStockFromTencent(HTTP_HOST3))
-    # asyncio.create_task(getStockFromXueQiu('base'))
+    asyncio.create_task(getStockFromXueQiu('base'))
     asyncio.create_task(getStockFromXueQiu(HTTP_HOST1))
     asyncio.create_task(getStockFromXueQiu(HTTP_HOST2))
     asyncio.create_task(getStockFromXueQiu(HTTP_HOST3))

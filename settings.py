@@ -12,8 +12,6 @@ if hasattr(sys, 'frozen'):
 else:
     BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
-TOKENs = {}
-
 
 def sync_with_dotenv():
     example_config = dotenv_values('.env.example')
@@ -62,6 +60,7 @@ HTTP_HOST1 = get_config("HTTPHost1")
 HTTP_HOST2 = get_config("HTTPHost2")
 HTTP_HOST3 = get_config("HTTPHost3")
 ACCESS_KEY = get_config("accessKey")
+BACKUP_PATH = get_config("backupPath")
 
 
 def checkout(pwd: str) -> bool:

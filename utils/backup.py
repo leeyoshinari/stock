@@ -29,8 +29,6 @@ async def zip_file(file_paths: list[Union[str, Path]], output_zip: Union[str, Pa
                 logger.warning(f"警告: 文件不存在 {file_path}")
                 continue
             if file_path.is_file():
-                async with aiofiles.open(file_path, 'rb') as f:
-                    content = await f.read()
-                zipf.writestr(file_path.name, content)
+                zipf.write(file_path, arcname=file_path.name)
             else:
                 logger.warning(f"警告: {file_path} 不是文件")

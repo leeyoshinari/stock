@@ -14,7 +14,7 @@ from litestar.openapi.plugins import SwaggerRenderPlugin
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
-from settings import PREFIX, HOST, PORT, BASE_PATH, checkout
+from settings import PREFIX, HOST, PORT, BASE_PATH, checkout, BACKUP_PATH
 from utils.scheduler import scheduler
 from utils.backup import zip_file
 from utils.logging import logger
@@ -24,7 +24,7 @@ from utils import model, views
 
 
 db_path = os.path.join(BASE_PATH, 'sqlite3.db')
-zip_path = os.path.join(BASE_PATH, 'static', 'db.zip')
+zip_path = os.path.join(BACKUP_PATH, 'db.zip')
 
 
 async def modify_sw():
