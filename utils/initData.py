@@ -8,7 +8,7 @@ import math
 import random
 import traceback
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from utils.model import StockModelDo
 from utils.database import Detail
 from utils.http_client import http
@@ -59,8 +59,7 @@ def bollinger_bands(prices, middle, n=20, k=2):
 
 async def getStockFromSohu(datas: List, logger):
     ''' datas = [{'002868': '*ST绿康'}] '''
-    start_time = datetime.now() - timedelta(days=360)
-    start_date = start_time.strftime("%Y%m%d")
+    start_date = "20250801"
     current_day = time.strftime("%Y%m%d")
     try:
         dataDict = {k: v for d in datas for k, v in d.items()}
