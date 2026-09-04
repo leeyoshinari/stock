@@ -469,7 +469,12 @@ async def all_stock_info(query: SearchStockParam) -> Result:
             stockInfo: Stock = await Stock.get(query.code)
             stockList = [StockInfoList.from_orm_format(stockInfo).model_dump()]
         elif query.name or query.region or query.industry or query.concept or query.filter:
-            stockInfo: list[Stock] = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).all()
+            if query.filter == 'buy':
+                hold_id_list = await Holds.query().greater(shares=0).select("code").all()
+                hold_stock_list = [r[0] for r in hold_id_list]
+                stockInfo: list[Stock] = await Stock.query().isin(code=hold_stock_list).all()
+            else:
+                stockInfo: list[Stock] = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = len(stockList)
         else:
@@ -703,10 +708,7 @@ async def get_user_hold(userId: str) -> Result:
     result = Result()
     try:
         stock: list[Holds] = await Holds.query().equal(user_id=userId).greater(shares=0).order_by(Holds.create_time.asc()).all()
-        # for s in stock:
-        #     d = f"中国A股市场，当前持有股票:{s.name}，代码:{s.code}，买入时间:{s.create_time.strftime("%Y-%m-%d")}，持仓成本:{s.price}，持仓数量:{s.shares}股"
-        #     data.append(d)
-        stockList = [HoldStockList.from_orm_format(f).model_dump() for f in stock]
+        stockList = [HoldStockList.from_orm_format(f).model_dump() for f in stock if f.code not in ['603167', '000651']]
         result.data = stockList
         result.total = len(stockList)
         logger.info(f"查询用户{userId} 持仓：{result.data}")
