@@ -596,3 +596,16 @@ class Holds(Base, CRUDBase):
     content = Column(Text, nullable=True, comment="AI分析")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class ETF(Base, CRUDBase):
+    __tablename__ = 'etf'
+
+    code = Column(String(8), primary_key=True, comment="股票代码")
+    name = Column(String(8), nullable=False, comment="股票名称")
+    running = Column(Integer, default=1, nullable=False, comment="0-不获取数据，1-获取数据")
+    capital = Column(Float, nullable=True, comment="资金规模(亿)")
+    fee = Column(Float, nullable=True, comment="每年费用(%)")
+    industry = Column(String(32), nullable=True, comment="行业")
+    create_time = Column(DateTime, default=datetime.now)
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)

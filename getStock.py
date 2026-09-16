@@ -3,6 +3,7 @@
 # Author: leeyoshinari
 
 import os
+import re
 import json
 import time
 import math
@@ -26,7 +27,8 @@ from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_mi
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent
 from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina
-from utils.database import Stock, Detail, Tools, Recommend, write_worker
+from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai
+from utils.database import Stock, Detail, Tools, Recommend, ETF, write_worker
 from utils.logging_getstock import logger
 
 
@@ -834,6 +836,67 @@ async def setAllSZStock():
             logger.error("数据更新异常...")
 
 
+async def setAllSHEtf():
+    try:
+        page = 1
+        total_page = 20
+        while page <= total_page:
+            res = await getEtfInfoFromSH(page, logger)
+            if res:
+                total_page = res['pageCount']
+                data_list = res['data']
+                for d in data_list:
+                    code = d['fundCode']
+                    await writeEtfDatabase(code)
+                    await asyncio.sleep(30)
+            page += 1
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def setAllSZEtf():
+    try:
+        page = 1
+        total_page = 70
+        while page <= total_page:
+            res = await getEtfInfoFromSZ(page, logger)
+            if res:
+                total_page = res['metadata']['pagecount']
+                data_list = res['data']
+                for d in data_list:
+                    result = re.findall(r'<u>(\d+)</u>', d['sys_key'])
+                    code = result[0].strip()
+                    await writeEtfDatabase(code)
+                    await asyncio.sleep(30)
+            page += 1
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def writeEtfDatabase(code: str):
+    try:
+        etf: ETF = await ETF.get_one(code)
+        etf_info = await getEtfDetailFromDongCai(code, logger)
+        if etf_info and etf_info['code'] == code:
+            name = etf_info['name'] if etf_info['name'] else etf.name
+            capital = etf_info['capital'] if etf_info['capital'] > 0 else etf.capital
+            fee = etf_info['fee'] if etf_info['fee'] > 0 else etf.fee
+            await ETF.update(code, name=name, capital=capital, fee=fee)
+            logger.info(f"ETF {code} 更新成功, {etf.name} -> {name}, {etf.capital} -> {capital}, {etf.fee} -> {fee}")
+        else:
+            logger.error(f"获取ETF信息失败: {code} - {etf_info}")
+    except NoResultFound:
+        etf_info = await getEtfDetailFromDongCai(code, logger)
+        if etf_info and etf_info['code'] == code:
+            await ETF.create(code=code, name=etf_info['name'], capital=etf_info['capital'], fee=etf_info['fee'],
+                             industry=etf_info['tracking'], create_time=datetime.strptime(etf_info['date'], "%Y-%m-%d"))
+            logger.info(f"ETF {code} 添加成功, {etf_info['name']} - {etf_info['capital']} - {etf_info['fee']} -> {etf_info['tracking']}")
+        else:
+            logger.error(f"获取ETF信息失败: {code} - {etf_info}")
+    except:
+        logger.error(traceback.format_exc())
+
+
 async def queryStockShrink():
     try:
         tool: Tools = await Tools.get_one("openDoor")
@@ -941,6 +1004,8 @@ async def main():
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)        # 更新股票行业、概念等数据
     # scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
+    scheduler.add_job(setAllSHEtf, "date", run_date=datetime.now() + timedelta(seconds=10))
+    scheduler.add_job(setAllSZEtf, "date", run_date=datetime.now() + timedelta(seconds=15))
     scheduler.start()
     await asyncio.sleep(2)
 
