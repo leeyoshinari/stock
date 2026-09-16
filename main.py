@@ -125,6 +125,20 @@ class StockController(Controller):
             result = await views.all_stock_info(query)
         return result
 
+    @get('/etf/list', summary="查询ETF信息")
+    async def all_etf_list(self, request: Request, code: str = "", name: str = "", sortField: str = "", filter: str = "1", page: int = 1, pageSize: int = 20) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            query = model.SearchStockParam()
+            query.code = code if code else ""
+            query.name = name if name else ""
+            query.filter = filter if filter else "1"
+            query.sortField = sortField if sortField else ""
+            query.page = page
+            query.pageSize = pageSize
+            result = await views.all_etf_info(query)
+        return result
+
     @get('/stock/info', summary="查询股票板块、概念等信息")
     async def get_stock_info(self, request: Request, code: str) -> Result:
         result = Result()
@@ -220,6 +234,20 @@ class StockController(Controller):
             result = await views.deleteHoldStock(hId)
         return result
 
+    @get('/etf/delete', summary="删除ETF")
+    async def delte_etf(self, request: Request, code: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.deleteEtf(code)
+        return result
+
+    @get('/etf/set', summary="设置ETF")
+    async def set_etf(self, request: Request, code: str, running: int) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.setEtf(code, running)
+        return result
+
     @post('/test')
     async def test(self, request: Request, data: model.ToolsInfoList) -> Result:
         result = await views.test(data)
@@ -241,6 +269,11 @@ async def stock_list(request: Request) -> Template:
     return Template("stock.html", context={'prefix': PREFIX})
 
 
+@get("/etf")
+async def etf_list(request: Request) -> Template:
+    return Template("etf.html", context={'prefix': PREFIX})
+
+
 @get("/topic")
 async def topic_list(request: Request) -> Template:
     return Template("topic.html", context={'prefix': PREFIX})
@@ -256,7 +289,7 @@ async def home(request: Request) -> Template:
     return Template("home.html", context={'prefix': PREFIX})
 
 
-route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[home, index, recommend, stock_list, topic_list, hold_list])]
+route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(path='', route_handlers=[home, index, recommend, stock_list, etf_list, topic_list, hold_list])]
 
 
 @asynccontextmanager

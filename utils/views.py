@@ -10,7 +10,8 @@ import traceback
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo, HoldStockList
-from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam, SetStockHold, SetStockAiText
+from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam, SetStockHold
+from utils.model import EtfInfoList, SetStockAiText
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sell_prompt
 from utils.logging import logger
@@ -20,7 +21,7 @@ from utils.initData import initStockData, getStockFundFlow
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands, getStockLimitUp, evaluate_sell_strategy
-from utils.database import Recommend, Stock, Detail, Tools, DBExecutor, Holds
+from utils.database import Recommend, Stock, Detail, Tools, DBExecutor, Holds, ETF
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HISTORY_PATH
 
 
@@ -478,7 +479,6 @@ async def all_stock_info(query: SearchStockParam) -> Result:
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = len(stockList)
         else:
-            logger.info(query)
             offset = (query.page - 1) * query.pageSize
             total_num: int = await Stock.query().equal(running=1).count()
             stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.desc()).offset(offset).limit(query.pageSize).all()
@@ -486,6 +486,47 @@ async def all_stock_info(query: SearchStockParam) -> Result:
             result.total = total_num
         result.data = stockList
         logger.info(f"Query Stock List Success, params: {query}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def all_etf_info(query: SearchStockParam) -> Result:
+    result = Result()
+    try:
+        if query.code:
+            etfInfo: ETF = await ETF.get(query.code)
+            etfList = [EtfInfoList.from_orm_format(etfInfo).model_dump()]
+        elif query.filter == '1':
+            if query.name or query.sortField:
+                if query.sortField:
+                    etfInfo: list[ETF] = await ETF.query().equal(running=int(query.filter)).like(name=query.name).order_by_key(ETF, query.sortField).all()
+                else:
+                    etfInfo: list[ETF] = await ETF.query().equal(running=int(query.filter)).like(name=query.name).all()
+                result.total = len(etfInfo)
+            else:
+                offset = (query.page - 1) * query.pageSize
+                total_num: int = await ETF.query().equal(running=int(query.filter)).count()
+                etfInfo: list[ETF] = await ETF.query().equal(running=int(query.filter)).order_by(ETF.code.asc()).offset(offset).limit(query.pageSize).all()
+                result.total = total_num
+            etfList = [EtfInfoList.from_orm_format(f).model_dump() for f in etfInfo]
+        else:
+            if query.name or query.sortField:
+                if query.sortField:
+                    etfInfo: list[ETF] = await ETF.query().like(name=query.name).order_by_key(ETF, query.sortField).all()
+                else:
+                    etfInfo: list[ETF] = await ETF.query().like(name=query.name).all()
+                result.total = len(etfInfo)
+            else:
+                offset = (query.page - 1) * query.pageSize
+                total_num: int = await ETF.query().count()
+                etfInfo: list[ETF] = await ETF.query().order_by(ETF.code.asc()).offset(offset).limit(query.pageSize).all()
+                result.total = total_num
+            etfList = [EtfInfoList.from_orm_format(f).model_dump() for f in etfInfo]
+        result.data = etfList
+        logger.info(f"Query ETF List Success, params: {query}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -803,6 +844,31 @@ async def deleteHoldStock(rId: int) -> Result:
     try:
         _ = await Holds.query().equal(id=rId).delete()
         logger.info(f"Delete Hold Stock {rId} Success ~")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def deleteEtf(code: str) -> Result:
+    result = Result()
+    try:
+        _ = await ETF.query().equal(code=code).delete()
+        logger.info(f"Delete ETF {code} Success ~")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def setEtf(code: str, running: int) -> Result:
+    result = Result()
+    try:
+        _ = await ETF.get_one(code)
+        await ETF.update(code, running=running)
+        logger.info(f"Update ETF {code} Running Success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

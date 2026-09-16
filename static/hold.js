@@ -51,7 +51,7 @@ document.getElementById("next-page").addEventListener("click", () => {
 })
 
 function getStockList() {
-    let url = prefix + `/hold/list?pageSize=20&page=${page}`;
+    let url = prefix + `/hold/list?pageSize=${pageSize}&page=${page}`;
     fetch(url)
         .then(res => res.json())
         .then(data => {

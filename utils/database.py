@@ -609,3 +609,5 @@ class ETF(Base, CRUDBase):
     industry = Column(String(32), nullable=True, comment="行业")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __sortable__ = {'capital': capital, 'fee': fee}

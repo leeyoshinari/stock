@@ -1,4 +1,5 @@
 const pageSize = 20;
+const showFlag = window.location.href.endsWith("trump");
 let page = 1;
 const originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
@@ -6,22 +7,6 @@ window.fetch = function(url, options = {}) {
   const headers = {...defaultHeaders,...(options.headers || {})};
   return originalFetch(url, {...options,headers});
 };
-
-document.getElementById("pre-page").addEventListener("click", () => {
-    page -= 1;
-    if (page <= 1) {
-        document.getElementById("pre-page").disabled = 'true';
-        document.getElementById("next-page").disabled = '';
-    }
-    getStockList();
-})
-
-document.getElementById("next-page").addEventListener("click", () => {
-    page += 1;
-    if (page > 1) {document.getElementById("pre-page").disabled = '';}
-    getStockList();
-})
-
 function watchInput(el, callback, delay = 500) {
   let timer = null, composing = false;
   const fire = e => {
@@ -37,33 +22,57 @@ function watchInput(el, callback, delay = 500) {
   el.addEventListener('compositionend', e => { composing = false; fire(e); });
   el.addEventListener('input', e => { if (!composing) fire(e); });
 }
+// document.addEventListener('keypress', function(event) {
+//     if (event.key === 'Enter') {
+//         page = 1; getStockList();
+//     }
+// });
+
+document.getElementById("pre-page").addEventListener("click", () => {
+    page -= 1;
+    if (page <= 1) {
+        document.getElementById("pre-page").disabled = 'true';
+        document.getElementById("next-page").disabled = '';
+    }
+    getStockList();
+})
+
+document.getElementById("next-page").addEventListener("click", () => {
+    page += 1;
+    if (page > 1) {
+        document.getElementById("pre-page").disabled = '';
+    }
+    getStockList();
+})
 
 function getStockList() {
-    let sortField = document.getElementById("order-by").value;
-    let url = `${prefix}/list?pageSize=${pageSize}&page=${page}&sortField=${sortField}`;
+    let filter = document.getElementById("filter-by").value;
+    let url = prefix + `/etf/list?pageSize=${pageSize}&page=${page}`;
     let stock_name = document.getElementById("stock-name").value;
     let stock_code = document.getElementById("stock-code").value;
-    let stock_date = document.getElementById("stock-date").value;
     if (stock_code || stock_code.trim()) {
         url = url + `&code=${stock_code}`;
     }
     if (stock_name || stock_name.trim()) {
         url = url + `&name=${stock_name}`;
     }
-    if (stock_date || stock_date.trim()) {
-        url = url + `&day=${stock_date}`;
+    if (filter || filter.trim()) {
+        url = url + `&sortField=${filter}`;
     }
-    show_modal_cover();
+    if (showFlag) {
+        url = url + `&filter=0`;
+    }
     fetch(url)
         .then(res => res.json())
         .then(data => {
-            let s = ""
+            let s = "";
             data.data.forEach(item => {
-                let zhang = (item.current_price - item.last_price) / item.last_price * 100;
-                let zhen = (item.max_price - item.min_price) / item.last_price * 100;
-                let color = zhang >= 0 ? zhang > 0 ? 'red' : 'black' : 'green';
-                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div><a onclick="query_stock_ai('${item.code}', '${item.name}', '');">${item.current_price}</a></div><div><a onclick="query_stock_ai('${item.code}', '${item.name}', 'shrink');">${zhang.toFixed(2)}%</a></div><div>${zhen.toFixed(2)}%</div>
-                      <div>${item.volume}</div><div>${item.qrr}</div><div>${item.turnover_rate}%</div><div>${item.fund.toFixed(0)}万</div></div>`;
+                let setFlag = ``;
+                if (showFlag) {
+                    setFlag = `<div><a onclick="set_etf('${item.code}', ${item.running === 1 ? 0 : 1});" style="margin-right:3%;">${item.running === 1 ? 'No' : 'Yes'}</a><a onclick="delete_etf('${item.code}');">删除</a></div>`;
+                }
+                s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
+                      <div>${item.capital}</div><div>${item.fee}%</div><div>${item.create_time}</div><div>${item.industry}</div>${setFlag}</div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -77,10 +86,9 @@ function getStockList() {
                 })
             })
         })
-        .finally(() => {close_modal_cover();})
 }
 
-function change_select() {page=1;getStockList();}
+function change_select() {page = 1;getStockList();}
 
 function get_stock_figure(code) {
     show_modal_cover();
@@ -91,7 +99,8 @@ function get_stock_figure(code) {
             if (data.success) {
                 let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
-                figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
+                figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
+                figure.style.height = '';
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
@@ -123,20 +132,47 @@ function get_stock_real_figure(code) {
         .finally(() => {close_modal_cover();})
 }
 
+function sell_stock_ai(code, name) {
+    document.getElementsByClassName("stock-data")[0].style.display = "none";
+    let buy_time = document.getElementById("buy-time").value;
+    let buy_price = document.getElementById("buy-price").value;
+    let site = localStorage.getItem('site');
+    show_modal_cover();
+    fetch(`${prefix}/sell/stock?code=${code}&price=${buy_price}&t=${buy_time}&site=${site}`)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
+        })
+        .finally(() => {close_modal_cover();})
+}
+
+function delete_etf(code) {
+    show_modal_cover();
+    fetch(`${prefix}/etf/delete?code=${code}`)
+        .then(res => res.json())
+        .then(data => {getStockList();})
+        .finally(() => {close_modal_cover();})
+}
+
+function set_etf(code, running) {
+    show_modal_cover();
+    fetch(`${prefix}/etf/set?code=${code}&running=${running}`)
+        .then(res => res.json())
+        .then(data => {getStockList();})
+        .finally(() => {close_modal_cover();})
+}
+
 function query_stock_ai(code, name, source) {
     show_modal_cover();
     let site = localStorage.getItem('site');
-    let stock_date = document.getElementById("stock-date").value;
-    fetch(`${prefix}/buy/stock?code=${code}&site=${site}&source=${source}&day=${stock_date}`)
+    fetch(`${prefix}/buy/stock?code=${code}&site=${site}&source=${source}`)
         .then(res => res.json())
         .then(data => {
-            if (data.success) {
-                // let s = `<div class="header">${name} - ${code}</div><div><div class="title">价格-3日均线</div><div class="value"><div><span>L3D: </span></div></div></div>`;
-                document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
-                document.getElementsByClassName("stock-data")[0].style.display = "flex";
-            }
-            close_modal_cover();
+            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
+        .finally(() => {close_modal_cover();})
 }
 
 function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}
@@ -144,10 +180,14 @@ function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style
 
 const overlay = document.querySelector('.stock-chart');
 const overlay_data = document.querySelector('.stock-data');
-overlay.addEventListener('click', function(event) { if (event.target === overlay) { overlay.style.display = 'none'; }});
-overlay_data.addEventListener('click', function(event) {if (event.target === overlay_data) { overlay_data.style.display = 'none'; }});
+overlay.addEventListener('click', function(event) {
+  if (event.target === overlay) {overlay.style.display = 'none';}
+});
+overlay_data.addEventListener('click', function(event) {
+  if (event.target === overlay_data) {overlay_data.style.display = 'none';}
+});
+
 document.getElementById("pre-page").disabled = 'true';
 getStockList();
 watchInput(document.getElementById('stock-name'), getStockList);
 watchInput(document.getElementById('stock-code'), getStockList);
-watchInput(document.getElementById('stock-date'), getStockList);

@@ -58,7 +58,7 @@ function getStockList() {
     let region = document.getElementById("stock-region").value;
     let industry = document.getElementById("stock-industry").value;
     let concept = document.getElementById("stock-concept").value;
-    let url = prefix + `/stock/list?pageSize=20&page=${page}`;
+    let url = prefix + `/stock/list?pageSize=${pageSize}&page=${page}`;
     let stock_name = document.getElementById("stock-name").value;
     let stock_code = document.getElementById("stock-code").value;
     if (stock_code || stock_code.trim()) {

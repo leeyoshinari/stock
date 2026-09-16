@@ -215,3 +215,24 @@ class HoldStockList(BaseModel):
         s = obj.sale_time.strftime("%Y-%m-%d") if obj.sale_time else None
         return cls(id=obj.id, code=obj.code, name=obj.name, price=round(obj.price, 2), shares=obj.shares, sale_time=s,
                    sale_price=obj.sale_price, user_id=obj.user_id, update_time=u, create_time=c, content=obj.content)
+
+
+class EtfInfoList(BaseModel):
+    code: str
+    name: str
+    running: int
+    capital: float = None
+    fee: float = None
+    industry: str = None
+    create_time: str
+    update_time: str
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_format(cls, obj):
+        c = obj.create_time.strftime("%Y-%m-%d")
+        m = obj.update_time.strftime("%Y-%m-%d %H:%M:%S")
+        return cls(code=obj.code, name=obj.name, running=obj.running, capital=obj.capital, industry=obj.industry, fee=obj.fee,
+                   create_time=c, update_time=m)

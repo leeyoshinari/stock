@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="icon" type="image/x-icon" href="{{ prefix }}/static/favicon.svg">
+    <link rel="stylesheet" href="{{ prefix }}/static/index.css">
+    <script>
+        const prefix = "{{ prefix }}";
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-filter">
+                <div>
+                    <label>代码：</label> <input type="text" id="stock-code" placeholder="" autocomplete="off">
+                </div>
+                <div>
+                    <label>名称：</label> <input type="text" id="stock-name" placeholder="" autocomplete="off">
+                </div>
+                <div>
+                    <label>排序：</label> <select id="filter-by" onchange="change_select();">
+                        <option value=""></option>
+                        <option value="-capital">规模降序</option>
+                        <option value="+capital">规模升序</option>
+                        <option value="-fee">费率降序</option>
+                        <option value="+fee">费率升序</option>
+                    </select>
+                </div>
+            </div>
+            <div class="header-filter">
+                <div>
+                    <button id="reset">重 置</button>
+                </div>
+                <div>
+                    <button id="pre-page">上一页</button>
+                </div>
+                <div>
+                    <button id="next-page">下一页</button>
+                </div>
+            </div>
+        </div>
+        <div class="stock-list">
+            <div class="item-header">
+                <div>名称</div>
+                <div>代码</div>
+                <div>规模(亿)</div>
+                <div>费率(/年)</div>
+                <div>成立日期</div>
+                <div>跟踪标的</div>
+            </div>
+            <div class="list"></div>
+        </div>
+        <div class="stock-chart"><div id="figure"></div></div>
+        <div class="stock-data"><div id="data-tips"></div></div>
+        <div class="modal_cover"><div class="modal_gif"></div></div>
+    </div>
+</body>
+<script src="{{ prefix }}/static/etf.js"></script>
+<script src="{{ prefix }}/static/echarts.min.js"></script>
+<script src="{{ prefix }}/static/plot.js"></script>
+<script>
+    document.getElementById("reset").addEventListener('click', () => {window.location.reload();})
+</script>
+</html>
