@@ -97,7 +97,7 @@ function get_stock_figure(code) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
+                let title = `${data.data.name} - ${code} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
                 figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
                 figure.style.height = '';
@@ -118,7 +118,7 @@ function get_stock_real_figure(code) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
+                let title = `${data.data.name} - ${code} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
                 figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
                 figure.style.height = '500px';

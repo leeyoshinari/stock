@@ -48,9 +48,9 @@ alpha_sig = 2.0 / (9 + 1)
 
 
 def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68"):
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
         return "sh"
-    elif code.startswith("00") or code.startswith("30"):
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
         return "sz"
     else:
         return ""
@@ -96,8 +96,8 @@ def generateStockCodeForSina(data: dict) -> str:
     return ",".join(s)
 
 
-def calc_MA(data: list, window: int) -> float:
-    return round(sum(data[:window]) / len(data[:window]), 2)
+def calc_MA(data: list, window: int, digit: int = 2) -> float:
+    return round(sum(data[:window]) / len(data[:window]), digit)
 
 
 def detail2List(data: list[Detail]) -> dict:
@@ -245,6 +245,9 @@ async def saveStockInfo(stockDo: StockModelDo):
     low_price = [r.min_price for r in stock_price_obj]
     trix_list = [r.trix for r in stock_price_obj]
     real_trade_time = real_traded_minutes()
+    digit = 2
+    if stockDo.code.startswith('1') or stockDo.code.startswith('5'):
+        digit = 3
     try:
         _ = await Detail.get_one((stockDo.code, stockDo.day))
         stock_price[0] = stockDo.current_price
@@ -273,17 +276,17 @@ async def saveStockInfo(stockDo: StockModelDo):
             trix_ema_three = stockDo.current_price
         average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
         average_volume = average_volume if average_volume > 0 else stockDo.volume
-        ma_twenty = calc_MA(stock_price, 20)
+        ma_twenty = calc_MA(stock_price, 20, digit)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
         await Detail.update((stockDo.code, stockDo.day), current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
-                            max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, ma_five=calc_MA(stock_price, 5),
-                            ma_ten=calc_MA(stock_price, 10), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2), emas=macd['emas'],
+                            max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, ma_five=calc_MA(stock_price, 5, digit),
+                            ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2), emas=macd['emas'],
                             emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'], fund=0.0,
                             trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate,
-                            boll_up=round(boll_up, 2), boll_low=round(boll_low, 2))
+                            boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
     except NoResultFound:
         stock_price.insert(0, stockDo.current_price)
         high_price.insert(0, stockDo.max_price)
@@ -301,17 +304,17 @@ async def saveStockInfo(stockDo: StockModelDo):
         trix_ema_three = stock_price_obj[0].trix_ema_three if len(stock_price_obj) > 0 else stockDo.current_price
         average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
         average_volume = average_volume if average_volume > 0 else stockDo.volume
-        ma_twenty = calc_MA(stock_price, 20)
+        ma_twenty = calc_MA(stock_price, 20, digit)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
         await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=stockDo.last_price, fund=0.0,
-                            ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2),
+                            ma_five=calc_MA(stock_price, 5, digit), ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2),
                             emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'],
                             trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate,
-                            boll_up=round(boll_up, 2), boll_low=round(boll_low, 2))
+                            boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
 
 
 async def setAvailableStock():
@@ -335,6 +338,15 @@ async def setAvailableStock():
                 page += 1
                 logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
                 await asyncio.sleep(BATCH_INTERVAL)
+
+            etfList = []
+            etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
+            for s in etfInfo:
+                etfList.append({s.code: s.name, f'{s.code}count': 1})
+            index = int(len(etfList) / 2)
+            await queryTask.put(etfList[:index])
+            await queryTask.put(etfList[index:])
+            logger.info(f"总共 {len(etfList)} 个 ETF ...")
         except:
             logger.error(traceback.format_exc())
 
@@ -991,6 +1003,17 @@ async def clearStockData():
         await getStockTopic()
 
 
+async def initData():
+    try:
+        etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
+        for r in etfInfo:
+            await initStockData(r.code, r.name, logger)
+            logger.info(f"Init Data successful, {r.name} - {r.code}")
+            await asyncio.sleep(15)
+    except:
+        logger.error(traceback.format_exc())
+
+
 async def main():
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50)    # 启动任务
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"])    # 中午更新股票信息
@@ -1004,8 +1027,9 @@ async def main():
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0)        # 更新股票行业、概念等数据
     # scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
-    scheduler.add_job(setAllSHEtf, "date", run_date=datetime.now() + timedelta(seconds=10))
-    scheduler.add_job(setAllSZEtf, "date", run_date=datetime.now() + timedelta(seconds=15))
+    scheduler.add_job(initData, "date", run_date=datetime.now() + timedelta(seconds=10))
+    # scheduler.add_job(setAllSHEtf, "date", run_date=datetime.now() + timedelta(seconds=10))
+    # scheduler.add_job(setAllSZEtf, "date", run_date=datetime.now() + timedelta(seconds=25))
     scheduler.start()
     await asyncio.sleep(2)
 

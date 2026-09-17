@@ -19,8 +19,8 @@ headers = {
 }
 
 
-def calc_MA(data: List, window: int) -> float:
-    return round(sum(data[-window:]) / len(data[-window:]), 2)
+def calc_MA(data: List, window: int, digit: int = 2) -> float:
+    return round(sum(data[-window:]) / len(data[-window:]), digit)
 
 
 def calc_ema(current_price, previous_ema, period) -> float:
@@ -37,9 +37,9 @@ def calc_macd(current_price, pre_ema_12, pre_ema_26, pre_dea) -> List[float]:
 
 
 def getStockRegionNum(code: str) -> str:
-    if code.startswith("60") or code.startswith("68"):
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
         return "1"
-    elif code.startswith("00") or code.startswith("30"):
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
         return "0"
     else:
         return ""
@@ -107,10 +107,13 @@ async def saveStockInfo(stockDo: StockModelDo):
     stock_price_obj = await Detail.query().select('current_price').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
     stock_price = [r[0] for r in stock_price_obj]
     stock_price.append(stockDo.current_price)
-    up, dn = bollinger_bands(stock_price, calc_MA(stock_price, 20))
+    digit = 2
+    if stockDo.code.startswith('1') or stockDo.code.startswith('5'):
+        digit = 3
+    up, dn = bollinger_bands(stock_price, calc_MA(stock_price, 20, digit))
     await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                        max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=0, boll_up=round(up, 2),
-                        ma_five=calc_MA(stock_price, 5), ma_ten=calc_MA(stock_price, 10), ma_twenty=calc_MA(stock_price, 20), boll_low=round(dn, 2))
+                        max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=0, boll_up=round(up, digit),
+                        ma_five=calc_MA(stock_price, 5, digit), ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=calc_MA(stock_price, 20, digit), boll_low=round(dn, digit))
     if len(stock_price) > 4:
         stock_volume_obj = await Detail.query().select('volume').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
         stock_volume = [r[0] for r in stock_volume_obj]

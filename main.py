@@ -234,6 +234,11 @@ class StockController(Controller):
             result = await views.deleteHoldStock(hId)
         return result
 
+    @get('/etf/get', summary="查询ETF数据")
+    async def get_etf_data(self) -> Result:
+        result = await views.getEtf()
+        return result
+
     @get('/etf/delete', summary="删除ETF")
     async def delte_etf(self, request: Request, code: str) -> Result:
         result = Result()

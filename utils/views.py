@@ -118,7 +118,10 @@ async def queryByCode(code: str, site: str = None) -> Result:
             trma.append(round(stockInfo[index].trma, 3))
             boll_up.append(stockInfo[index].boll_up)
             boll_low.append(stockInfo[index].boll_low)
-        st: Stock = await Stock.get_one(code)
+        if code.startswith('1') or code.startswith('5'):
+            st: ETF = await ETF.get_one(code)
+        else:
+            st: Stock = await Stock.get_one(code)
         recommends: list[Recommend] = await Recommend.query().equal(code=code).order_by(Recommend.id.asc()).all()
         coords = []
         for r in recommends:
@@ -158,12 +161,14 @@ async def queryByCode(code: str, site: str = None) -> Result:
         else:
             fund[-1] = await getStockZhuLiFundFromTencent(code)
         result.data = {
-            'x': x, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'coord': coords,
+            'x': x, 'code': code, 'name': st.name, 'industry': st.industry, 'coord': coords,
             'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up,
-            'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'concept': st.concept,
+            'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund,
             'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma, 'boll_low': boll_low
         }
+        if not (code.startswith('1') or code.startswith('5')):
+            result.data.update({'region': st.region, 'concept': st.concept})
         result.total = len(result.data)
         logger.info(f"Query stock k-line success - code: {code}")
     except Exception as e:
@@ -435,8 +440,14 @@ async def calc_stock_real(code: str, site: str = None) -> Result:
             price.append(r.price)
             price_avg.append(r.price_avg)
             volume.append(r.volume)
-        st = await Stock.get_one(code)
-        result.data = {'x': x, 'price': price, 'price_avg': price_avg, 'volume': volume, 'code': code, 'name': st.name, 'region': st.region, 'industry': st.industry, 'concept': st.concept}
+
+        result.data = {'x': x, 'price': price, 'price_avg': price_avg, 'volume': volume, 'code': code}
+        if code.startswith('1') or code.startswith('5'):
+            st: ETF = await ETF.get_one(code)
+            result.data.update({'name': st.name, 'industry': st.industry})
+        else:
+            st: Stock = await Stock.get_one(code)
+            result.data.update({'name': st.name, 'region': st.region, 'industry': st.industry, 'concept': st.concept})
         logger.info(f"query Recommend stock minute real data success - {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -655,7 +666,10 @@ async def get_stock_info(code: str) -> Result:
 async def init_stock_data(code: str) -> Result:
     result = Result()
     try:
-        stock: Stock = await Stock.get_one(code)
+        if code.startswith('1') or code.startswith('5'):
+            stock: ETF = await ETF.get_one(code)
+        else:
+            stock: Stock = await Stock.get_one(code)
         await initStockData(code, stock.name, logger)
         logger.info(f"初始化股票数据成功 - {code} - {stock.name}")
     except Exception as e:
@@ -869,6 +883,24 @@ async def setEtf(code: str, running: int) -> Result:
         _ = await ETF.get_one(code)
         await ETF.update(code, running=running)
         logger.info(f"Update ETF {code} Running Success ~")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def getEtf() -> Result:
+    result = Result()
+    try:
+        text = ''
+        index = 1
+        etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
+        for r in etfInfo:
+            text += f"{index}. 名称:{r.name}, 代码:{r.code}\n"
+            index += 1
+        result.data = text
+        logger.info("Query ETF data Success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

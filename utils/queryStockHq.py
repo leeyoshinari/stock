@@ -17,9 +17,9 @@ headers = {
 
 
 def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68"):
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
         return "sh"
-    elif code.startswith("00") or code.startswith("30"):
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
         return "sz"
     else:
         return ""
@@ -39,9 +39,9 @@ def getStockType(code: str) -> int:
 
 
 def getStockRegionNum(code: str) -> str:
-    if code.startswith("60") or code.startswith("68"):
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
         return "1"
-    elif code.startswith("00") or code.startswith("30"):
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
         return "0"
     else:
         return ""
