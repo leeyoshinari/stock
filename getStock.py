@@ -322,22 +322,22 @@ async def setAvailableStock():
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
         try:
-            # total_cnt: int = await Stock.query().equal(running=1).count()
-            # total_batch_size = BATCH_SIZE * All_STOCK_DATA_SIZE
-            # total_batch = int((total_cnt + total_batch_size - 1) / total_batch_size)
-            # page = 0
-            # while page < total_batch:
-            #     offset = page * total_batch_size
-            #     stockList = []
-            #     stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.asc()).offset(offset).limit(total_batch_size).all()
-            #     for s in stockInfo:
-            #         stockList.append({s.code: s.name, f'{s.code}count': 1})
-            #     random.shuffle(stockList)
-            #     for i in range(0, len(stockList), BATCH_SIZE):
-            #         await queryTask.put(stockList[i: i + BATCH_SIZE])
-            #     page += 1
-            #     logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
-            #     await asyncio.sleep(BATCH_INTERVAL)
+            total_cnt: int = await Stock.query().equal(running=1).count()
+            total_batch_size = BATCH_SIZE * All_STOCK_DATA_SIZE
+            total_batch = int((total_cnt + total_batch_size - 1) / total_batch_size)
+            page = 0
+            while page < total_batch:
+                offset = page * total_batch_size
+                stockList = []
+                stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.asc()).offset(offset).limit(total_batch_size).all()
+                for s in stockInfo:
+                    stockList.append({s.code: s.name, f'{s.code}count': 1})
+                random.shuffle(stockList)
+                for i in range(0, len(stockList), BATCH_SIZE):
+                    await queryTask.put(stockList[i: i + BATCH_SIZE])
+                page += 1
+                logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
+                await asyncio.sleep(BATCH_INTERVAL)
 
             etfList = []
             etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
