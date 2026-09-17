@@ -1021,7 +1021,7 @@ async def main():
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=48, second=30, misfire_grace_time=10)  # 开始选股
     scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
     scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)          # 停止任务
-    scheduler.add_job(setAvailableStock, 'cron', hour='11,14,15', minute=30, second=20)     # 收盘后更新数据
+    scheduler.add_job(setAvailableStock, 'cron', hour='11,14,15', minute=31, second=20)     # 收盘后更新数据
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=36, second=20, args=[1], misfire_grace_time=10)  # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=45, second=50, misfire_grace_time=10)       # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据
