@@ -376,6 +376,7 @@ async def setAvailableStock():
                 etfList.append({s.code: s.name, f'{s.code}count': 1})
             index = int(len(etfList) / 2)
             await etfTask.put(etfList[:index])
+            await asyncio.sleep(BATCH_INTERVAL)
             await etfTask.put(etfList[index:])
             logger.info(f"总共 {len(etfList)} 个 ETF ...")
         except:
