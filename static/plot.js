@@ -8,7 +8,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
     if (item[0] === 'B') color = '#ffaf01';
     if (item[0] === 'S') color = '#476df7';
     return {
-      name: item[0],  symbolSize: [12, 20], value: item[3], date: item[2],
+      name: item[0],  symbolSize: [12, 20], shares: item[3], price: item[2], fee: item[4],
       symbol: 'path://M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
       coord: [item[1], item[0]==='B' || item[0] === 'A' ? price[x.indexOf(item[1])][2] : price[x.indexOf(item[1])][3]],
       itemStyle: { color },
@@ -21,12 +21,12 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           backgroundColor: 'rgba(255, 255, 255, 0.85)',
           formatter: function (params) {
             if (params.data.name === 'R') {
-              return `<div style="max-width:100px;font-weight:bold;">R: ${params.data.date} - ${params.data.value}</div>`;
+              return `<div style="max-width:100px;font-weight:bold;">推荐买入${params.data.shares}股, 价格${params.data.price}, 费用${params.data.fee}</div>`;
             } else {
               if (params.data.name === 'B') {
-                return `<div style="max-width:100px;font-weight:bold;">B: ${params.data.date} - ${params.data.value}</div>`;
+                return `<div style="max-width:100px;font-weight:bold;">买入${params.data.shares}股, 价格${params.data.price}, 费用${params.data.fee}</div>`;
               } else {
-                return `<div style="max-width:100px;font-weight:bold;">S: ${params.data.date} - ${params.data.value}</div>`;
+                return `<div style="max-width:100px;font-weight:bold;">卖出${params.data.shares}股, 价格${params.data.price}, 费用${params.data.fee}</div>`;
               }
             }
           }

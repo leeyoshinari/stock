@@ -34,6 +34,7 @@ from utils.logging_getstock import logger
 
 splitTime = " 14:47:20"     # 前面必须有空格
 queryTask = asyncio.Queue()
+etfTask = asyncio.Queue()
 running_job_id = "interval_stock_data"
 current_topic = []
 headers = {
@@ -207,6 +208,36 @@ async def getStockFromSina(host):
             if datas: queryTask.task_done()
 
 
+async def getEtfFromSina(host):
+    while True:
+        try:
+            datas = None
+            saveErrorList = []
+            datas = await etfTask.get()
+            if datas == 'end': break
+            result: dict = await getStockHqFromSina(host, datas, logger)
+            dataList: list[StockModelDo] = result['data']
+            errorList: list[dict] = result['error']
+            if len(errorList) > 0:
+                await etfTask.put(errorList)
+                await asyncio.sleep(8)
+            for d in dataList:
+                try:
+                    await saveStockInfo(d)
+                except:
+                    saveErrorList.append({d.code: d.name, f'{d.code}count': 1})
+                    logger.error(f"Sina({host}) - 出现异常...... {d}")
+            if len(saveErrorList) > 0:
+                await etfTask.put(saveErrorList)
+        except:
+            logger.error(f"Sina({host}) - 出现异常...... {datas}")
+            logger.error(traceback.format_exc())
+            if datas: await etfTask.put(datas)
+            await asyncio.sleep(8)
+        finally:
+            if datas: etfTask.task_done()
+
+
 def calc_macd(price: float, ema_s: float, ema_l: float, dea: float) -> dict:
     ema_s = alpha_s * price + (1 - alpha_s) * ema_s
     ema_l = alpha_l * price + (1 - alpha_l) * ema_l
@@ -344,8 +375,8 @@ async def setAvailableStock():
             for s in etfInfo:
                 etfList.append({s.code: s.name, f'{s.code}count': 1})
             index = int(len(etfList) / 2)
-            await queryTask.put(etfList[:index])
-            await queryTask.put(etfList[index:])
+            await etfTask.put(etfList[:index])
+            await etfTask.put(etfList[index:])
             logger.info(f"总共 {len(etfList)} 个 ETF ...")
         except:
             logger.error(traceback.format_exc())
@@ -634,8 +665,8 @@ async def checkUpdateStockFund():
             except:
                 fund = await getStockZhuLiFundFromSina(s.code)
             await Detail.update((s.code, s.day), fund=fund)
-            logger.info(f"ReUpdate Stock Fund: {s.code} - {fund}")
-            await asyncio.sleep(5)
+            logger.info(f"ReUpdate Stock Fund: {s.name} - {s.code} - {fund}")
+            await asyncio.sleep(8)
     except:
         logger.error(traceback.format_exc())
 
@@ -1046,6 +1077,7 @@ async def main():
     asyncio.create_task(getStockFromSina(HTTP_HOST1))
     asyncio.create_task(getStockFromSina(HTTP_HOST2))
     asyncio.create_task(getStockFromSina(HTTP_HOST3))
+    asyncio.create_task(getEtfFromSina('base'))
 
     try:
         await asyncio.Event().wait()

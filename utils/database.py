@@ -4,8 +4,9 @@
 
 import asyncio
 from typing import Iterable, Any
+from enum import Enum as PyEnum
 from contextlib import asynccontextmanager
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint, text, exists, not_
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint, Enum, text, exists, not_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import and_
@@ -29,6 +30,14 @@ async def write_worker():
                 future.set_exception(e)
         finally:
             writer_queue.task_done()
+
+
+class TradeType(str, PyEnum):
+    BUY = "B"   # 买入
+    SELL = "S"  # 卖出
+    RECD = "R"  # AI推荐
+    AUTO = "A"  # AI自动卖出
+    HOLD = "H"  # 已清仓
 
 
 class Database:
@@ -581,7 +590,7 @@ class Tools(Base, CRUDBase):
 class Holds(Base, CRUDBase):
     __tablename__ = 'holds'
     __table_args__ = (
-        Index('idx_recommend_code', 'code'),
+        Index('idx_hold_code', 'code'),
         {'sqlite_autoincrement': True}
     )
 
@@ -594,6 +603,26 @@ class Holds(Base, CRUDBase):
     sale_time = Column(DateTime, nullable=True, comment="卖出时间")
     user_id = Column(Integer, nullable=False, comment="用户Id")
     content = Column(Text, nullable=True, comment="AI分析")
+    create_time = Column(DateTime, default=datetime.now)
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class Transaction(Base, CRUDBase):
+    __tablename__ = 'transaction'
+    __table_args__ = (
+        Index('idx_transaction_code', 'code'),
+        {'sqlite_autoincrement': True}
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(8), nullable=False, comment="股票代码")
+    name = Column(String(16), nullable=False, comment="股票名称")
+    status = Column(Enum(TradeType, native_enum=False, length=4), nullable=False, comment="交易类型: B/S/H")
+    price = Column(Float, nullable=False, comment="成本")
+    shares = Column(Integer, default=0, nullable=False, comment="数量")
+    fee = Column(Float, default=0.0, comment="手续费/盈利金额(status=H)")
+    flag = Column(Integer, default=0, nullable=False, comment="0:持仓, 1:清仓")
+    user_id = Column(Integer, nullable=False, comment="用户Id, 0:系统自动, 1:用户1 ...")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

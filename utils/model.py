@@ -192,16 +192,16 @@ class SetStockAiText(BaseModel):
     content: str
 
 
-class HoldStockList(BaseModel):
+class TradeStockList(BaseModel):
     id: int = None
     code: str = None
     name: str = None
     price: float = None
     shares: int = None
+    status: str = None
+    fee: float = None
+    flag: int = None
     user_id: int = None
-    sale_price: Optional[float] = None
-    sale_time: Optional[str] = None
-    content: Optional[str] = None
     create_time: str = None
     update_time: str = None
 
@@ -212,9 +212,8 @@ class HoldStockList(BaseModel):
     def from_orm_format(cls, obj):
         c = obj.create_time.strftime("%Y-%m-%d")
         u = obj.update_time.strftime("%Y-%m-%d")
-        s = obj.sale_time.strftime("%Y-%m-%d") if obj.sale_time else None
-        return cls(id=obj.id, code=obj.code, name=obj.name, price=round(obj.price, 2), shares=obj.shares, sale_time=s,
-                   sale_price=obj.sale_price, user_id=obj.user_id, update_time=u, create_time=c, content=obj.content)
+        return cls(id=obj.id, code=obj.code, name=obj.name, price=round(obj.price, 2), shares=obj.shares, status=obj.status,
+                   fee=obj.fee, user_id=obj.user_id, create_time=c, update_time=u, flag=obj.flag)
 
 
 class EtfInfoList(BaseModel):

@@ -9,7 +9,7 @@ import asyncio
 import traceback
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
-from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo, HoldStockList
+from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo, TradeStockList
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam, SetStockHold
 from utils.model import EtfInfoList, SetStockAiText
 from utils.selectStock import getStockZhuLiFundFromTencent
@@ -21,10 +21,13 @@ from utils.initData import initStockData, getStockFundFlow
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands, getStockLimitUp, evaluate_sell_strategy
-from utils.database import Recommend, Stock, Detail, Tools, DBExecutor, Holds, ETF
+from utils.database import Recommend, Stock, Detail, Tools, DBExecutor, ETF, Transaction, TradeType
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HISTORY_PATH
 
 
+stock_fee_ratio = 1 / 10000   # 股票交易佣金，默认万分之一
+etf_fee_ratio = 2.5 / 10000   # ETF交易佣金，默认万分之2.5
+stamp_duty = 5 / 10000   # 印花税，默认万分之5
 alpha_trix = 2.0 / (12 + 1)
 alpha_s = 2.0 / (12 + 1)
 alpha_l = 2.0 / (26 + 1)
@@ -68,6 +71,59 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
     trix_list[0] = trix
     trma = sum(trix_list[: 9]) / 9
     return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
+
+
+def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shares: int = 0) -> dict:
+    result = {}
+    try:
+        profit = 0.0
+        if status == 'B' or status == 'R':    # 建仓/加仓
+            total_value = cost * shares + price * number
+            shares += number
+            cost = round(total_value / shares, 6)
+        else:    # 减仓/清仓
+            if number > shares:
+                raise Exception("卖出数量大于持仓数量...")
+            profit = (price - cost) * number
+            shares -= number
+            if shares != 0:
+                cost = cost - (profit / shares)
+
+        result = {'cost': cost, 'shares': shares, 'profit': profit}
+        logger.info(f"计算持仓数据成功, 操作: {status}, 数量: {price} - {number}, 最新成本: {cost} - {shares}")
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
+async def get_holding(user_id=None) -> list[dict]:
+    result = []
+    try:
+        if user_id:
+            rows = await Transaction.query().equal(user_id=user_id, flag=0).select("user_id", "code").distinct().all()
+        else:
+            rows = await Transaction.query().equal(flag=0).select("user_id", "code").distinct().all()
+
+        for r in rows:
+            stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).order_by(Transaction.create_time.asc()).all()
+            res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
+            fee = 0.0
+            for s in stock:
+                res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'])
+                fee += s.fee
+            if res['shares'] == 0:
+                await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=TradeType.HOLD,
+                                         fee=round(res['profit'] - fee, 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
+                for s in stock:
+                    await Transaction.update(s.id, flag=1)
+                logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'] - fee, 2)}")
+            else:
+                info = {'name': stock[-1].name, 'code': stock[-1].code, 'create_time': stock[0].create_time.strftime("%Y-%m-%d"),
+                        'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': None}
+                result.append(info)
+    except:
+        logger.error(traceback.format_exc())
+    return result
 
 
 async def queryByCode(code: str, site: str = None) -> Result:
@@ -122,19 +178,11 @@ async def queryByCode(code: str, site: str = None) -> Result:
             st: ETF = await ETF.get_one(code)
         else:
             st: Stock = await Stock.get_one(code)
-        recommends: list[Recommend] = await Recommend.query().equal(code=code).order_by(Recommend.id.asc()).all()
+        trans: list[Transaction] = await Transaction.query().equal(code=code).order_by(Transaction.create_time.asc()).all()
         coords = []
-        for r in recommends:
-            if r.source == 0:
-                coords.append(['R', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M"), r.price])
-            if r.source == 1:
-                coords.append(['B', r.create_time.strftime("%Y%m%d"), r.create_time.strftime("%Y-%m-%d %H:%M"), r.price])
-            if r.sale_price and r.sale_time:
-                if r.sale_price < 0.1: continue
-                if r.source == 1:
-                    coords.append(['S', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M"), r.sale_price])
-                else:
-                    coords.append(['A', r.sale_time.strftime("%Y%m%d"), r.sale_time.strftime("%Y-%m-%d %H:%M"), r.sale_price])
+        for r in trans:
+            if r.status != 'H':
+                coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
         if x[-1] != day:
             logger.info(f"No real data, start query read data - code: {code}")
             stockDo: dict = await calc_stock_real_data(code, site)
@@ -477,17 +525,24 @@ async def get_current_price(code: str, site: str = None) -> Result:
 async def all_stock_info(query: SearchStockParam) -> Result:
     result = Result()
     try:
+        etfList = []
         if query.code:
             stockInfo: Stock = await Stock.get(query.code)
             stockList = [StockInfoList.from_orm_format(stockInfo).model_dump()]
         elif query.name or query.region or query.industry or query.concept or query.filter:
             if query.filter == 'buy':
-                hold_id_list = await Holds.query().greater(shares=0).select("code").all()
-                hold_stock_list = [r[0] for r in hold_id_list]
+                hold_id_list = await get_holding()
+                hold_stock_list = [r['code'] for r in hold_id_list]
                 stockInfo: list[Stock] = await Stock.query().isin(code=hold_stock_list).all()
+                etfInfo: list[ETF] = await ETF.query().isin(code=hold_stock_list).all()
+                for f in etfInfo:
+                    r = EtfInfoList.from_orm_format(f).model_dump()
+                    r.update({'filter': None, 'region': r['capital'], 'concept': r['fee']})
+                    etfList.append(r)
+                logger.info(etfList)
             else:
                 stockInfo: list[Stock] = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).all()
-            stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
+            stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo] + etfList
             result.total = len(stockList)
         else:
             offset = (query.page - 1) * query.pageSize
@@ -762,10 +817,9 @@ async def get_data_by_day(code: str, day: str) -> Result:
 async def get_user_hold(userId: str) -> Result:
     result = Result()
     try:
-        stock: list[Holds] = await Holds.query().equal(user_id=userId).greater(shares=0).order_by(Holds.create_time.asc()).all()
-        stockList = [HoldStockList.from_orm_format(f).model_dump() for f in stock if f.code not in ['603167', '000651']]
-        result.data = stockList
-        result.total = len(stockList)
+        stockList = await get_holding(userId)
+        result.data = [f for f in stockList if f['code'] not in ['603167', '000651']]
+        result.total = len(result.data)
         logger.info(f"查询用户{userId} 持仓：{result.data}")
     except:
         result.success = False
@@ -776,32 +830,21 @@ async def get_user_hold(userId: str) -> Result:
 async def set_user_hold(data: SetStockHold) -> Result:
     result = Result()
     try:
-        cost = 0
-        shares = 0
-        stock: Stock = await Stock.get_one(data.code)
-        has_hold: list[Holds] = await Holds.query().equal(code=data.code, user_id=data.userId).greater(shares=0).all()
-        if has_hold and len(has_hold) == 1:
-            cost = has_hold[0].price
-            shares = has_hold[0].shares
-        if data.status == 1:    # 建仓/加仓
-            total_value = cost * shares + data.price * data.number
-            shares += data.number
-            cost = round(total_value / shares, 6)
-            if has_hold and len(has_hold) == 1:
-                await Holds.update(has_hold[0].id, name=stock.name, price=cost, shares=shares)
-            else:
-                date_obj = datetime.strptime(data.time.replace("T", " ") + ":00", "%Y-%m-%d %H:%M:%S")
-                await Holds.create(code=data.code, name=stock.name, price=cost, shares=shares, user_id=data.userId, create_time=date_obj)
-        if data.status == 0:    # 减仓/清仓
-            if data.number > shares:
-                raise Exception("卖出数量大于持仓数量")
-            profit = (data.price - cost) * data.number
-            shares -= data.number
-            if shares != 0:
-                cost = cost - (profit / shares)
-            date_obj = datetime.strptime(data.time.replace("T", " ") + ":00", "%Y-%m-%d %H:%M:%S")
-            await Holds.update(has_hold[0].id, name=stock.name, price=cost, shares=shares, sale_price=data.price, sale_time=date_obj)
-        logger.info(f"设置用户持仓数据成功, 用户: {data.userId}, 股票: {data.code}, 数据: {data}")
+        fee = 0
+        if data.code.startswith('1') or data.code.startswith('5'):
+            stock: ETF = await ETF.get_one(data.code)
+            fee = max((data.price * data.number) * etf_fee_ratio, 5)
+        else:
+            stock: Stock = await Stock.get_one(data.code)
+            fee = max((data.price * data.number) * stock_fee_ratio, 5)
+            if data.status == 0:
+                fee += (data.price * data.number) * stamp_duty
+
+        date_obj = datetime.strptime(data.time.replace("T", " ") + ":00", "%Y-%m-%d %H:%M:%S")
+        status = 'S' if data.status == 0 else 'B'
+        await Transaction.create(code=data.code, name=stock.name, price=data.price, shares=data.number, status=status,
+                                 fee=round(fee, 2), user_id=data.userId, create_time=date_obj, flag=0)
+        logger.info(f"设置用户交易数据成功, 用户: {data.userId}, 股票: {data.code}, 数据: {data}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -809,27 +852,27 @@ async def set_user_hold(data: SetStockHold) -> Result:
     return result
 
 
-async def set_hold_ai_text(data: SetStockAiText) -> Result:
-    result = Result()
-    try:
-        stock = await Holds.get_one(data.id)
-        await Holds.update(stock.id, content=data.content)
-        logger.info(f"设置买入股票分析内容成功, 用户: {stock.user_id}, 股票: {stock.code} - {stock.name}, 内容: {data.content}")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = str(e)
-    return result
+# async def set_hold_ai_text(data: SetStockAiText) -> Result:
+#     result = Result()
+#     try:
+#         stock = await Transaction.get_one(data.id)
+#         await Transaction.update(stock.id, content=data.content)
+#         logger.info(f"设置买入股票分析内容成功, 用户: {stock.user_id}, 股票: {stock.code} - {stock.name}, 内容: {data.content}")
+#     except Exception as e:
+#         logger.error(traceback.format_exc())
+#         result.success = False
+#         result.msg = str(e)
+#     return result
 
 
-async def queryHoldStockList(page: int = 1) -> Result:
+async def queryTradeStockList(page: int = 1) -> Result:
     result = Result()
     pageSize = 20
     try:
         offset = (page - 1) * pageSize
-        total_num: int = await Holds.query().count()
-        stockInfo: list[Holds] = await Holds.query().order_by(Holds.create_time.desc()).offset(offset).limit(pageSize).all()
-        stockList = [HoldStockList.from_orm_format(f).model_dump() for f in stockInfo]
+        total_num: int = await Transaction.query().equal(status=TradeType.HOLD).count()
+        stockInfo: list[Transaction] = await Transaction.query().equal(status=TradeType.HOLD).order_by(Transaction.create_time.desc()).offset(offset).limit(pageSize).all()
+        stockList = [TradeStockList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
         logger.info("Query Hold Stock List Success ~")
@@ -840,23 +883,23 @@ async def queryHoldStockList(page: int = 1) -> Result:
     return result
 
 
-async def getHoldAiText(rId: int) -> Result:
-    result = Result()
-    try:
-        stock = await Holds.get_one(rId)
-        result.data = stock.content
-        logger.info(f"get Hold Stock AI text {rId} - {stock.code} - {stock.name} Success ~")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = str(e)
-    return result
+# async def getHoldAiText(rId: int) -> Result:
+#     result = Result()
+#     try:
+#         stock = await Transaction.get_one(rId)
+#         result.data = stock.content
+#         logger.info(f"get Hold Stock AI text {rId} - {stock.code} - {stock.name} Success ~")
+#     except Exception as e:
+#         logger.error(traceback.format_exc())
+#         result.success = False
+#         result.msg = str(e)
+#     return result
 
 
 async def deleteHoldStock(rId: int) -> Result:
     result = Result()
     try:
-        _ = await Holds.query().equal(id=rId).delete()
+        _ = await Transaction.query().equal(id=rId).delete()
         logger.info(f"Delete Hold Stock {rId} Success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -1056,6 +1099,7 @@ async def auto_sell_stock():
                 finally:
                     index += 1
                     asyncio.sleep(6)
+        await get_holding()
     except:
         logger.error(traceback.format_exc())
 
@@ -1074,3 +1118,5 @@ async def stop_auto_sell_stock():
         logger.info("stop sell stock task ...")
     else:
         logger.info("sell stock task is not exist or stopped ...")
+
+    scheduler.add_job(get_holding, "date", run_date=datetime.now() + timedelta(seconds=3600))

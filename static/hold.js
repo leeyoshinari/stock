@@ -61,22 +61,13 @@ function getStockList() {
                 if (item.sale_time && item.sale_time.length > 6) {
                     sale_time = item.sale_time;
                 }
-                let profit = `<a onclick="query_profit('${item.id}', '${item.code}')" style="cursor:pointer;">查看</a>`;
-                let profit_color = '';
-                if (item.sale_price && item.sale_price > 0 && item.shares === 0) {
-                    profit = ((item.sale_price - item.price) / item.price * 100).toFixed(2) + '%';
-                    profit_color = item.sale_price > item.price ? "red" : item.sale_price < item.price ? "green" : "";
-                }
-                let ai_ele = `<a onclick="set_ai_figure('${item.id}', '${item.code}')" style="cursor:pointer;">设置</a>`;
-                if (item.content && item.content.length > 20) {
-                    ai_ele = `<a onclick="query_ai_hold('${item.id}')" style="cursor:pointer;">查看</a>`;
-                }
+                let profit_color = item.fee > 0 ? "red" : item.fee < 0 ? "green" : "";
                 let deleteR = '';
                 if (showFlag) {
                     deleteR = `<div><a onclick="set_ai_figure('${item.id}', '${item.code}')" style="cursor:pointer;">设置</a></div><div><a onclick="delete_data('${item.id}')">删除</a></div>`;
                 }
                 s += `<div id="${item.code}-${item.create_time}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div>
-                      <div id="price-${item.id}">${item.price}</div><div>${item.shares > 0 ? item.shares : "已清仓"}</div><div>${item.create_time}</div><div>${getDayDiff(item.create_time, sale_time)}</div><div id="profit-${item.id}" style="color:${profit_color};">${profit}</div><div>${ai_ele}</div>${deleteR}</div>`;
+                      <div id="price-${item.id}">${item.price}</div><div>${item.shares}</div><div>${item.create_time}</div><div>${getDayDiff(item.create_time, sale_time)}</div><div id="profit-${item.id}" style="color:${profit_color};">${item.fee}</div>${deleteR}</div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
