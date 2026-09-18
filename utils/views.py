@@ -73,18 +73,18 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
     return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
 
 
-def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shares: int = 0) -> dict:
+def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shares: int = 0, fee: float = 0.0) -> dict:
     result = {}
     try:
         profit = 0.0
         if status == 'B' or status == 'R':    # 建仓/加仓
-            total_value = cost * shares + price * number
+            total_value = cost * shares + price * number + fee
             shares += number
             cost = round(total_value / shares, 6)
         else:    # 减仓/清仓
             if number > shares:
                 raise Exception("卖出数量大于持仓数量...")
-            profit = (price - cost) * number
+            profit = (price - cost) * number - fee
             shares -= number
             if shares != 0:
                 cost = cost - (profit / shares)
@@ -96,27 +96,29 @@ def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shar
     return result
 
 
-async def get_holding(user_id=None) -> list[dict]:
+async def get_holding(user_id=None, code=None) -> list[dict]:
     result = []
     try:
-        if user_id:
+        if user_id and code:
+            rows = await Transaction.query().equal(code=code, user_id=user_id, flag=0).select("user_id", "code").distinct().all()
+        elif user_id and not code:
             rows = await Transaction.query().equal(user_id=user_id, flag=0).select("user_id", "code").distinct().all()
+        elif code and not user_id:
+            rows = await Transaction.query().equal(code=code, flag=0).select("user_id", "code").distinct().all()
         else:
             rows = await Transaction.query().equal(flag=0).select("user_id", "code").distinct().all()
 
         for r in rows:
             stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).order_by(Transaction.create_time.asc()).all()
             res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
-            fee = 0.0
             for s in stock:
-                res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'])
-                fee += s.fee
+                res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
             if res['shares'] == 0:
                 await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=TradeType.HOLD,
-                                         fee=round(res['profit'] - fee, 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
+                                         fee=round(res['profit'], 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
                 for s in stock:
                     await Transaction.update(s.id, flag=1)
-                logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'] - fee, 2)}")
+                logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
             else:
                 info = {'name': stock[-1].name, 'code': stock[-1].code, 'create_time': stock[0].create_time.strftime("%Y-%m-%d"),
                         'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': None}
@@ -183,6 +185,7 @@ async def queryByCode(code: str, site: str = None) -> Result:
         for r in trans:
             if r.status != 'H':
                 coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
+        profit_res = await get_holding(code=code)
         if x[-1] != day:
             logger.info(f"No real data, start query read data - code: {code}")
             stockDo: dict = await calc_stock_real_data(code, site)
@@ -208,11 +211,14 @@ async def queryByCode(code: str, site: str = None) -> Result:
                 boll_low.append(stockDo['boll_low'])
         else:
             fund[-1] = await getStockZhuLiFundFromTencent(code)
+        profit = round((data[-1][1] - profit_res[0]['price']) * profit_res[0]['shares'], 2) if profit_res else None
+        cost = round(profit_res[0]['price'], 3) if profit_res else None
+        shares = profit_res[0]['shares'] if profit_res else None
         result.data = {
             'x': x, 'code': code, 'name': st.name, 'industry': st.industry, 'coord': coords,
-            'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate,
+            'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate, 'cost': cost,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up,
-            'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund,
+            'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'profit': profit, 'shares': shares,
             'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma, 'boll_low': boll_low
         }
         if not (code.startswith('1') or code.startswith('5')):
@@ -817,7 +823,7 @@ async def get_data_by_day(code: str, day: str) -> Result:
 async def get_user_hold(userId: str) -> Result:
     result = Result()
     try:
-        stockList = await get_holding(userId)
+        stockList = await get_holding(user_id=userId)
         result.data = [f for f in stockList if f['code'] not in ['603167', '000651']]
         result.total = len(result.data)
         logger.info(f"查询用户{userId} 持仓：{result.data}")

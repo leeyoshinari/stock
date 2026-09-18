@@ -97,7 +97,11 @@ function get_stock_figure(code) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                let title = `${data.data.name} - ${code} - ${data.data.industry}`;
+                let profit = '';
+                if (data.data.shares) {
+                    profit = ` - 成本: ${data.data.cost}, 数量: ${data.data.shares}, 利润: ${data.data.profit}`;
+                }
+                let title = `${data.data.name} - ${code} - ${data.data.industry}${profit}`;
                 let figure = document.getElementById("figure");
                 figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
                 figure.style.height = '';

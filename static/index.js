@@ -89,7 +89,15 @@ function get_stock_figure(code) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
+                let profit = '';
+                if (data.data.shares) {
+                    profit = ` - 成本: ${data.data.cost}, 数量: ${data.data.shares}, 利润: ${data.data.profit}`;
+                }
+                let region_str = ` - ${data.data.region}`;
+                if (code.startsWith("1") || code.startsWith("5")){
+                    region_str = '';
+                }
+                let title = `${data.data.name} - ${code}${region_str} - ${data.data.industry}${profit}`;
                 let figure = document.getElementById("figure");
                 figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
                 figure.removeAttribute("_echarts_instance_")
@@ -109,7 +117,11 @@ function get_stock_real_figure(code) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                let title = `${data.data.name} - ${code} - ${data.data.region} - ${data.data.industry}`;
+                let region_str = ` - ${data.data.region}`;
+                if (code.startsWith("1") || code.startsWith("5")){
+                    region_str = '';
+                }
+                let title = `${data.data.name} - ${code}${region_str} - ${data.data.industry}`;
                 let figure = document.getElementById("figure");
                 figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
                 figure.style.height = '500px';
