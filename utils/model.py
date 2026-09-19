@@ -212,7 +212,7 @@ class TradeStockList(BaseModel):
     def from_orm_format(cls, obj):
         c = obj.create_time.strftime("%Y-%m-%d")
         u = obj.update_time.strftime("%Y-%m-%d")
-        return cls(id=obj.id, code=obj.code, name=obj.name, price=round(obj.price, 2), shares=obj.shares, status=obj.status,
+        return cls(id=obj.id, code=obj.code, name=obj.name, price=round(obj.price, 2), shares=obj.shares, status=obj.status.name,
                    fee=obj.fee, user_id=obj.user_id, create_time=c, update_time=u, flag=obj.flag)
 
 

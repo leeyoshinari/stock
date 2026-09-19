@@ -77,13 +77,13 @@ def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shar
     result = {}
     try:
         profit = 0.0
-        if status == 'B' or status == 'R':    # 建仓/加仓
+        if status == TradeType.BUY or status == TradeType.RECD:    # 建仓/加仓
             total_value = cost * shares + price * number + fee
             shares += number
             cost = round(total_value / shares, 6)
         else:    # 减仓/清仓
             if number > shares:
-                raise Exception("卖出数量大于持仓数量...")
+                raise Exception(f"卖出数量大于持仓数量, {number} > {shares} ...")
             profit = (price - cost) * number - fee
             shares -= number
             if shares != 0:
@@ -191,10 +191,11 @@ async def queryByCode(code: str, site: str = None) -> Result:
             st: ETF = await ETF.get_one(code)
         else:
             st: Stock = await Stock.get_one(code)
-        trans: list[Transaction] = await Transaction.query().equal(code=code).order_by(Transaction.create_time.asc()).all()
+        trans: list[Transaction] = await Transaction.query().equal(code=code).order_by(Transaction.id.asc()).all()
         coords = []
         for r in trans:
-            if r.status != TradeType.MAN or r.status != TradeType.AUTO:
+            logger.info(f"{r.status} - {TradeType.MAN}")
+            if r.status != TradeType.MAN and r.status != TradeType.AUTO:
                 coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
         profit_res = await get_holding(code=code)
         if x[-1] != day:

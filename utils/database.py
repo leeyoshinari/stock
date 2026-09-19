@@ -34,17 +34,17 @@ async def write_worker():
 
 class TradeType(str, PyEnum):
     # 手动买入
-    BUY = "Buy"
+    BUY = "B"
     # 手动卖出
-    SELL = "Sell"
+    SELL = "S"
     # AI推荐
-    RECD = "Recommend"
+    RECD = "R"
     # AI自动卖出
-    AIS = "AIsell"
+    AIS = "A"
     # 手动已清仓
-    MAN = "Manual"
+    MAN = "M"
     # 自动已清仓
-    AUTO = "Auto"
+    AUTO = "A"
 
 
 class Database:
