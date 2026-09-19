@@ -16,7 +16,7 @@ from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
 from settings import PREFIX, HOST, PORT, BASE_PATH, checkout, BACKUP_PATH
 from utils.scheduler import scheduler
-from utils.backup import zip_file
+from utils.backup import zip_file, clear_detail_data
 from utils.logging import logger
 from utils.database import Database, write_worker
 from utils.results import Result
@@ -301,8 +301,9 @@ route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(
 async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
     scheduler.add_job(zip_file, 'cron', hour=16, minute=20, second=20, args=[[db_path], zip_path, logger], misfire_grace_time=10)  # 备份数据库
-    scheduler.add_job(views.start_auto_sell_stock, 'cron', hour=9, minute=34, second=50)
-    scheduler.add_job(views.stop_auto_sell_stock, 'cron', hour=14, minute=58, second=58)
+    scheduler.add_job(clear_detail_data, 'cron', day_of_week='sat', hour=0, minute=0, second=0, args=[logger], misfire_grace_time=10)  # 清理数据
+    scheduler.add_job(views.start_auto_sell_stock, 'cron', hour=9, minute=34, second=50, misfire_grace_time=10)
+    scheduler.add_job(views.stop_auto_sell_stock, 'cron', hour=14, minute=58, second=58, misfire_grace_time=10)
     scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
     worker_task = asyncio.create_task(write_worker())
     await modify_sw()

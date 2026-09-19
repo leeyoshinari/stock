@@ -33,11 +33,18 @@ async def write_worker():
 
 
 class TradeType(str, PyEnum):
-    BUY = "B"   # 买入
-    SELL = "S"  # 卖出
-    RECD = "R"  # AI推荐
-    AUTO = "A"  # AI自动卖出
-    HOLD = "H"  # 已清仓
+    # 手动买入
+    BUY = "Buy"
+    # 手动卖出
+    SELL = "Sell"
+    # AI推荐
+    RECD = "Recommend"
+    # AI自动卖出
+    AIS = "AIsell"
+    # 手动已清仓
+    MAN = "Manual"
+    # 自动已清仓
+    AUTO = "Auto"
 
 
 class Database:
@@ -597,10 +604,10 @@ class Transaction(Base, CRUDBase):
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(8), nullable=False, comment="股票代码")
     name = Column(String(16), nullable=False, comment="股票名称")
-    status = Column(Enum(TradeType, native_enum=False, length=4), nullable=False, comment="交易类型: B/S/H")
+    status = Column(Enum(TradeType, native_enum=False, length=4), nullable=False, comment="交易类型: B/S/R/I/M/A")
     price = Column(Float, nullable=False, comment="成本")
     shares = Column(Integer, default=0, nullable=False, comment="数量")
-    fee = Column(Float, default=0.0, comment="手续费/盈利金额(status=H)")
+    fee = Column(Float, default=0.0, comment="手续费/盈利金额(status=M/A)")
     flag = Column(Integer, default=0, nullable=False, comment="0:持仓, 1:清仓")
     user_id = Column(Integer, nullable=False, comment="用户Id, 0:系统自动, 1:用户1 ...")
     create_time = Column(DateTime, default=datetime.now)

@@ -8,6 +8,7 @@ import math
 import random
 import traceback
 from typing import List
+from logging import Logger
 from datetime import datetime, timedelta, date
 from utils.model import StockModelDo
 from utils.database import Detail
@@ -45,6 +46,15 @@ def getStockRegionNum(code: str) -> str:
         return ""
 
 
+def getStockRegion(code: str) -> str:
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
+        return "sh"
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
+        return "sz"
+    else:
+        return ""
+
+
 def bollinger_bands(prices, middle, n=20, k=2):
     if len(prices) < n:
         return middle, middle
@@ -57,7 +67,7 @@ def bollinger_bands(prices, middle, n=20, k=2):
     return up, dn
 
 
-async def getStockFromSohu(datas: List, logger):
+async def getStockFromSohu(datas: List, logger: Logger):
     ''' datas = [{'002868': '*ST绿康'}] '''
     start_date = "20250801"
     current_day = time.strftime("%Y%m%d")
@@ -121,7 +131,7 @@ async def saveStockInfo(stockDo: StockModelDo):
         await Detail.update((stockDo.code, stockDo.day), qrr=round(stockDo.volume / average_volume, 2))
 
 
-async def getAllStockData(code, logger):
+async def getAllStockData(code, logger: Logger):
     try:
         res = await http.get(f"https://hq.stock.sohu.com/mkline/cn/{code[-3:]}/cn_{code}-10_2.html?_={int(time.time() * 1000)}", headers=headers)
         if res.status_code == 200:
@@ -188,7 +198,7 @@ async def getAllStockData(code, logger):
         logger.error(traceback.format_exc())
 
 
-async def update_stock_turnover_rate(code, logger):
+async def update_stock_turnover_rate(code, logger: Logger):
     try:
         current_day = time.strftime("%Y%m%d")
         res = await http.get(f"https://q.stock.sohu.com/hisHq?code=cn_{code}&start=20250901&end={current_day}", headers=headers)
@@ -216,7 +226,7 @@ async def update_stock_turnover_rate(code, logger):
         logger.error(traceback.format_exc())
 
 
-async def getStockFundFlow(code, cookie, logger):
+async def getStockFundFlow(code, cookie, logger: Logger):
     '''从东方财富获取资金流向
     https://data.eastmoney.com/zjlx/002149.html
     '''
@@ -247,10 +257,28 @@ async def getStockFundFlow(code, cookie, logger):
         logger.error(traceback.format_exc())
 
 
-async def initStockData(code: str, name: str, logger):
+async def getStockZhuLiFundFromTencentL5D(code: str, logger: Logger) -> float:
+    '''获取腾讯财经当前股票的主力净流入'''
+    '''https://gu.qq.com/sz300274/gp'''
+    try:
+        header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+        url = f'https://proxy.finance.qq.com/cgi/cgi-bin/fundflow/hsfundtab?code={getStockRegion(code)}{code}&type=fiveDayFundFlow,todayFundFlow&klineNeedDay=20'
+        res = await http.get(url, headers=header)
+        res_json = json.loads(res.text)
+        day_list = res_json['data']['fiveDayFundFlow']['DayMainNetInList']
+        for item in day_list:
+            day = item['date'].replace('-', '')
+            fund = round(float(item['mainNetIn']) / 10000, 2)
+            await Detail.update2return((code, day), fund=fund)
+            logger.info(f"{code} L5D fund - {day} - {fund}")
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def initStockData(code: str, name: str, logger: Logger):
     await Detail.query().equal(code=code).delete()
     await getStockFromSohu([{code: name}], logger)    # update price and volume
     await getAllStockData(code, logger)   # update MACD/KDJ
     await update_stock_turnover_rate(code, logger)    # update turnover rate
-    # await getStockFundFlow(code, logger)      # update fund
+    await getStockZhuLiFundFromTencentL5D(code, logger)      # update fund
     await Detail.query().equal(code=code).less(day='20250901').delete()
