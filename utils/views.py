@@ -1190,7 +1190,7 @@ async def queryByCodeForAI(code: str, limit: int = 30) -> Result:
     return result
 
 
-async def webSearch(q: str, df: str) -> Result:    
+async def webSearch(q: str, df: str) -> Result:
     result = Result()
     try:
         result.data = await searchWithDuckDuckGo(q, logger=logger, df=df, max_results=5)

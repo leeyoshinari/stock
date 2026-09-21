@@ -2,9 +2,6 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
-import re
-import time
-import json
 import traceback
 import lxml.html
 import trafilatura

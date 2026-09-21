@@ -219,7 +219,7 @@ class EtfInfoList(BaseModel):
     capital: float = None
     fee: float = None
     industry: str = None
-    stocks: list[dict] = None
+    stocks: Optional[list[dict]] = None
     create_time: str
     update_time: str
 
