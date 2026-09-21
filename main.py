@@ -253,6 +253,18 @@ class StockController(Controller):
             result = await views.setEtf(code, running)
         return result
 
+    @get('/search', summary="调用duckduckgo搜索")
+    async def search(self, request: Request, q: str, df: str = None) -> Result:
+        result = await views.webSearch(q, df)
+        return result
+
+    @get('/analyzer', summary="全面分析标的")
+    async def analyzer(self, request: Request, code: str) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.analysize(code)
+        return result
+
     @post('/test')
     async def test(self, request: Request, data: model.ToolsInfoList) -> Result:
         result = await views.test(data)

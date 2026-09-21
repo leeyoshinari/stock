@@ -6,7 +6,7 @@ import asyncio
 from typing import Iterable, Any
 from enum import Enum as PyEnum
 from contextlib import asynccontextmanager
-from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, PrimaryKeyConstraint, Enum, text, exists, not_
+from sqlalchemy import Column, Integer, Float, String, Text, ForeignKey, DateTime, Index, JSON, PrimaryKeyConstraint, Enum, text, exists, not_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import and_
@@ -622,7 +622,8 @@ class ETF(Base, CRUDBase):
     running = Column(Integer, default=1, nullable=False, comment="0-不获取数据，1-获取数据")
     capital = Column(Float, nullable=True, comment="资金规模(亿)")
     fee = Column(Float, nullable=True, comment="每年费用(%)")
-    industry = Column(String(32), nullable=True, comment="行业")
+    industry = Column(String(32), nullable=True, comment="跟踪标的")
+    stocks = Column(JSON, nullable=True, comment="重仓股")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

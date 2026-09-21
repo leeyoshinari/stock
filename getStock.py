@@ -27,7 +27,7 @@ from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_mi
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent
 from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina
-from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai
+from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent
 from utils.database import Stock, Detail, Tools, Recommend, ETF, write_worker
 from utils.logging_getstock import logger
 
@@ -917,6 +917,23 @@ async def setAllSZEtf():
         logger.error(traceback.format_exc())
 
 
+async def updateEtfHoldStock(host: str = ''):
+    '''
+    获取ETF的重仓前10的股票
+    '''
+    try:
+        etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
+        for r in etfInfo:
+            if r.code == '159934':      # 黄金ETF过滤掉
+                continue
+            res = await getHoldStockOfEtfFromTencent(host, r.code, logger)
+            await ETF.update(r.code, stocks=res)
+            logger.info(f"{r.name} - {r.code} 的前10大重仓股是 {res}")
+            await asyncio.sleep(8)
+    except:
+        logger.error(traceback.format_exc())
+
+
 async def writeEtfDatabase(code: str):
     try:
         etf: ETF = await ETF.get_one(code)
@@ -1053,7 +1070,7 @@ async def main():
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=48, second=30, misfire_grace_time=10)  # 开始选股
     scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
     scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)          # 停止任务
-    scheduler.add_job(setAvailableStock, 'cron', hour='11,14,15', minute=31, second=20, misfire_grace_time=10)     # 收盘后更新数据
+    scheduler.add_job(setAvailableStock, 'cron', hour='14,15', minute=31, second=20, misfire_grace_time=10)     # 收盘后更新数据
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=36, second=20, args=[1], misfire_grace_time=10)  # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=45, second=50, misfire_grace_time=10)       # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据
@@ -1062,6 +1079,7 @@ async def main():
     # scheduler.add_job(initData, "date", run_date=datetime.now() + timedelta(seconds=10))
     # scheduler.add_job(setAllSHEtf, "date", run_date=datetime.now() + timedelta(seconds=10))
     # scheduler.add_job(setAllSZEtf, "date", run_date=datetime.now() + timedelta(seconds=25))
+    scheduler.add_job(updateEtfHoldStock, "date", args=[''], run_date=datetime.now() + timedelta(seconds=10))
     scheduler.start()
     await asyncio.sleep(2)
 

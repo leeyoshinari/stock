@@ -61,6 +61,9 @@ HTTP_HOST2 = get_config("HTTPHost2")
 HTTP_HOST3 = get_config("HTTPHost3")
 ACCESS_KEY = get_config("accessKey")
 BACKUP_PATH = get_config("backupPath")
+ANALYSIZE_API_URL = get_config("analysizeApiUrl")
+ANALYSIZE_API_KEY = get_config("analysizeApiKey")
+ANALYSIZE_API_MODEL = get_config("analysizeApiModel")
 
 
 def checkout(pwd: str) -> bool:

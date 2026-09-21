@@ -8,7 +8,6 @@ from typing import Optional
 
 
 class HttpResponse:
-
     def __init__(self, *, url: str, status: int, headers: dict, text: str, content: bytes):
         self.url = url
         self.status_code = status
@@ -18,7 +17,6 @@ class HttpResponse:
 
 
 class HttpClient:
-
     def __init__(self, timeout: int = 180, max_connections: int = 200, max_per_host: int = 50, retry: int = 2):
         self.timeout = timeout
         self.max_connections = max_connections

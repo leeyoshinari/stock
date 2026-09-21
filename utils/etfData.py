@@ -15,6 +15,15 @@ headers = {
 }
 
 
+def getStockRegion(code: str) -> str:
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
+        return "sh"
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
+        return "sz"
+    else:
+        return ""
+
+
 async def getEtfInfoFromSH(page: int, logger: Logger):
     hh = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
@@ -64,6 +73,27 @@ async def getEtfDetailFromDongCai(code: str, logger: Logger):
             result = extract_fund_info(res.text)
             if not result['name'] or len(result['name']) < 1:
                 logger.error(f"获取ETF信息请求未正常返回... {res.text}")
+        else:
+            logger.error(f"获取ETF信息请求code未正常返回... {res.text}")
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
+async def getHoldStockOfEtfFromTencent(host: str, code: str, logger: Logger) -> list[dict]:
+    result = None
+    try:
+        stockCode = f"{getStockRegion(code)}{code}"
+        if host and host.startswith('http'):
+            param_data = {"url": f"https://zxg.txfund.com/ifzqgtimg/appstock/fund/baseInfo/asset?code={stockCode}&_callback=jQuery1124014406183612592238_{int(time.time() * 1000)}&_={int(time.time() * 1000)}", "method": "GET"}
+            res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
+        else:
+            res = await http.get(f"https://zxg.txfund.com/ifzqgtimg/appstock/fund/baseInfo/asset?code={stockCode}&_callback=jQuery1124014406183612592238_{int(time.time() * 1000)}&_={int(time.time() * 1000)}", headers=headers)
+        if res.status_code == 200:
+            res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+            datas = json.loads('{' + res_text + '}')
+            res = [{'code': r['code'], 'name': r['name'], 'ratio': r['ratio']} for r in datas['data']['stock']]
+            return res
         else:
             logger.error(f"获取ETF信息请求code未正常返回... {res.text}")
     except:

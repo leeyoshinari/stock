@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
+import json
 from typing import Optional
 from pydantic import BaseModel
 
@@ -187,11 +188,6 @@ class SetStockHold(BaseModel):
     userId: int
 
 
-class SetStockAiText(BaseModel):
-    id: int
-    content: str
-
-
 class TradeStockList(BaseModel):
     id: int = None
     code: str = None
@@ -223,6 +219,7 @@ class EtfInfoList(BaseModel):
     capital: float = None
     fee: float = None
     industry: str = None
+    stocks: list[dict] = None
     create_time: str
     update_time: str
 
@@ -234,4 +231,4 @@ class EtfInfoList(BaseModel):
         c = obj.create_time.strftime("%Y-%m-%d")
         m = obj.update_time.strftime("%Y-%m-%d %H:%M:%S")
         return cls(code=obj.code, name=obj.name, running=obj.running, capital=obj.capital, industry=obj.industry, fee=obj.fee,
-                   create_time=c, update_time=m)
+                   create_time=c, update_time=m, stocks=obj.stocks)

@@ -11,13 +11,15 @@ from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo, TradeStockList
 from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam, SetStockHold
-from utils.model import EtfInfoList, SetStockAiText
+from utils.model import EtfInfoList
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sell_prompt
 from utils.logging import logger
 from utils.results import Result
 from utils.scheduler import scheduler
+from utils.aiAnalyzer import AsyncETFAnalyzer
 from utils.initData import initStockData, getStockFundFlow
+from utils.webSearch import searchWithDuckDuckGo
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands, getStockLimitUp, evaluate_sell_strategy
@@ -73,6 +75,15 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
     return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
 
 
+def getStockRegion(code: str) -> str:
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
+        return "sh"
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
+        return "sz"
+    else:
+        return ""
+
+
 def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shares: int = 0, fee: float = 0.0) -> dict:
     result = {}
     try:
@@ -96,8 +107,11 @@ def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shar
     return result
 
 
-async def get_holding(user_id=None, code=None, status=None) -> list[dict]:
-    async def get_holding_call(user_id, code, status):
+async def get_holding(user_id: int = None, code: str = None, status: str = None) -> list[dict]:
+    '''
+    status: 默认所有, "M" - 手动操作, "A" - 自动操作
+    '''
+    async def get_holding_call(user_id: int, code: str, status: str):
         result = []
         try:
             filter = [TradeType.BUY, TradeType.SELL]
@@ -1138,3 +1152,81 @@ async def stop_auto_sell_stock():
         logger.info("sell stock task is not exist or stopped ...")
 
     scheduler.add_job(get_holding, "date", run_date=datetime.now() + timedelta(seconds=3600))
+
+
+async def queryByCodeForAI(code: str, limit: int = 30) -> Result:
+    result = Result()
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        day = tool.value
+        stockInfo: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(limit).all()
+        stockInfo.reverse()
+        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockInfo]
+
+        if stockInfo[-1].day != day:
+            logger.info(f"No real data, start query read data - code: {code}")
+            stockDo: dict = await calc_stock_real_data(code, None)
+            if stockDo:
+                today = {'code': code, 'name': '', 'day': day, 'current_price': stockDo['current_price'], 'last_price': 0,
+                         'open_price': stockDo['open_price'], 'max_price': stockDo['max_price'], 'min_price': stockDo['min_price'],
+                         'volume': stockDo['volume'], 'fund': stockDo['fund'], 'ma_five': stockDo['ma_five'], 'ma_ten': stockDo['ma_ten'],
+                         'ma_twenty': stockDo['ma_twenty'], 'qrr': stockDo['qrr'], 'diff': round(stockDo['diff'], 3), 'dea': round(stockDo['dea'], 3),
+                         'k': round(stockDo['k'], 3), 'd': round(stockDo['d'], 3), 'j': round(stockDo['j'], 3), 'trix': round(stockDo['trix'], 3),
+                         'trma': round(stockDo['trma'], 3), 'turnover_rate': stockDo['turnover_rate'], 'boll_up': stockDo['boll_up'],
+                         'boll_low': stockDo['boll_low']}  # , 'macd': round((stockDo['diff'] - stockDo['dea']) * 2, 3)}
+                stock_data.append(today)
+        for s in stock_data:
+            s.pop('code', None)
+            s.pop('name', None)
+            s.pop('last_price', None)
+            s.pop('trix', None)
+            s.pop('trma', None)
+        result.data = stock_data
+        logger.info(f"Query AI stock k-line success - code: {code}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def webSearch(q: str, df: str) -> Result:    
+    result = Result()
+    try:
+        result.data = await searchWithDuckDuckGo(q, logger=logger, df=df, max_results=5)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = f"Search Exception: {str(e)}"
+    return result
+
+
+async def analysize(code: str) -> Result:
+    result = Result()
+    try:
+        isEtf = code.startswith("1") or code.startswith("5")
+        if isEtf:
+            stock: ETF = await ETF.get_one(code)
+        else:
+            stock: Stock = await Stock.get_one(code)
+        res: Result = await queryByCodeForAI(code)
+        if not res.success:
+            return f"Get K-line Error: code:{code}, {res.msg}"
+        hold = await get_holding(user_id=1, code=stock.code)
+        hold['code'] = stock.code + getStockRegion(stock.code).upper()
+        user_input = {
+            "type": "etf" if isEtf else "stock",
+            "name": stock.name,
+            "code": f"{stock.code}.{getStockRegion(stock.code).upper()}",
+            "industry": stock.industry if isEtf else stock.industry,
+            "concept": "" if isEtf else stock.concept,
+            "stocks": stock.stocks if isEtf else "",
+            "k_line": json.dumps(res.data, ensure_ascii=False),
+            "hold": hold
+        }
+        analyzer = AsyncETFAnalyzer(input_data=user_input)
+        result = await analyzer.analyze()
+    except:
+        logger.error(traceback.format_exc())
+        result.success = False
+    return result
