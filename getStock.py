@@ -1079,7 +1079,7 @@ async def main():
     # scheduler.add_job(initData, "date", run_date=datetime.now() + timedelta(seconds=10))
     # scheduler.add_job(setAllSHEtf, "date", run_date=datetime.now() + timedelta(seconds=10))
     # scheduler.add_job(setAllSZEtf, "date", run_date=datetime.now() + timedelta(seconds=25))
-    scheduler.add_job(updateEtfHoldStock, "date", args=[''], run_date=datetime.now() + timedelta(seconds=10))
+    # scheduler.add_job(updateEtfHoldStock, "date", args=[''], run_date=datetime.now() + timedelta(seconds=10))
     scheduler.start()
     await asyncio.sleep(2)
 
