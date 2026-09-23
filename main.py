@@ -6,6 +6,7 @@ import os
 import time
 import asyncio
 import aiofiles
+from typing import Optional
 from contextlib import asynccontextmanager, suppress
 from litestar import Litestar, Request, Router, Controller, get, post
 from litestar.openapi import OpenAPIConfig
@@ -259,10 +260,10 @@ class StockController(Controller):
         return result
 
     @get('/analyzer', summary="全面分析标的")
-    async def analyzer(self, request: Request, code: str) -> Result:
+    async def analyzer(self, request: Request, code: str, limit: int = 20) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.analysize(code)
+            result = await views.analysize(code, limit)
         return result
 
     @post('/test')

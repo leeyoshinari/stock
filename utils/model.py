@@ -45,6 +45,8 @@ class StockModelDo(BaseModel):
     ma_ten: float = None
     ma_twenty: float = None
     qrr: float = None
+    shares: float = None
+    premium_rate: float = None
 
     class Config:
         from_attributes = True

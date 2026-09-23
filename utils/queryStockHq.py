@@ -113,6 +113,8 @@ async def getStockHqFromTencent(host: str, datas: list[dict], logger: Logger) ->
                     stockDo.max_price = float(stockInfo[33])
                     stockDo.min_price = float(stockInfo[34])
                     stockDo.turnover_rate = float(stockInfo[38])
+                    stockDo.shares = float(stockInfo[76]) / 10000 / 10000
+                    stockDo.premium_rate = float(stockInfo[77])
                     stockDo.day = stockInfo[30][:8]
                     data_list.append(stockDo)
                     logger.info(f"Tencent({host}): {stockDo}")

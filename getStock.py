@@ -208,32 +208,25 @@ async def getStockFromSina(host):
             if datas: queryTask.task_done()
 
 
-async def getEtfFromSina(host):
+async def getEtfFromTencent(host):
     while True:
         try:
             datas = None
-            saveErrorList = []
             datas = await etfTask.get()
             if datas == 'end': break
-            result: dict = await getStockHqFromSina(host, datas, logger)
+            result: dict = await getStockHqFromTencent(host, datas, logger)
             dataList: list[StockModelDo] = result['data']
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
                 await etfTask.put(errorList)
-                await asyncio.sleep(8)
+                await asyncio.sleep(15)
             for d in dataList:
-                try:
-                    await saveStockInfo(d)
-                except:
-                    saveErrorList.append({d.code: d.name, f'{d.code}count': 1})
-                    logger.error(f"Sina({host}) - 出现异常...... {d}")
-            if len(saveErrorList) > 0:
-                await etfTask.put(saveErrorList)
+                await saveStockInfo(d)
         except:
-            logger.error(f"Sina({host}) - 出现异常...... {datas}")
+            logger.error(f"Tencent({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
             if datas: await etfTask.put(datas)
-            await asyncio.sleep(8)
+            await asyncio.sleep(15)
         finally:
             if datas: etfTask.task_done()
 
@@ -276,9 +269,12 @@ async def saveStockInfo(stockDo: StockModelDo):
     low_price = [r.min_price for r in stock_price_obj]
     trix_list = [r.trix for r in stock_price_obj]
     real_trade_time = real_traded_minutes()
+    # 如果是 ETF， 则trix是份额（单位：亿），trma是溢价（单位：%）
+    isEtf = False
     digit = 2
     if stockDo.code.startswith('1') or stockDo.code.startswith('5'):
         digit = 3
+        isEtf = True
     try:
         _ = await Detail.get_one((stockDo.code, stockDo.day))
         stock_price[0] = stockDo.current_price
@@ -312,6 +308,9 @@ async def saveStockInfo(stockDo: StockModelDo):
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
+        if isEtf:
+            trix['trix'] = stockDo.shares
+            trix['trma'] = stockDo.premium_rate
         await Detail.update((stockDo.code, stockDo.day), current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, ma_five=calc_MA(stock_price, 5, digit),
                             ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2), emas=macd['emas'],
@@ -340,6 +339,9 @@ async def saveStockInfo(stockDo: StockModelDo):
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
         trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
+        if isEtf:
+            trix['trix'] = stockDo.shares
+            trix['trma'] = stockDo.premium_rate
         await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=stockDo.last_price, fund=0.0,
                             ma_five=calc_MA(stock_price, 5, digit), ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2),
@@ -353,22 +355,22 @@ async def setAvailableStock():
     current_day = tool.value
     if current_day == time.strftime("%Y%m%d"):
         try:
-            total_cnt: int = await Stock.query().equal(running=1).count()
-            total_batch_size = BATCH_SIZE * All_STOCK_DATA_SIZE
-            total_batch = int((total_cnt + total_batch_size - 1) / total_batch_size)
-            page = 0
-            while page < total_batch:
-                offset = page * total_batch_size
-                stockList = []
-                stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.asc()).offset(offset).limit(total_batch_size).all()
-                for s in stockInfo:
-                    stockList.append({s.code: s.name, f'{s.code}count': 1})
-                random.shuffle(stockList)
-                for i in range(0, len(stockList), BATCH_SIZE):
-                    await queryTask.put(stockList[i: i + BATCH_SIZE])
-                page += 1
-                logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
-                await asyncio.sleep(BATCH_INTERVAL)
+            # total_cnt: int = await Stock.query().equal(running=1).count()
+            # total_batch_size = BATCH_SIZE * All_STOCK_DATA_SIZE
+            # total_batch = int((total_cnt + total_batch_size - 1) / total_batch_size)
+            # page = 0
+            # while page < total_batch:
+            #     offset = page * total_batch_size
+            #     stockList = []
+            #     stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.asc()).offset(offset).limit(total_batch_size).all()
+            #     for s in stockInfo:
+            #         stockList.append({s.code: s.name, f'{s.code}count': 1})
+            #     random.shuffle(stockList)
+            #     for i in range(0, len(stockList), BATCH_SIZE):
+            #         await queryTask.put(stockList[i: i + BATCH_SIZE])
+            #     page += 1
+            #     logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
+            #     await asyncio.sleep(BATCH_INTERVAL)
 
             etfList = []
             etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
@@ -1070,9 +1072,9 @@ async def main():
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=48, second=30, misfire_grace_time=10)  # 开始选股
     scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
     scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)          # 停止任务
-    scheduler.add_job(setAvailableStock, 'cron', hour='14,15', minute=31, second=20, misfire_grace_time=10)     # 收盘后更新数据
-    scheduler.add_job(updateStockFund, 'cron', hour=15, minute=36, second=20, args=[1], misfire_grace_time=10)  # 更新主力流入数据
-    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=45, second=50, misfire_grace_time=10)       # 更新推荐股票的价格
+    scheduler.add_job(setAvailableStock, 'cron', hour='14,15', minute=36, second=8, misfire_grace_time=10)     # 收盘后更新数据
+    scheduler.add_job(updateStockFund, 'cron', hour=15, minute=45, second=20, args=[1], misfire_grace_time=10)  # 更新主力流入数据
+    scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=50, second=50, misfire_grace_time=10)       # 更新推荐股票的价格
     scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据
     scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0, misfire_grace_time=10)        # 更新股票行业、概念等数据
     # scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
@@ -1096,7 +1098,7 @@ async def main():
     asyncio.create_task(getStockFromSina(HTTP_HOST1))
     asyncio.create_task(getStockFromSina(HTTP_HOST2))
     asyncio.create_task(getStockFromSina(HTTP_HOST3))
-    asyncio.create_task(getEtfFromSina('base'))
+    asyncio.create_task(getEtfFromTencent('base'))
 
     try:
         await asyncio.Event().wait()

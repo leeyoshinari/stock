@@ -1154,9 +1154,11 @@ async def stop_auto_sell_stock():
     scheduler.add_job(get_holding, "date", run_date=datetime.now() + timedelta(seconds=3600))
 
 
-async def queryByCodeForAI(code: str, limit: int = 30) -> Result:
+async def queryByCodeForAI(code: str, limit: int = 20) -> Result:
     result = Result()
     try:
+        if not limit:
+            limit = 20
         tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
         stockInfo: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(limit).all()
@@ -1201,7 +1203,7 @@ async def webSearch(q: str, df: str) -> Result:
     return result
 
 
-async def analysize(code: str) -> Result:
+async def analysize(code: str, limit: int) -> Result:
     result = Result()
     try:
         isEtf = code.startswith("1") or code.startswith("5")
@@ -1209,20 +1211,21 @@ async def analysize(code: str) -> Result:
             stock: ETF = await ETF.get_one(code)
         else:
             stock: Stock = await Stock.get_one(code)
-        res: Result = await queryByCodeForAI(code)
+        res: Result = await queryByCodeForAI(code, limit)
         if not res.success:
-            return f"Get K-line Error: code:{code}, {res.msg}"
+            logger.error(f"Get K-line Error: code:{code}, {res.msg}")
+            return res
         hold = await get_holding(user_id=1, code=stock.code)
-        hold['code'] = stock.code + getStockRegion(stock.code).upper()
+        hold[0]['code'] = f"{stock.code}.{getStockRegion(stock.code).upper()}"
         user_input = {
             "type": "etf" if isEtf else "stock",
             "name": stock.name,
             "code": f"{stock.code}.{getStockRegion(stock.code).upper()}",
-            "industry": stock.industry if isEtf else stock.industry,
+            "industry": stock.name.split("ETF")[0] if isEtf else stock.industry,
             "concept": "" if isEtf else stock.concept,
             "stocks": stock.stocks if isEtf else "",
             "k_line": json.dumps(res.data, ensure_ascii=False),
-            "hold": hold
+            "hold": hold[0]
         }
         analyzer = AsyncETFAnalyzer(input_data=user_input)
         result = await analyzer.analyze()
