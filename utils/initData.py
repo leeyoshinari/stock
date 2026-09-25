@@ -102,9 +102,10 @@ async def getStockFromSohu(datas: List, factor_list: list[dict], logger: Logger)
                         try:
                             _ = await Detail.get_one((stockDo.code, stockDo.day))
                             await saveStockInfo(stockDo, flag='update')
+                            logger.info(f"Sohu: update - factor: {factor}, {stockDo}")
                         except:
                             await saveStockInfo(stockDo, flag='create')
-                            logger.info(f"Sohu: factor: {factor}, {stockDo}")
+                            logger.info(f"Sohu: create - factor: {factor}, {stockDo}")
                         pre_price = stockDo.current_price
                 except:
                     logger.error(f"Sohu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {d}")

@@ -43,7 +43,6 @@ headers = {
 }
 
 
-alpha_trix = 2.0 / (12 + 1)
 alpha_s = 2.0 / (12 + 1)
 alpha_l = 2.0 / (26 + 1)
 alpha_sig = 2.0 / (9 + 1)
@@ -96,7 +95,7 @@ def calc_MA(data: list, window: int, digit: int = 2) -> float:
 def detail2List(data: list[Detail]) -> dict:
     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-           'd': [], 'j': [], 'trix': [], 'trma': [], 'boll_up': [], 'boll_low': []}
+           'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
     for d in data:
         res['code'] = d.code
         res['day'].append(d.day)
@@ -117,8 +116,8 @@ def detail2List(data: list[Detail]) -> dict:
         res['k'].append(round(d.kdjk, 4))
         res['d'].append(round(d.kdjd, 4))
         res['j'].append(round(d.kdjj, 4))
-        res['trix'].append(round(d.trix, 4))
-        res['trma'].append(round(d.trma, 4))
+        res['shares'].append(round(d.shares, 2))
+        res['premium'].append(round(d.premium, 2))
         res['boll_up'].append(d.boll_up)
         res['boll_low'].append(d.boll_low)
     return res
@@ -244,35 +243,20 @@ def calc_kdj(price: float, high_price: list, low_price: list, kdjk: float, kdjd:
     return {'k': kdjk, 'd': kdjd, 'j': kdjj}
 
 
-def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: float) -> dict:
-    ema1 = price * alpha_trix + ema1 * (1 - alpha_trix)
-    ema2 = ema1 * alpha_trix + ema2 * (1 - alpha_trix)
-    ema_three = ema2 * alpha_trix + ema3 * (1 - alpha_trix)
-    trix = (ema_three - ema3) / ema3 * 100
-    trix_list[0] = trix
-    trma = sum(trix_list[: 9]) / 9
-    return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
-
-
 async def saveStockInfo(stockDo: StockModelDo):
     stock_price_obj: list[Detail] = await Detail.query().equal(code=stockDo.code).order_by(Detail.day.desc()).limit(21).all()
     stock_price = [r.current_price for r in stock_price_obj]
     high_price = [r.max_price for r in stock_price_obj]
     low_price = [r.min_price for r in stock_price_obj]
-    trix_list = [r.trix for r in stock_price_obj]
     real_trade_time = real_traded_minutes()
-    # 如果是 ETF， 则trix是份额（单位：亿），trma是溢价（单位：%）
-    isEtf = False
     digit = 2
     if stockDo.code.startswith('1') or stockDo.code.startswith('5'):
         digit = 3
-        isEtf = True
     try:
         _ = await Detail.get_one((stockDo.code, stockDo.day))
         stock_price[0] = stockDo.current_price
         high_price[0] = stockDo.max_price
         low_price[0] = stockDo.min_price
-        trix_list[0] = 0
         volume_list = [r.volume for r in stock_price_obj[1: 6]]
         volume_len = min(max(len(volume_list), 1), 5)
         if len(stock_price_obj) > 1:
@@ -281,39 +265,27 @@ async def saveStockInfo(stockDo: StockModelDo):
             dea = stock_price_obj[1].dea
             kdjk = stock_price_obj[1].kdjk
             kdjd = stock_price_obj[1].kdjd
-            trix_ema_one = stock_price_obj[1].trix_ema_one
-            trix_ema_two = stock_price_obj[1].trix_ema_two
-            trix_ema_three = stock_price_obj[1].trix_ema_three
         else:
             emas = stockDo.current_price
             emal = stockDo.current_price
             dea = 0
             kdjk = 50
             kdjd = 50
-            trix_ema_one = stockDo.current_price
-            trix_ema_two = stockDo.current_price
-            trix_ema_three = stockDo.current_price
         average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
         average_volume = average_volume if average_volume > 0 else stockDo.volume
         ma_twenty = calc_MA(stock_price, 20, digit)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
-        trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
-        if isEtf:
-            trix['trix'] = stockDo.shares
-            trix['trma'] = stockDo.premium_rate
         await Detail.update((stockDo.code, stockDo.day), current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, ma_five=calc_MA(stock_price, 5, digit),
                             ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2), emas=macd['emas'],
-                            emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'], fund=0.0,
-                            trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate,
-                            boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
+                            emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], fund=0.0, shares=stockDo.shares, premium=stockDo.premium_rate,
+                            turnover_rate=stockDo.turnover_rate, boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
     except NoResultFound:
         stock_price.insert(0, stockDo.current_price)
         high_price.insert(0, stockDo.max_price)
         low_price.insert(0, stockDo.min_price)
-        trix_list.insert(0, 0)
         volume_list = [r.volume for r in stock_price_obj[: 5]]
         volume_len = min(max(len(volume_list), 1), 5)
         emas = stock_price_obj[0].emas if len(stock_price_obj) > 0 else stockDo.current_price
@@ -321,25 +293,17 @@ async def saveStockInfo(stockDo: StockModelDo):
         dea = stock_price_obj[0].dea if len(stock_price_obj) > 0 else 0
         kdjk = stock_price_obj[0].kdjk if len(stock_price_obj) > 0 else 50
         kdjd = stock_price_obj[0].kdjd if len(stock_price_obj) > 0 else 50
-        trix_ema_one = stock_price_obj[0].trix_ema_one if len(stock_price_obj) > 0 else stockDo.current_price
-        trix_ema_two = stock_price_obj[0].trix_ema_two if len(stock_price_obj) > 0 else stockDo.current_price
-        trix_ema_three = stock_price_obj[0].trix_ema_three if len(stock_price_obj) > 0 else stockDo.current_price
         average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
         average_volume = average_volume if average_volume > 0 else stockDo.volume
         ma_twenty = calc_MA(stock_price, 20, digit)
         macd = calc_macd(stockDo.current_price, emas, emal, dea)
         kdj = calc_kdj(stockDo.current_price, high_price, low_price, kdjk, kdjd)
-        trix = calc_trix(stockDo.current_price, trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
         boll_up, boll_low = bollinger_bands(stock_price[:20], ma_twenty)
-        if isEtf:
-            trix['trix'] = stockDo.shares
-            trix['trma'] = stockDo.premium_rate
         await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=stockDo.last_price, fund=0.0,
                             ma_five=calc_MA(stock_price, 5, digit), ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2),
-                            emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], trix_ema_one=trix['ema1'],
-                            trix_ema_two=trix['ema2'], trix_ema_three=trix['ema3'], trix=trix['trix'], trma=trix['trma'], turnover_rate=stockDo.turnover_rate,
-                            boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
+                            emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], shares=stockDo.shares, premium=stockDo.premium_rate,
+                            turnover_rate=stockDo.turnover_rate, boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
 
 
 async def setAvailableStock():

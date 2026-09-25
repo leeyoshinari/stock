@@ -4,6 +4,6 @@
 请输出分析过程和最终判断结果；返回单个JSON对象，格式是：{{"code":"603128","buy":true,"reason":"分析过程和最终判断结果"}}
 
 【字段含义说明】
-天级数据字段含义：code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序升序排列。
+天级数据字段含义：code：股票代码；day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；boll_up：布林线上轨线；boll_low：布林线下轨线。所有数组字段按day时间顺序升序排列。
 
 当天分钟级数据字段含义：time：时间，几点几分；price：当前价格；price_avg：当前分时均线价，volume：当前分钟的成交量。

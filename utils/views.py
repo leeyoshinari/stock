@@ -30,7 +30,6 @@ from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, F
 stock_fee_ratio = 1 / 10000   # 股票交易佣金，默认万分之一
 etf_fee_ratio = 2.5 / 10000   # ETF交易佣金，默认万分之2.5
 stamp_duty = 5 / 10000   # 印花税，默认万分之5
-alpha_trix = 2.0 / (12 + 1)
 alpha_s = 2.0 / (12 + 1)
 alpha_l = 2.0 / (26 + 1)
 alpha_sig = 2.0 / (9 + 1)
@@ -63,16 +62,6 @@ def calc_kdj(price: float, high_price: list, low_price: list, kdjk: float, kdjd:
     kdjd = 2.0 * kdjd / 3 + kdjk / 3
     kdjj = 3 * kdjk - 2 * kdjd
     return {'k': kdjk, 'd': kdjd, 'j': kdjj}
-
-
-def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: float) -> dict:
-    ema1 = price * alpha_trix + ema1 * (1 - alpha_trix)
-    ema2 = ema1 * alpha_trix + ema2 * (1 - alpha_trix)
-    ema_three = ema2 * alpha_trix + ema3 * (1 - alpha_trix)
-    trix = (ema_three - ema3) / ema3 * 100
-    trix_list[0] = trix
-    trma = sum(trix_list[: 9]) / 9
-    return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
 
 
 def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shares: int = 0, fee: float = 0.0) -> dict:
@@ -181,6 +170,8 @@ async def queryByCode(code: str, site: str = None) -> Result:
         kdjk = []
         kdjd = []
         kdjj = []
+        total_shares = []
+        premium = []
         boll_up = []
         boll_low = []
         for index, d in enumerate(data):
@@ -201,6 +192,8 @@ async def queryByCode(code: str, site: str = None) -> Result:
             kdjk.append(round(stockInfo[index].kdjk, 3))
             kdjd.append(round(stockInfo[index].kdjd, 3))
             kdjj.append(round(stockInfo[index].kdjj, 3))
+            total_shares.append(round(stockInfo[index].shares, 2))
+            premium.append(round(stockInfo[index].premium, 2))
             boll_up.append(stockInfo[index].boll_up)
             boll_low.append(stockInfo[index].boll_low)
         if code.startswith('1') or code.startswith('5'):
@@ -233,6 +226,8 @@ async def queryByCode(code: str, site: str = None) -> Result:
                 kdjk.append(round(stockDo['k'], 3))
                 kdjd.append(round(stockDo['d'], 3))
                 kdjj.append(round(stockDo['j'], 3))
+                total_shares.append(round(stockDo['shares'], 2))
+                premium.append(round(stockDo['premium'], 2))
                 boll_up.append(stockDo['boll_up'])
                 boll_low.append(stockDo['boll_low'])
         else:
@@ -241,11 +236,11 @@ async def queryByCode(code: str, site: str = None) -> Result:
         cost = round(profit_res[0]['price'], 3) if profit_res else None
         shares = profit_res[0]['shares'] if profit_res else None
         result.data = {
-            'x': x, 'code': code, 'name': st.name, 'industry': st.industry, 'coord': coords,
+            'x': x, 'code': code, 'name': st.name, 'industry': st.industry, 'coord': coords, 'total_shares': total_shares,
             'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate, 'cost': cost,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up,
             'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'profit': profit, 'shares': shares,
-            'k': kdjk, 'd': kdjd, 'j': kdjj, 'boll_low': boll_low
+            'k': kdjk, 'd': kdjd, 'j': kdjj, 'boll_low': boll_low, 'premium': premium
         }
         if not (code.startswith('1') or code.startswith('5')):
             result.data.update({'region': st.region, 'concept': st.concept})
@@ -788,11 +783,9 @@ async def calc_stock_real_data(code: str, site: str = None) -> dict:
     stock_price = [r.current_price for r in stock_price_obj]
     high_price = [r.max_price for r in stock_price_obj]
     low_price = [r.min_price for r in stock_price_obj]
-    trix_list = [r.trix for r in stock_price_obj]
     stock_price.insert(0, stockDo['current_price'])
     high_price.insert(0, stockDo['max_price'])
     low_price.insert(0, stockDo['min_price'])
-    trix_list.insert(0, 0)
     real_trade_time = real_traded_minutes()
     volume_list = [r.volume for r in stock_price_obj[: 5]]
     volume_len = min(max(len(volume_list), 1), 5)
@@ -815,6 +808,8 @@ async def calc_stock_real_data(code: str, site: str = None) -> dict:
     stockDo.update({'d': kdj['d']})
     stockDo.update({'j': kdj['j']})
     stockDo.update({'volume': stockDo['volume']})
+    stockDo.update({'shares': stockDo['shares']})
+    stockDo.update({'premium': stockDo['premium']})
     stockDo.update({'fund': await getStockZhuLiFundFromTencent(code)})
     up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
     stockDo.update({'boll_up': round(up, 2)})
@@ -985,7 +980,7 @@ async def test(code: ToolsInfoList) -> Result:
 def detail2List_bak(data: list) -> dict:
     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-           'd': [], 'j': [], 'trix': [], 'trma': [], 'boll_up': [], 'boll_low': []}
+           'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
     for d in data:
         res['code'] = d['code']
         res['day'].append(d['day'])
@@ -1006,8 +1001,8 @@ def detail2List_bak(data: list) -> dict:
         res['k'].append(round(d['k'], 4))
         res['d'].append(round(d['d'], 4))
         res['j'].append(round(d['j'], 4))
-        res['trix'].append(round(d['trix'], 4))
-        res['trma'].append(round(d['trma'], 4))
+        res['shares'].append(round(d['shares'], 2))
+        res['premium'].append(round(d['premium'], 2))
         res['boll_up'].append(d['boll_up'])
         res['boll_low'].append(d['boll_low'])
     return res
@@ -1016,7 +1011,7 @@ def detail2List_bak(data: list) -> dict:
 def detail2List(data: list[Detail]) -> dict:
     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-           'd': [], 'j': [], 'trix': [], 'trma': [], 'boll_up': [], 'boll_low': []}
+           'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
     for d in data:
         res['code'] = d.code
         res['day'].append(d.day)
@@ -1037,8 +1032,8 @@ def detail2List(data: list[Detail]) -> dict:
         res['k'].append(round(d.kdjk, 4))
         res['d'].append(round(d.kdjd, 4))
         res['j'].append(round(d.kdjj, 4))
-        res['trix'].append(round(d.trix, 4))
-        res['trma'].append(round(d.trma, 4))
+        res['shares'].append(round(d.shares, 2))
+        res['premium'].append(round(d.premium, 2))
         res['boll_up'].append(d.boll_up)
         res['boll_low'].append(d.boll_low)
     return res
@@ -1162,16 +1157,16 @@ async def queryByCodeForAI(code: str, limit: int = 20) -> Result:
                          'open_price': stockDo['open_price'], 'max_price': stockDo['max_price'], 'min_price': stockDo['min_price'],
                          'volume': stockDo['volume'], 'fund': stockDo['fund'], 'ma_five': stockDo['ma_five'], 'ma_ten': stockDo['ma_ten'],
                          'ma_twenty': stockDo['ma_twenty'], 'qrr': stockDo['qrr'], 'diff': round(stockDo['diff'], 3), 'dea': round(stockDo['dea'], 3),
-                         'k': round(stockDo['k'], 3), 'd': round(stockDo['d'], 3), 'j': round(stockDo['j'], 3), 'trix': round(stockDo['trix'], 3),
-                         'trma': round(stockDo['trma'], 3), 'turnover_rate': stockDo['turnover_rate'], 'boll_up': stockDo['boll_up'],
+                         'k': round(stockDo['k'], 3), 'd': round(stockDo['d'], 3), 'j': round(stockDo['j'], 3), 'shares': round(stockDo['shares'], 2),
+                         'premium': round(stockDo['premium'], 2), 'turnover_rate': stockDo['turnover_rate'], 'boll_up': stockDo['boll_up'],
                          'boll_low': stockDo['boll_low']}  # , 'macd': round((stockDo['diff'] - stockDo['dea']) * 2, 3)}
                 stock_data.append(today)
         for s in stock_data:
             s.pop('code', None)
             s.pop('name', None)
             s.pop('last_price', None)
-            s.pop('trix', None)
-            s.pop('trma', None)
+            s.pop('shares', None)
+            s.pop('premium', None)
         result.data = stock_data
         logger.info(f"Query AI stock k-line success - code: {code}")
     except Exception as e:
@@ -1221,16 +1216,4 @@ async def analysize(code: str, limit: int) -> Result:
     except:
         logger.error(traceback.format_exc())
         result.success = False
-    return result
-
-
-async def runCmd(cmd: str,) -> Result:
-    result = Result()
-    try:
-        res = await run_command(cmd)
-        result.data = res
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = str(e)
     return result

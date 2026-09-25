@@ -46,7 +46,7 @@ class StockModelDo(BaseModel):
     ma_twenty: float = None
     qrr: float = None
     shares: float = None
-    premium_rate: float = None
+    premium: float = None
 
     class Config:
         from_attributes = True
@@ -73,8 +73,8 @@ class StockDataList(BaseModel):
     k: float = None
     d: float = None
     j: float = None
-    trix: float = None
-    trma: float = None
+    shares: float = None
+    premium: float = None
     boll_up: float = None
     boll_low: float = None
 
@@ -86,7 +86,7 @@ class StockDataList(BaseModel):
         return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price,
                    open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volume, fund=obj.fund,
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=obj.emas - obj.emal,
-                   dea=obj.dea, k=obj.kdjk, d=obj.kdjd, j=obj.kdjj, trix=obj.trix, trma=obj.trma, turnover_rate=obj.turnover_rate,
+                   dea=obj.dea, k=obj.kdjk, d=obj.kdjd, j=obj.kdjj, shares=obj.shares, premium=obj.premium, turnover_rate=obj.turnover_rate,
                    boll_up=obj.boll_up, boll_low=obj.boll_low)
 
 

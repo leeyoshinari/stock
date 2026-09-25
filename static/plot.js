@@ -1,4 +1,4 @@
-function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, trix, trma, turnover_rate, fund, boll_up, boll_low, coords) {
+function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, shares, premium, turnover_rate, fund, boll_up, boll_low, coords) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
   total_len = parseInt(120 / 600 * document.body.clientWidth * 0.8);
@@ -253,7 +253,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
             data: markPoints
           }
         },{
-          name: 'MA5',
+          name: '5日均线',
           type: 'line',
           data: ma5,
           smooth: true,
@@ -261,7 +261,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           itemStyle: { color: 'blue' },
           lineStyle: { color: 'blue', opacity: 0.9, width: 1 }
         },{
-          name: 'MA10',
+          name: '10日均线',
           type: 'line',
           data: ma10,
           smooth: true,
@@ -269,7 +269,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           itemStyle: { color: 'orange' },
           lineStyle: { color: 'orange', opacity: 0.9, width: 1 }
         },{
-          name: 'MA20',
+          name: '20日均线',
           type: 'line',
           data: ma20,
           smooth: true,
@@ -277,7 +277,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           itemStyle: { color: 'DarkGreen' },
           lineStyle: { color: 'DarkGreen', opacity: 0.9, width: 1 }
         },{
-          name: 'UP',
+          name: '布林上轨',
           type: 'line',
           data: boll_up,
           smooth: true,
@@ -285,7 +285,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           itemStyle: { color: 'purple' },
           lineStyle: { color: 'purple', opacity: 0.9, width: 1 }
         },{
-          name: 'LOW',
+          name: '布林下轨',
           type: 'line',
           data: boll_low,
           smooth: true,
@@ -293,7 +293,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           itemStyle: { color: 'Tomato' },
           lineStyle: { color: 'Tomato', opacity: 0.9, width: 1 }
         },{
-          name: 'Volume',
+          name: '成交量',
           type: 'bar',
           xAxisIndex: 1,
           yAxisIndex: 1,
@@ -305,7 +305,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
             }
           }
         },{
-          name: 'Qrr',
+          name: '量比',
           type: 'line',
           xAxisIndex: 1,
           yAxisIndex: 2,
@@ -315,7 +315,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           lineStyle: {color: 'blue', opacity: 0.9, width: 1},
           itemStyle: { color: 'blue' }
         },{
-          name: 'Fund',
+          name: '主力资金(万)',
           type: 'bar',
           xAxisIndex: 2,
           yAxisIndex: 3,
@@ -326,7 +326,7 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
             }
           }
         },{
-          name: 'Turnover',
+          name: '换手率(%)',
           type: 'line',
           xAxisIndex: 2,
           yAxisIndex: 4,
@@ -397,21 +397,21 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           lineStyle: {color: 'purple', opacity: 0.9, width: 1},
           itemStyle: { color: 'purple' }
         },{
-          name: 'TRIX',
+          name: '份额(亿)',
           type: 'line',
           xAxisIndex: 4,
           yAxisIndex: 7,
-          data: trix,
+          data: shares,
           smooth: true,
           showSymbol: false,
           lineStyle: {color: 'chocolate', opacity: 0.9, width: 1},
           itemStyle: { color: 'chocolate' }
         },{
-          name: 'MATRIX',
+          name: '溢价率(%)',
           type: 'line',
           xAxisIndex: 4,
           yAxisIndex: 7,
-          data: trma,
+          data: premium,
           smooth: true,
           showSymbol: false,
           lineStyle: {color: 'CornflowerBlue', opacity: 0.9, width: 1},

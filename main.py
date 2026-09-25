@@ -266,11 +266,13 @@ class StockController(Controller):
         return result
 
     @get('/runCmd', summary="执行 shell 命令")
-    async def runCmd(self, request: Request, cmd: str) -> Result:
-        result = Result()
+    async def runCmd(self, request: Request, cmd: str) -> str:
         # if checkout(request.headers.get('referered', '123')):
-        result = await views.run_command(cmd)
-        return result
+        try:
+            res = await views.run_command(cmd)
+            return res
+        except Exception as e:
+            return str(e)
 
     @post('/test')
     async def test(self, request: Request, data: model.ToolsInfoList) -> Result:

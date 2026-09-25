@@ -28,7 +28,7 @@
 #  输入的数据
 - 当前精确时间。
 - 买入日期和持仓成本。
-- 最近10日天级数据（含当日实时数据）。每个dict的字段解释: current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；trix：TRIX指标值；trma：TRIX均线；boll_up：布林线上轨线；boll_low：布林线下轨线。
+- 最近10日天级数据（含当日实时数据）。每个dict的字段解释: current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；boll_up：布林线上轨线；boll_low：布林线下轨线。
 - 当天分钟实时分时数据。每个dict的字段解释: time：时间，几点几分；price：当前价格；price_avg：当前分时均线价，volume：当前分钟的成交量。
 
 # 标准输出格式
