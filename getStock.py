@@ -21,6 +21,7 @@ from utils.writer_queue import writer_queue
 from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
+from utils.results import getStockRegion
 from utils.ai_model import queryGemini, queryOpenAi, webSearchTopicBak, auto_buy_prompt
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes, find_shrink_stock
@@ -46,15 +47,6 @@ alpha_trix = 2.0 / (12 + 1)
 alpha_s = 2.0 / (12 + 1)
 alpha_l = 2.0 / (26 + 1)
 alpha_sig = 2.0 / (9 + 1)
-
-
-def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "sh"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "sz"
-    else:
-        return ""
 
 
 def getStockType(code: str) -> int:

@@ -5,6 +5,7 @@
 import time
 import json
 from utils.http_client import http
+from utils.results import getStockRegion, getStockRegionNum
 
 
 # 完整题材白名单（不可拆）
@@ -41,24 +42,6 @@ def normalize_topic(name: str) -> str:
             name = name[:-len(word)]
             break
     return name.strip()
-
-
-def getStockRegionNum(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "1"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "0"
-    else:
-        return ""
-
-
-def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "sh"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "sz"
-    else:
-        return ""
 
 
 async def isOpenStock() -> bool:

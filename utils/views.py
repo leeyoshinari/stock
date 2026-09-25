@@ -15,7 +15,7 @@ from utils.model import EtfInfoList
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sell_prompt
 from utils.logging import logger
-from utils.results import Result
+from utils.results import Result, getStockRegion
 from utils.scheduler import scheduler
 from utils.aiAnalyzer import AsyncETFAnalyzer
 from utils.initData import initStockData, getStockFundFlow
@@ -73,15 +73,6 @@ def calc_trix(price: float, trix_list: list, ema1: float, ema2: float, ema3: flo
     trix_list[0] = trix
     trma = sum(trix_list[: 9]) / 9
     return {'ema1': ema1, 'ema2': ema2, 'ema3': ema_three, 'trix': trix, 'trma': trma}
-
-
-def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "sh"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "sz"
-    else:
-        return ""
 
 
 def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shares: int = 0, fee: float = 0.0) -> dict:
@@ -153,6 +144,21 @@ async def get_holding(user_id: int = None, code: str = None, status: str = None)
         return await get_holding_call(user_id, code, "M") + await get_holding_call(user_id, code, "A")    # 手动操作和自动操作
 
 
+async def run_command(command: str) -> str:
+    """异步执行单个 shell 命令"""
+    process = await asyncio.create_subprocess_shell(
+        command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    logger.info(f"Run Cmd {command} result is {stdout.decode('utf-8').strip()}")
+    if process.returncode == 0:
+        return stdout.decode('utf-8').strip()
+    else:
+        raise Exception(f"Error: {stderr.decode('utf-8').strip()}")
+
+
 async def queryByCode(code: str, site: str = None) -> Result:
     result = Result()
     try:
@@ -175,8 +181,6 @@ async def queryByCode(code: str, site: str = None) -> Result:
         kdjk = []
         kdjd = []
         kdjj = []
-        trix = []
-        trma = []
         boll_up = []
         boll_low = []
         for index, d in enumerate(data):
@@ -197,8 +201,6 @@ async def queryByCode(code: str, site: str = None) -> Result:
             kdjk.append(round(stockInfo[index].kdjk, 3))
             kdjd.append(round(stockInfo[index].kdjd, 3))
             kdjj.append(round(stockInfo[index].kdjj, 3))
-            trix.append(round(stockInfo[index].trix, 3))
-            trma.append(round(stockInfo[index].trma, 3))
             boll_up.append(stockInfo[index].boll_up)
             boll_low.append(stockInfo[index].boll_low)
         if code.startswith('1') or code.startswith('5'):
@@ -231,8 +233,6 @@ async def queryByCode(code: str, site: str = None) -> Result:
                 kdjk.append(round(stockDo['k'], 3))
                 kdjd.append(round(stockDo['d'], 3))
                 kdjj.append(round(stockDo['j'], 3))
-                trix.append(round(stockDo['trix'], 3))
-                trma.append(round(stockDo['trma'], 3))
                 boll_up.append(stockDo['boll_up'])
                 boll_low.append(stockDo['boll_low'])
         else:
@@ -245,7 +245,7 @@ async def queryByCode(code: str, site: str = None) -> Result:
             'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate, 'cost': cost,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up,
             'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'profit': profit, 'shares': shares,
-            'k': kdjk, 'd': kdjd, 'j': kdjj, 'trix': trix, 'trma': trma, 'boll_low': boll_low
+            'k': kdjk, 'd': kdjd, 'j': kdjj, 'boll_low': boll_low
         }
         if not (code.startswith('1') or code.startswith('5')):
             result.data.update({'region': st.region, 'concept': st.concept})
@@ -780,12 +780,7 @@ async def init_stock_fund_data(query: updateFundDo) -> Result:
 
 
 async def calc_stock_real_data(code: str, site: str = None) -> dict:
-    if site == 'sina':
-        res_stock: dict = await getStockHqFromSina('', [{code: "-"}], logger)
-    elif site == 'xueqiu':
-        res_stock: dict = await getStockHqFromXueQiu('', [{code: "-"}], logger)
-    else:
-        res_stock: dict = await getStockHqFromTencent('', [{code: "-"}], logger)
+    res_stock: dict = await getStockHqFromTencent('', [{code: "-", f"{code}count": 5}], logger)
     if not res_stock['data']:
         return None
     stockDo = StockModelDo.model_validate(res_stock['data'][0]).model_dump()
@@ -806,14 +801,10 @@ async def calc_stock_real_data(code: str, site: str = None) -> dict:
     dea = stock_price_obj[0].dea
     kdjk = stock_price_obj[0].kdjk
     kdjd = stock_price_obj[0].kdjd
-    trix_ema_one = stock_price_obj[0].trix_ema_one
-    trix_ema_two = stock_price_obj[0].trix_ema_two
-    trix_ema_three = stock_price_obj[0].trix_ema_three
     average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
     average_volume = average_volume if average_volume > 0 else stockDo['volume']
     macd = calc_macd(stockDo['current_price'], emas, emal, dea)
     kdj = calc_kdj(stockDo['current_price'], high_price, low_price, kdjk, kdjd)
-    trix = calc_trix(stockDo['current_price'], trix_list, trix_ema_one, trix_ema_two, trix_ema_three)
     stockDo.update({'ma_five': calc_MA(stock_price, 5)})
     stockDo.update({'ma_ten': calc_MA(stock_price, 10)})
     stockDo.update({'ma_twenty': calc_MA(stock_price, 20)})
@@ -823,8 +814,6 @@ async def calc_stock_real_data(code: str, site: str = None) -> dict:
     stockDo.update({'k': kdj['k']})
     stockDo.update({'d': kdj['d']})
     stockDo.update({'j': kdj['j']})
-    stockDo.update({'trix': trix['trix']})
-    stockDo.update({'trma': trix['trma']})
     stockDo.update({'volume': stockDo['volume']})
     stockDo.update({'fund': await getStockZhuLiFundFromTencent(code)})
     up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
@@ -1232,4 +1221,16 @@ async def analysize(code: str, limit: int) -> Result:
     except:
         logger.error(traceback.format_exc())
         result.success = False
+    return result
+
+
+async def runCmd(cmd: str,) -> Result:
+    result = Result()
+    try:
+        res = await run_command(cmd)
+        result.data = res
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
     return result

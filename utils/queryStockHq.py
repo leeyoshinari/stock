@@ -9,42 +9,12 @@ from logging import Logger
 from warnings import deprecated
 from utils.model import StockModelDo, StockMinuteDo
 from utils.http_client import http
+from utils.results import getStockRegion, getStockRegionNum
 
 
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
-
-
-def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "sh"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "sz"
-    else:
-        return ""
-
-
-def getStockType(code: str) -> int:
-    if code.startswith("60"):
-        return 1
-    elif code.startswith("00"):
-        return 1
-    elif code.startswith("68"):
-        return 1
-    elif code.startswith("30"):
-        return 1
-    else:
-        return 0
-
-
-def getStockRegionNum(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "1"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "0"
-    else:
-        return ""
 
 
 def normalizeHourAndMinute() -> str:
@@ -113,8 +83,8 @@ async def getStockHqFromTencent(host: str, datas: list[dict], logger: Logger) ->
                     stockDo.max_price = float(stockInfo[33])
                     stockDo.min_price = float(stockInfo[34])
                     stockDo.turnover_rate = float(stockInfo[38])
-                    stockDo.shares = float(stockInfo[76]) / 10000 / 10000
-                    stockDo.premium_rate = float(stockInfo[77])
+                    stockDo.shares = float(stockInfo[76]) / 10000 / 10000 if stockInfo[76] else 0
+                    stockDo.premium_rate = float(stockInfo[77]) if stockInfo[77] else 0
                     stockDo.day = stockInfo[30][:8]
                     data_list.append(stockDo)
                     logger.info(f"Tencent({host}): {stockDo}")

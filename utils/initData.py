@@ -9,10 +9,11 @@ import random
 import traceback
 from typing import List
 from logging import Logger
-from datetime import datetime, timedelta, date
 from utils.model import StockModelDo
 from utils.database import Detail
 from utils.http_client import http
+from utils.results import getStockRegion, getStockRegionNum
+from settings import TUSHARE_API_KEY
 
 
 headers = {
@@ -37,24 +38,6 @@ def calc_macd(current_price, pre_ema_12, pre_ema_26, pre_dea) -> List[float]:
     return {'dif': dif, 'dma': dma, 'ema12': ema12, 'ema26': ema26}
 
 
-def getStockRegionNum(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "1"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "0"
-    else:
-        return ""
-
-
-def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "sh"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "sz"
-    else:
-        return ""
-
-
 def bollinger_bands(prices, middle, n=20, k=2):
     if len(prices) < n:
         return middle, middle
@@ -67,7 +50,23 @@ def bollinger_bands(prices, middle, n=20, k=2):
     return up, dn
 
 
-async def getStockFromSohu(datas: List, logger: Logger):
+async def getQfqFactorFromSina(code: str, logger: Logger) -> list[dict]:
+    try:
+        h = {
+            'Referer': 'https://finance.sina.com.cn',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+        }
+        res = await http.get(f"https://finance.sina.com.cn/realstock/company/{getStockRegion(code)}{code}/qfq.js", headers=h)
+        if res.status_code == 200:
+            res_text = res.text.replace('[{', 'q1a2z3').replace('}]', 'q1a2z3').split('q1a2z3')[1]
+            datas = json.loads('[{' + res_text + '}]')
+            logger.info(f"{code} - 前复权因子: {datas}")
+            return datas
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def getStockFromSohu(datas: List, factor_list: list[dict], logger: Logger):
     ''' datas = [{'002868': '*ST绿康'}] '''
     start_date = "20250801"
     current_day = time.strftime("%Y%m%d")
@@ -77,6 +76,7 @@ async def getStockFromSohu(datas: List, logger: Logger):
         for r in list(dataDict.keys()):
             s.append(f"cn_{r}")
         s_list = ",".join(s)
+        pre_price = 0
         res = await http.get(f"https://q.stock.sohu.com/hisHq?code={s_list}&start={start_date}&end={current_day}", headers=headers)
         if res.status_code == 200:
             res_json = json.loads(res.text)
@@ -92,17 +92,20 @@ async def getStockFromSohu(datas: List, logger: Logger):
                     history_list_sorted = sorted(history_list, key=lambda x: x[0])
                     for r in history_list_sorted:
                         stockDo.day = r[0].replace('-', '')
+                        factor = float(next((d['f'] for d in factor_list if r[0] >= d['d']), 1.0))
+                        stockDo.current_price = float(r[2]) / factor
+                        stockDo.open_price = float(r[1]) / factor
+                        stockDo.volume = int(r[7])
+                        stockDo.last_price = pre_price
+                        stockDo.max_price = float(r[6]) / factor
+                        stockDo.min_price = float(r[5]) / factor
                         try:
                             _ = await Detail.get_one((stockDo.code, stockDo.day))
-                            continue
+                            await saveStockInfo(stockDo, flag='update')
                         except:
-                            stockDo.current_price = float(r[2])
-                            stockDo.open_price = float(r[1])
-                            stockDo.volume = int(r[7])
-                            stockDo.max_price = float(r[6])
-                            stockDo.min_price = float(r[5])
-                            await saveStockInfo(stockDo)
-                            logger.info(f"Sohu: {stockDo}")
+                            await saveStockInfo(stockDo, flag='create')
+                            logger.info(f"Sohu: factor: {factor}, {stockDo}")
+                        pre_price = stockDo.current_price
                 except:
                     logger.error(f"Sohu - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {d}")
                     logger.error(traceback.format_exc())
@@ -113,7 +116,7 @@ async def getStockFromSohu(datas: List, logger: Logger):
         logger.error(traceback.format_exc())
 
 
-async def saveStockInfo(stockDo: StockModelDo):
+async def saveStockInfo(stockDo: StockModelDo, flag: str = 'create'):
     stock_price_obj = await Detail.query().select('current_price').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
     stock_price = [r[0] for r in stock_price_obj]
     stock_price.append(stockDo.current_price)
@@ -121,9 +124,14 @@ async def saveStockInfo(stockDo: StockModelDo):
     if stockDo.code.startswith('1') or stockDo.code.startswith('5'):
         digit = 3
     up, dn = bollinger_bands(stock_price, calc_MA(stock_price, 20, digit))
-    await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
-                        max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=0, boll_up=round(up, digit),
-                        ma_five=calc_MA(stock_price, 5, digit), ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=calc_MA(stock_price, 20, digit), boll_low=round(dn, digit))
+    if flag == 'create':
+        await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=round(stockDo.current_price, digit), open_price=round(stockDo.open_price, digit),
+                            max_price=round(stockDo.max_price, digit), min_price=round(stockDo.min_price, digit), volume=stockDo.volume, last_price=round(stockDo.last_price, digit), boll_up=round(up, digit),
+                            ma_five=calc_MA(stock_price, 5, digit), ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=calc_MA(stock_price, 20, digit), boll_low=round(dn, digit))
+    else:
+        await Detail.update((stockDo.code, stockDo.day), name=stockDo.name, current_price=round(stockDo.current_price, digit), open_price=round(stockDo.open_price, digit),
+                            max_price=round(stockDo.max_price, digit), min_price=round(stockDo.min_price, digit), volume=stockDo.volume, last_price=round(stockDo.last_price, digit), boll_up=round(up, digit),
+                            ma_five=calc_MA(stock_price, 5, digit), ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=calc_MA(stock_price, 20, digit), boll_low=round(dn, digit))
     if len(stock_price) > 4:
         stock_volume_obj = await Detail.query().select('volume').equal(code=stockDo.code).order_by(Detail.day.asc()).all()
         stock_volume = [r[0] for r in stock_volume_obj]
@@ -131,36 +139,36 @@ async def saveStockInfo(stockDo: StockModelDo):
         await Detail.update((stockDo.code, stockDo.day), qrr=round(stockDo.volume / average_volume, 2))
 
 
-async def getAllStockData(code, logger: Logger):
+async def getAllStockData(code: str, factor_list: list[dict], logger: Logger):
     try:
         res = await http.get(f"https://hq.stock.sohu.com/mkline/cn/{code[-3:]}/cn_{code}-10_2.html?_={int(time.time() * 1000)}", headers=headers)
         if res.status_code == 200:
             res_text = res.text[17:-1]
             res_json = json.loads(res_text)
             data_basic = res_json['dataBasic']
-            alpha_trix = 2.0 / (12 + 1)
             alpha_s = 2.0 / (12 + 1)
             alpha_l = 2.0 / (26 + 1)
             alpha_sig = 2.0 / (9 + 1)
-            ema_s = float(data_basic[-1][2])
-            ema_l = float(data_basic[-1][2])
+            factor = float(next((d['f'] for d in factor_list if data_basic[-1][0] >= d['d'].replace('-', '')), 1.0))
+            ema_s = float(data_basic[-1][2]) / factor
+            ema_l = float(data_basic[-1][2]) / factor
             dea = 0
             kdjk = 50
             kdjd = 50
             high_price = []
             low_price = []
-            ema1 = float(data_basic[-1][2])
-            ema2 = float(data_basic[-1][2])
-            ema3 = float(data_basic[-1][2])
-            pre_ema3 = ema3
-            trix_list = []
+            ema1 = float(data_basic[-1][2]) / factor
             # 第一天初始化
             kdjj = 3 * (2.0 * kdjk / 3 + 50 / 3) - 2 * (2.0 * kdjd / 3 + (2.0 * kdjk / 3 + 50 / 3) / 3)
-            await Detail.update((code, data_basic[-1][0]), emas=ema1, emal=ema1, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj, trix_ema_one=ema1, trix_ema_two=ema2, trix_ema_three=ema3, trix=0, trma=0)
+            await Detail.update((code, data_basic[-1][0]), emas=ema1, emal=ema1, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj)
             for item in data_basic[::-1][1:]:
-                price = float(item[2])
-                high_price.append(float(item[3]))
-                low_price.append(float(item[4]))
+                date_str = item[0]
+                factor = float(next((d['f'] for d in factor_list if date_str >= d['d'].replace('-', '')), 1.0))
+                price = float(item[2]) / factor
+                h_price = float(item[3]) / factor
+                l_price = float(item[4]) / factor
+                high_price.append(h_price)
+                low_price.append(l_price)
                 if len(high_price) > 9:
                     high_price.pop(0)
                     low_price.pop(0)
@@ -179,18 +187,9 @@ async def getAllStockData(code, logger: Logger):
                 kdjd = 2.0 * kdjd / 3 + kdjk / 3
                 kdjj = 3 * kdjk - 2 * kdjd
 
-                ema1 = price * alpha_trix + ema1 * (1 - alpha_trix)
-                ema2 = ema1 * alpha_trix + ema2 * (1 - alpha_trix)
-                ema3 = ema2 * alpha_trix + ema3 * (1 - alpha_trix)
-                trix = (ema3 - pre_ema3) / pre_ema3 * 100
-                trix_list.append(trix)
-                pre_ema3 = ema3
-                if len(trix_list) > 9:
-                    trix_list.pop(0)
-                trma = sum(trix_list) / 9
-                if item[0] >= '20250901':
-                    await Detail.update((code, item[0]), emas=ema_s, emal=ema_l, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj, trix_ema_one=ema1, trix_ema_two=ema2, trix_ema_three=ema3, trix=trix, trma=trma)
-                    logger.info(f"{item[0]} - diff: {diff} - dea: {dea} - K: {kdjk} - D: {kdjd} - J: {kdjj} - TRIX: {trix} - TRMA: {trma}")
+                if date_str >= '20250901':
+                    await Detail.update((code, item[0]), emas=ema_s, emal=ema_l, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj)
+                    logger.info(f"{item[0]} - factor: {factor} - diff: {diff} - dea: {dea} - K: {kdjk} - D: {kdjd} - J: {kdjj}")
         else:
             logger.error(f"Update stock MACD/KDJ/TRIX data error - {code}")
 
@@ -275,10 +274,24 @@ async def getStockZhuLiFundFromTencentL5D(code: str, logger: Logger) -> float:
         logger.error(traceback.format_exc())
 
 
+async def getStockFromTushare(code: str, logger: Logger):
+    try:
+        header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+                  "Accept": "application/json", "apiKey": TUSHARE_API_KEY}
+        url = f"https://data.infoway.io/common/basic/symbols/adjustment_factors?market=CN&beginDay=20251024&endDay=20260930&symbol={code}.{getStockRegion(code).upper()}"
+        res = await http.get(url, headers=header)
+        if res.status_code == 200:
+            logger.info(res.text)
+        else:
+            logger.error(f"status code is {res.status_code} - {res.text}")
+    except:
+        logger.error(traceback.format_exc())
+
+
 async def initStockData(code: str, name: str, logger: Logger):
-    await Detail.query().equal(code=code).delete()
-    await getStockFromSohu([{code: name}], logger)    # update price and volume
-    await getAllStockData(code, logger)   # update MACD/KDJ
+    factorList: list[dict] = await getQfqFactorFromSina(code, logger)
+    await getStockFromSohu([{code: name}], factorList, logger)    # update price and volume
+    await getAllStockData(code, factorList, logger)   # update MACD/KDJ
     await update_stock_turnover_rate(code, logger)    # update turnover rate
     await getStockZhuLiFundFromTencentL5D(code, logger)      # update fund
     await Detail.query().equal(code=code).less(day='20250901').delete()

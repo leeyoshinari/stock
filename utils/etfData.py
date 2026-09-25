@@ -8,20 +8,12 @@ import json
 import traceback
 from logging import Logger
 from utils.http_client import http
+from utils.results import getStockRegion
 
 
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
-
-
-def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "sh"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "sz"
-    else:
-        return ""
 
 
 async def getEtfInfoFromSH(page: int, logger: Logger):
