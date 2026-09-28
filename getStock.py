@@ -134,16 +134,18 @@ async def getStockFromTencent(host):
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
                 await queryTask.put(errorList)
-                await asyncio.sleep(3)
+                await asyncio.sleep(BATCH_INTERVAL)
             for d in dataList:
                 await saveStockInfo(d)
         except:
             logger.error(f"Tencent({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
-            if datas: await queryTask.put(datas)
-            await asyncio.sleep(3)
+            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+            if datas: await queryTask.put(error_list)
+            await asyncio.sleep(BATCH_INTERVAL)
         finally:
-            if datas: queryTask.task_done()
+            if datas is not None and datas != 'end':
+                queryTask.task_done()
 
 
 async def getStockFromXueQiu(host):
@@ -157,16 +159,18 @@ async def getStockFromXueQiu(host):
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
                 await queryTask.put(errorList)
-                await asyncio.sleep(3)
+                await asyncio.sleep(BATCH_INTERVAL)
             for d in dataList:
                 await saveStockInfo(d)
         except:
             logger.error(f"XueQiu({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
-            if datas: await queryTask.put(datas)
-            await asyncio.sleep(3)
+            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+            if datas: await queryTask.put(error_list)
+            await asyncio.sleep(BATCH_INTERVAL)
         finally:
-            if datas: queryTask.task_done()
+            if datas is not None and datas != 'end':
+                queryTask.task_done()
 
 
 async def getStockFromSina(host):
@@ -181,22 +185,25 @@ async def getStockFromSina(host):
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
                 await queryTask.put(errorList)
-                await asyncio.sleep(3)
+                await asyncio.sleep(BATCH_INTERVAL)
             for d in dataList:
                 try:
                     await saveStockInfo(d)
                 except:
                     saveErrorList.append({d.code: d.name, f'{d.code}count': 1})
                     logger.error(f"Sina({host}) - 出现异常...... {d}")
+                    logger.error(traceback.format_exc())
             if len(saveErrorList) > 0:
                 await queryTask.put(saveErrorList)
         except:
             logger.error(f"Sina({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
-            if datas: await queryTask.put(datas)
-            await asyncio.sleep(3)
+            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+            if datas: await queryTask.put(error_list)
+            await asyncio.sleep(BATCH_INTERVAL)
         finally:
-            if datas: queryTask.task_done()
+            if datas is not None and datas != 'end':
+                queryTask.task_done()
 
 
 async def getEtfFromTencent(host):
@@ -210,16 +217,18 @@ async def getEtfFromTencent(host):
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
                 await etfTask.put(errorList)
-                await asyncio.sleep(15)
+                await asyncio.sleep(BATCH_INTERVAL)
             for d in dataList:
                 await saveStockInfo(d)
         except:
             logger.error(f"Tencent({host}) - 出现异常...... {datas}")
             logger.error(traceback.format_exc())
-            if datas: await etfTask.put(datas)
-            await asyncio.sleep(15)
+            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+            if datas: await etfTask.put(error_list)
+            await asyncio.sleep(BATCH_INTERVAL)
         finally:
-            if datas: etfTask.task_done()
+            if datas is not None and datas != 'end':
+                etfTask.task_done()
 
 
 def calc_macd(price: float, ema_s: float, ema_l: float, dea: float) -> dict:
@@ -280,7 +289,7 @@ async def saveStockInfo(stockDo: StockModelDo):
         await Detail.update((stockDo.code, stockDo.day), current_price=stockDo.current_price, open_price=stockDo.open_price, last_price=stockDo.last_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, ma_five=calc_MA(stock_price, 5, digit),
                             ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2), emas=macd['emas'],
-                            emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], fund=0.0, shares=stockDo.shares, premium=stockDo.premium_rate,
+                            emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], fund=0.0, shares=stockDo.shares, premium=stockDo.premium,
                             turnover_rate=stockDo.turnover_rate, boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
     except NoResultFound:
         stock_price.insert(0, stockDo.current_price)
@@ -302,7 +311,7 @@ async def saveStockInfo(stockDo: StockModelDo):
         await Detail.create(code=stockDo.code, day=stockDo.day, name=stockDo.name, current_price=stockDo.current_price, open_price=stockDo.open_price,
                             max_price=stockDo.max_price, min_price=stockDo.min_price, volume=stockDo.volume, last_price=stockDo.last_price, fund=0.0,
                             ma_five=calc_MA(stock_price, 5, digit), ma_ten=calc_MA(stock_price, 10, digit), ma_twenty=ma_twenty, qrr=round(stockDo.volume / average_volume, 2),
-                            emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], shares=stockDo.shares, premium=stockDo.premium_rate,
+                            emas=macd['emas'], emal=macd['emal'], dea=macd['dea'], kdjk=kdj['k'], kdjd=kdj['d'], kdjj=kdj['j'], shares=stockDo.shares, premium=stockDo.premium,
                             turnover_rate=stockDo.turnover_rate, boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
 
 

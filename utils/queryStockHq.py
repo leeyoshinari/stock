@@ -92,17 +92,19 @@ async def getStockHqFromTencent(host: str, datas: list[dict], logger: Logger) ->
                     logger.error(f"Tencent({host}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                     logger.error(traceback.format_exc())
                     key_stock = f"{stockDo.code}count"
-                    if dataCount[key_stock] < 5:
+                    if dataCount[key_stock] < 3:
                         error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
             result['data'] = data_list
             result['error'] = error_list
         else:
             logger.error(f"Tencent({host}) - 请求未正常返回... {datas}")
-            result['error'] = datas
+            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+            result['error'] = error_list
     except:
         logger.error(f"Tencent({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        result['error'] = datas
+        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+        result['error'] = error_list
     return result
 
 
@@ -148,20 +150,23 @@ async def getStockHqFromXueQiu(host: str, datas: list[dict], logger: Logger) -> 
                         logger.error(f"XueQiu({host}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                         logger.error(traceback.format_exc())
                         key_stock = f"{stockDo.code}count"
-                        if dataCount[key_stock] < 5:
+                        if dataCount[key_stock] < 3:
                             error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
                 result['data'] = data_list
                 result['error'] = error_list
             else:
                 logger.error(f"XueQiu({host}) - 请求未正常返回...响应值: {res_json}")
-                result['error'] = datas
+                error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+                result['error'] = error_list
         else:
             logger.error(f"XueQiu({host}) - 请求未正常返回... {datas}")
-            result['error'] = datas
+            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+            result['error'] = error_list
     except:
         logger.error(f"XueQiu({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        result['error'] = datas
+        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+        result['error'] = error_list
     return result
 
 
@@ -239,7 +244,7 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
                     logger.error(f"Sina({host}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {line}")
                     logger.error(traceback.format_exc())
                     key_stock = f"{stockDo.code}count"
-                    if dataCount[key_stock] < 5:
+                    if dataCount[key_stock] < 3:
                         error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
             for k, v in data_dict.items():
                 if k in stop_list:
@@ -251,11 +256,13 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
                 result['error'] = error_list
         else:
             logger.error(f"Sina({host}) - 请求未正常返回... {datas}")
-            result['error'] = datas
+            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+            result['error'] = error_list
     except:
         logger.error(f"Sina({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        result['error'] = datas
+        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
+        result['error'] = error_list
     return result
 
 

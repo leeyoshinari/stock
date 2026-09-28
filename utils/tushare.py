@@ -186,7 +186,7 @@ async def getStockEarnings(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockValuation(code: str, logger: Logger) -> dict:
+async def getStockHistoryValuation(code: str, logger: Logger) -> dict:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-fundamental
     获取标的PE/PB历史数据，可用于画估值走势图

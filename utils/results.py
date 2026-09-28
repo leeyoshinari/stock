@@ -29,3 +29,13 @@ def getStockRegionNum(code: str) -> str:
         return "0"
     else:
         return ""
+
+
+def getMarketCode(code: str) -> int:
+    """同花顺-股票所属市场判断"""
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
+        return 17
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
+        return 33
+    else:
+        return 0
