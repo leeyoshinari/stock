@@ -78,8 +78,9 @@ class AsyncETFAnalyzer:
         raw_stocks = input_data.get("stocks", [])
         self.stocks: list[str] = [s.get("code", s) if isinstance(s, dict) else s for s in raw_stocks]   # ETF前10重仓股
         self.kLine: str = input_data.get("k_line", "")      # K线等技术数据
-        self.hold: dict = input_data.get("hold", {})    # 当前持仓数据
-        self.has_position: bool = bool(self.hold and self.hold.get("shares", 0) > 0)
+        self.hold: list[dict] = input_data.get("hold", [])    # 当前持仓数据
+        self.has_position: bool = bool(self.hold and self.hold[0] and self.hold[0].get("shares", 0) > 0)
+        logger.info(json.dumps(input_data, ensure_ascii=False))
 
     async def _fetch_data(self, api_chain: list[Callable], context: str, dimension: str, aggregate: bool = False) -> str:
         """
@@ -125,6 +126,15 @@ class AsyncETFAnalyzer:
         invalid_keywords = ["未找到", "Error", "Exception", "数据缺失", "无相关"]
         return not any(kw in res_str for kw in invalid_keywords)
 
+    async def _safe_call(self, api_func) -> Any:
+        """
+        安全调用包装器：兼容异步 API 和同步本地数据（如 lambda 返回的字符串）
+        """
+        result = api_func()
+        if asyncio.iscoroutine(result) or asyncio.isfuture(result):
+            return await result
+        return result
+
     def _get_dimension_configs(self) -> list[dict]:
         """构建维度配置：包含 API 降级链 和 定制化 Prompt"""
         # 股票与 ETF 的差异化 API 链
@@ -147,7 +157,7 @@ class AsyncETFAnalyzer:
                     "aggregate": True,
                     "api_chain": [
                         partial(getStockCapital, self.code, logger),
-                        lambda: self.kLine if self.kLine else ""
+                        partial(self._safe_call, lambda: self.kLine if self.kLine else "")
                     ],
                     "prompt": "你是技术面分析师。这是ETF的K线数据，充分利用所有指标，特别是价格、份额、溢价率之间的共振，详细分析股票在技术面的表现。"
                 }, {
@@ -190,7 +200,7 @@ class AsyncETFAnalyzer:
                     "api_chain": [
                         partial(getStockCapital, self.code, logger),
                         partial(getStockValuation, self.code, logger),
-                        lambda: self.kLine if self.kLine else ""
+                        partial(self._safe_call, lambda: self.kLine if self.kLine else "")
                     ],
                     "prompt": "你是技术面与资金面分析师。你需要全面仔细地分析各个指标，你必须识别并规避的假信号：高开低走、长上影线、单日暴涨但量能异常、高换手率+小阳线或上影线（疑似出货）、高位派发、主力资金异常、假金叉、指标高位钝化、上涨动能明显减弱、均线系统未修复、价格远离均线导致短线情绪透支等异常情况。重点分析 PE/PB 的历史分位数（是否低估/高估），与同行对比的溢价/折价情况。"
                 }, {
@@ -253,7 +263,7 @@ class AsyncETFAnalyzer:
 
         # 2. 追加技术面 K 线数据（如果是技术面维度）
         if dim_name == "技术面与资金流向" and self.kLine:
-            raw_data += f"\n{k_line_comment.format("；shares：ETF份额；premium：溢价率" if self.type == "etf" else "")}\n{self.kLine}"
+            raw_data += f"\n{k_line_comment.format("；shares：ETF份额；premium：ETF溢价率" if self.type == "etf" else "")}\n{self.kLine}"
 
         # 3. 构建定制化 Prompt
         prompt = f"""{config["prompt"]}
@@ -264,7 +274,7 @@ class AsyncETFAnalyzer:
 
 【要求】:
 1. 必须基于提供的【原始数据】进行严谨客观的分析，严禁编造。
-2. 详细的分析报告 (analysis) 必须包含具体数据支撑，逻辑严密。
+2. 必须详细的分析报告 (analysis) 必须包含具体数据支撑，逐条分析，逻辑严密。
 请严格输出 JSON：{{"dimension": "{dim_name}", "analysis": "详细分析"}}"""
 
         messages = [{"role": "system", "content": "只输出合法的 JSON。"}, {"role": "user", "content": prompt}]
@@ -276,8 +286,7 @@ class AsyncETFAnalyzer:
 
     async def _final_decision(self, dimension_results: list[dict]) -> dict[str, Any]:
         """Reduce 阶段：汇总所有维度，进行最终决策"""
-        trade_info = {"名称": self.hold.get('name'), "代码": self.hold.get('code'), "持仓成本": self.hold.get('cost'), "持仓股数": self.hold.get('shares')}
-        hold_info = json.dumps(trade_info, ensure_ascii=False) if self.has_position else "无持仓"
+        hold_info = json.dumps(self.hold, ensure_ascii=False) if self.has_position else "无持仓"
         dim_results_str = json.dumps(dimension_results, ensure_ascii=False, indent=2)
 
         prompt = f"""你是一个在中国A股市场有着丰富经验的资深量化投研交易员。请基于以下维度的独立分析结果，结合标的信息和持仓情况，给出最终的投资决策。
@@ -306,10 +315,10 @@ class AsyncETFAnalyzer:
  "date": "{self.today}", "symbol": "{self.code}", "type": "{self.type}",
  "rating": "强烈看好|看好|中性|看空",
  "core_logic": "2-3句话核心逻辑",
- "detailed_analysis": "综合各维度详细报告",
+ "detailed_analysis": "对每个维度进行详细的分析报告",
  "risk_warning": "2-3句话最需警惕的风险",
  "action_plan": {{
-   "current_position": {json.dumps(trade_info, ensure_ascii=False) if self.has_position else "{}"},
+   "current_position": {json.dumps(self.hold, ensure_ascii=False) if self.has_position else "无持仓"},
    "operation": "建仓|加仓|不操作|减仓|清仓",
    "operation_amount": "建议金额(数字)",
    "operation_shares": "建议股数(数字)",

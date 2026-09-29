@@ -153,6 +153,7 @@ async def queryByCode(code: str, site: str = None) -> Result:
     try:
         tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
+        isEtf = code.startswith("1") or code.startswith("5")
         stockInfo: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.asc()).all()
         data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volume', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate', 'fund']] for row in stockInfo]
         bollinger = []
@@ -192,8 +193,8 @@ async def queryByCode(code: str, site: str = None) -> Result:
             kdjk.append(round(stockInfo[index].kdjk, 3))
             kdjd.append(round(stockInfo[index].kdjd, 3))
             kdjj.append(round(stockInfo[index].kdjj, 3))
-            total_shares.append(round(stockInfo[index].shares, 2))
-            premium.append(round(stockInfo[index].premium, 2))
+            total_shares.append(round(stockInfo[index].shares, 2) if isEtf else None)
+            premium.append(round(stockInfo[index].premium, 2) if isEtf else None)
             boll_up.append(stockInfo[index].boll_up)
             boll_low.append(stockInfo[index].boll_low)
         if code.startswith('1') or code.startswith('5'):
@@ -226,8 +227,8 @@ async def queryByCode(code: str, site: str = None) -> Result:
                 kdjk.append(round(stockDo['k'], 3))
                 kdjd.append(round(stockDo['d'], 3))
                 kdjj.append(round(stockDo['j'], 3))
-                total_shares.append(round(stockDo['shares'], 2))
-                premium.append(round(stockDo['premium'], 2))
+                total_shares.append(round(stockDo['shares'], 2) if isEtf else None)
+                premium.append(round(stockDo['premium'], 2) if isEtf else None)
                 boll_up.append(stockDo['boll_up'])
                 boll_low.append(stockDo['boll_low'])
         else:
@@ -236,11 +237,11 @@ async def queryByCode(code: str, site: str = None) -> Result:
         cost = round(profit_res[0]['price'], 3) if profit_res else None
         shares = profit_res[0]['shares'] if profit_res else None
         result.data = {
-            'x': x, 'code': code, 'name': st.name, 'industry': st.industry, 'coord': coords, 'total_shares': total_shares,
+            'x': x, 'code': code, 'name': st.name, 'industry': st.industry, 'coord': coords, 'total_shares': total_shares if isEtf else None,
             'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate, 'cost': cost,
             'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up,
             'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'profit': profit, 'shares': shares,
-            'k': kdjk, 'd': kdjd, 'j': kdjj, 'boll_low': boll_low, 'premium': premium
+            'k': kdjk, 'd': kdjd, 'j': kdjj, 'boll_low': boll_low, 'premium': premium if isEtf else None
         }
         if not (code.startswith('1') or code.startswith('5')):
             result.data.update({'region': st.region, 'concept': st.concept})
@@ -1138,7 +1139,7 @@ async def stop_auto_sell_stock():
     scheduler.add_job(get_holding, "date", run_date=datetime.now() + timedelta(seconds=3600))
 
 
-async def queryByCodeForAI(code: str, limit: int = 20) -> Result:
+async def queryByCodeForAI(code: str, isEtf: bool, limit: int = 20) -> Result:
     result = Result()
     try:
         if not limit:
@@ -1165,8 +1166,9 @@ async def queryByCodeForAI(code: str, limit: int = 20) -> Result:
             s.pop('code', None)
             s.pop('name', None)
             s.pop('last_price', None)
-            s.pop('shares', None)
-            s.pop('premium', None)
+            if not isEtf:
+                s.pop('shares', None)
+                s.pop('premium', None)
         result.data = stock_data
         logger.info(f"Query AI stock k-line success - code: {code}")
     except Exception as e:
@@ -1195,24 +1197,25 @@ async def analysize(code: str, limit: int) -> Result:
             stock: ETF = await ETF.get_one(code)
         else:
             stock: Stock = await Stock.get_one(code)
-        res: Result = await queryByCodeForAI(code, limit)
+        res: Result = await queryByCodeForAI(code, isEtf, limit)
         if not res.success:
             logger.error(f"Get K-line Error: code:{code}, {res.msg}")
             return res
         hold = await get_holding(user_id=1, code=stock.code)
-        hold[0]['code'] = f"{stock.code}.{getStockRegion(stock.code).upper()}"
         user_input = {
             "type": "etf" if isEtf else "stock",
             "name": stock.name,
-            "code": f"{stock.code}.{getStockRegion(stock.code).upper()}",
+            "code": stock.code,
+            "totalFund": 100000,
+            "availableFund": 55520,
             "industry": stock.name.split("ETF")[0] if isEtf else stock.industry,
             "concept": "" if isEtf else stock.concept,
             "stocks": stock.stocks if isEtf else "",
             "k_line": json.dumps(res.data, ensure_ascii=False),
-            "hold": hold[0]
+            "hold": [{"name": d['name'], "code": d['code'], "price": round(d['price'], 2), "shares": d["shares"]} for d in hold]
         }
         analyzer = AsyncETFAnalyzer(input_data=user_input)
-        result = await analyzer.analyze()
+        result.data = await analyzer.analyze()
     except:
         logger.error(traceback.format_exc())
         result.success = False

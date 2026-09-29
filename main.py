@@ -261,8 +261,8 @@ class StockController(Controller):
     @get('/analyzer', summary="全面分析标的")
     async def analyzer(self, request: Request, code: str, limit: int = 20) -> Result:
         result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.analysize(code, limit)
+        # if checkout(request.headers.get('referered', '123')):
+        result = await views.analysize(code, limit)
         return result
 
     @get('/runCmd', summary="执行 shell 命令")
