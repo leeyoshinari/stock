@@ -26,6 +26,7 @@
 <body>
     <div class="container"><div style="display:flex;flex-direction:column;align-items:center;margin-top:5%;font-size:larger;">
         <div><input id="pwd" style="width:145px;height:22px;" type="text" autocomplete="off" placeholder="" value="" /> <button onclick="save();">Save</button></div>
+        <div><select id="userId" style="width:150px;height:27px;"><option value="1">我自己</option><option value="2">用户1</option></select> <button onclick="saveUserId();">Save</button></div>
         <!--div><select id="site" style="width:150px;height:27px;"><option value="sina">新浪</option><option value="tencent">腾讯</option><option value="xueqiu">雪球</option><option value="tonghuashun">同花顺</option><option value="dongfangcaifu">东方财富</option></select> <button onclick="saveSite();">Save</button></div-->
         <a href="/r?type=5" style="color: blue; text-decoration: none;"> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </a>
         <a href="/r" style="color: blue; text-decoration: none;"> 推荐列表 </a> <br>
@@ -40,5 +41,6 @@
 <script>
     function save() {localStorage.setItem("pwd", document.getElementById("pwd").value);}
     function saveSite() {localStorage.setItem("site", document.getElementById("site").value);}
+    function saveUserId() {localStorage.setItem("userId", document.getElementById("userId").value);}
 </script>
 </html>

@@ -45,8 +45,8 @@ class StockModelDo(BaseModel):
     ma_ten: float = None
     ma_twenty: float = None
     qrr: float = None
-    shares: float = None
-    premium: float = None
+    shares: Optional[float] = None
+    premium: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -73,8 +73,8 @@ class StockDataList(BaseModel):
     k: float = None
     d: float = None
     j: float = None
-    shares: float = None
-    premium: float = None
+    shares: Optional[float] = None
+    premium: Optional[float] = None
     boll_up: float = None
     boll_low: float = None
 

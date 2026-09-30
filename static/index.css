@@ -33,11 +33,11 @@ html {
 
 .header-filter>div>input {
     height: 28px;
-    width: 142px;
+    width: 128px;
 }
 .header-filter>div>select {
     height: 34px;
-    width: 150px;
+    width: 135px;
     appearance: none;
 }
 

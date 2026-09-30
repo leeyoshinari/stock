@@ -80,7 +80,7 @@ async def getShortInfoMorning(logger: Logger) -> str:
         if res.status_code == 200:
             extracted = trafilatura.extract(res.text, include_comments=False, include_tables=False)
             content = f"【标题】：{data['title']}\n【摘要】：{data['summary']}\n【正文】：{extracted}"
-            logger.info(content)
+            logger.info(f"【标题】：{data['title']} -【链接】：{data['url']}")
             return content
         else:
             return ''

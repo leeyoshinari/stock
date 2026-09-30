@@ -55,7 +55,7 @@ function getStockRegion(code) {
 
 function getStockList() {
     let filter = document.getElementById("filter-by").value;
-    let region = document.getElementById("stock-region").value;
+    // let region = document.getElementById("stock-region").value;
     let industry = document.getElementById("stock-industry").value;
     let concept = document.getElementById("stock-concept").value;
     let url = prefix + `/stock/list?pageSize=${pageSize}&page=${page}`;
@@ -70,9 +70,9 @@ function getStockList() {
     if (filter || filter.trim()) {
         url = url + `&filter=${filter}`;
     }
-    if (region || region.trim()) {
-        url = url + `&region=${region}`;
-    }
+    // if (region || region.trim()) {
+    //     url = url + `&region=${region}`;
+    // }
     if (industry || industry.trim()) {
         url = url + `&industry=${industry}`;
     }
@@ -89,7 +89,7 @@ function getStockList() {
                     setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" /><img id="buy-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="buy_stocks('${item.code}', '${item.name}');" />`;
                 }
                 s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a><img id="hold-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="hold_stock('${item.code}', '${item.name}');" />${setFlag}</div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
-                      <div><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}', 'buy');" style="width:20px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:20px;margin-right:3%;" /><img id="shrink-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}', 'shrink');" style="width:20px;" /></div>
+                      <div><img id="ai-${item.code}" src="${prefix}/static/buy.svg" alt="" onclick="query_stock_ai('${item.code}', '${item.name}', 'buy');" style="width:20px;margin-right:3%;" /><img id="ai-${item.code}" src="${prefix}/static/sell.svg" alt="" onclick="show_sell_stock_window('${item.code}', '${item.name}');" style="width:20px;margin-right:3%;" /><img id="shrink-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="analysize_stock_ai('${item.code}', '${item.name}');" style="width:20px;" /></div>
                       <div><a target="_blank" href="https://quote.eastmoney.com/concept/${getStockRegion(item.code)}${item.code}.html#chart-k-cyq">${item.region}</a></div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
@@ -208,12 +208,30 @@ function sell_stock_ai(code, name) {
 }
 
 function query_stock_ai(code, name, source) {
+    // query_stock_ai('${item.code}', '${item.name}', 'shrink');
     show_modal_cover();
     let site = localStorage.getItem('site');
     fetch(`${prefix}/buy/stock?code=${code}&site=${site}&source=${source}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
+        })
+        .finally(() => {close_modal_cover();})
+}
+
+function analysize_stock_ai(code, name) {
+    show_modal_cover();
+    let userId = localStorage.getItem('userId');
+    fetch(`${prefix}/analyzer?code=${code}&userId=${userId}`)
+        .then(res => res.json())
+        .then(data => {
+            let op_text = '';
+            if (data.data.action_plan.operation !== "不操作") {
+                op_text = `, 费用: ${data.data.action_plan.operation_amount}, 股数: ${data.data.action_plan.operation_shares}`
+            }
+            let s = `当前仓位: 成本: ${data.data.action_plan.current_position[0].price}, 股数: ${data.data.action_plan.current_position[0].shares} \n 评级: ${data.data.rating} \n 操作建议: ${data.data.action_plan.operation}${op_text} \n 核心观点: ${data.data.action_plan.operation_reason} \n 详细分析: ${data.data.detailed_analysis} \n 风险点: ${data.data.risk_warning} \n 止损位: ${data.data.action_plan.stop_loss_profit}`
+            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + s;
             document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
         .finally(() => {close_modal_cover();})
@@ -276,6 +294,6 @@ document.getElementById("pre-page").disabled = 'true';
 getStockList();
 watchInput(document.getElementById('stock-name'), getStockList);
 watchInput(document.getElementById('stock-code'), getStockList);
-watchInput(document.getElementById('stock-region'), getStockList);
+// watchInput(document.getElementById('stock-region'), getStockList);
 watchInput(document.getElementById('stock-industry'), getStockList);
 watchInput(document.getElementById('stock-concept'), getStockList);

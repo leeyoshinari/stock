@@ -1189,7 +1189,7 @@ async def webSearch(q: str, df: str) -> Result:
     return result
 
 
-async def analysize(code: str, limit: int) -> Result:
+async def analysize(code: str, userId: str) -> Result:
     result = Result()
     try:
         isEtf = code.startswith("1") or code.startswith("5")
@@ -1197,22 +1197,23 @@ async def analysize(code: str, limit: int) -> Result:
             stock: ETF = await ETF.get_one(code)
         else:
             stock: Stock = await Stock.get_one(code)
-        res: Result = await queryByCodeForAI(code, isEtf, limit)
+        res: Result = await queryByCodeForAI(code, isEtf, 20)
         if not res.success:
             logger.error(f"Get K-line Error: code:{code}, {res.msg}")
             return res
-        hold = await get_holding(user_id=1, code=stock.code)
+        hold = await get_holding(user_id=int(userId), code=stock.code)
         user_input = {
             "type": "etf" if isEtf else "stock",
             "name": stock.name,
             "code": stock.code,
             "totalFund": 100000,
             "availableFund": 55520,
+            "userId": userId,
             "industry": stock.name.split("ETF")[0] if isEtf else stock.industry,
             "concept": "" if isEtf else stock.concept,
             "stocks": stock.stocks if isEtf else "",
             "k_line": json.dumps(res.data, ensure_ascii=False),
-            "hold": [{"name": d['name'], "code": d['code'], "price": round(d['price'], 2), "shares": d["shares"]} for d in hold]
+            "hold": [{"name": d['name'], "code": d['code'], "price": round(d['price'], 2), "shares": d["shares"], "profit": d['profit']} for d in hold]
         }
         analyzer = AsyncETFAnalyzer(input_data=user_input)
         result.data = await analyzer.analyze()

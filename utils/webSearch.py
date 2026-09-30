@@ -6,7 +6,23 @@ import traceback
 import lxml.html
 import trafilatura
 from logging import Logger
+from urllib.parse import quote
 from utils.http_client import http
+from settings import HTTP_HOST1
+
+
+async def searchWithSerper(query: str, logger: Logger, df: str = 'w'):
+    '''使用 serper 搜索，每月 2000 次搜索
+    :params df: h-过去一小时 / d-过去一天 / w-过去一周 / m-过去一个月 / y-过去一年
+    '''
+    url = f"{HTTP_HOST1}/api/search/serper?q={quote(query)}&dateRestrict={df}"
+    try:
+        resp = await http.get(url)
+        logger.info(resp.text)
+        if resp.status_code == 200:
+            logger.info(resp.text)
+    except:
+        logger.error(traceback.format_exc())
 
 
 async def searchWithDuckDuckGo(query: str, logger: Logger, df: str = 'w', max_results: int = 5) -> list[dict]:
@@ -33,7 +49,7 @@ async def searchWithDuckDuckGo(query: str, logger: Logger, df: str = 'w', max_re
     try:
         resp = await http.post(url, data=data, headers=headers)
         if resp.status_code != 200:
-            return "Search Error: HTTP " + str(resp.status_code)
+            return "Search Error: HTTP " + str(resp.status_code) + resp.text
         logger.debug(f"Web Search KeyWord: {query}, result: {resp.text}")
         tree = lxml.html.fromstring(resp.text)
         content = []

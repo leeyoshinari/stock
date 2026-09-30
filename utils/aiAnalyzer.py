@@ -47,20 +47,27 @@ async def generate_search_keyword(context: str, dimension: str) -> str:
     return f"{context} {dimension} 最新消息"
 
 
-async def chat(messages: list) -> Any:
+async def chat(messages: list, max_retries: int = 3) -> Any:
     """调用 LLM 并强制返回 JSON 对象"""
     headers = {"Authorization": f"Bearer {ANALYSIZE_API_KEY}", "Content-Type": "application/json"}
     payload = {"model": ANALYSIZE_API_MODEL, "messages": messages, "temperature": 0.2, "response_format": {"type": "json_object"}}
-    try:
-        resp = await http.post(f"{ANALYSIZE_API_URL}/chat/completions", json_data=payload, headers=headers)
-        if resp.status_code == 200:
-            raw_content = json.loads(resp.text)["choices"][0]["message"]["content"]
-            cleaned = re.sub(r'^```json\s*', '', raw_content, flags=re.MULTILINE | re.IGNORECASE)
-            cleaned = re.sub(r'```\s*$', '', cleaned, flags=re.MULTILINE).strip()
-            return json.loads(cleaned)
-        return {"error": f"LLM API Error: HTTP {resp.status_code}"}
-    except Exception as e:
-        return {"error": f"LLM Exception: {str(e)}"}
+    for attempt in range(max_retries):
+        try:
+            resp = await http.post(f"{ANALYSIZE_API_URL}/chat/completions", json_data=payload, headers=headers)
+            if resp.status_code == 200:
+                raw_content = json.loads(resp.text)["choices"][0]["message"]["content"]
+                cleaned = re.sub(r'^```json\s*', '', raw_content, flags=re.MULTILINE | re.IGNORECASE)
+                cleaned = re.sub(r'```\s*$', '', cleaned, flags=re.MULTILINE).strip()
+                return json.loads(cleaned)
+            else:
+                last_error = f"LLM API Error: HTTP {resp.status_code}"
+        except Exception as e:
+            last_error = f"LLM Exception: {str(e)}"
+
+        delay = 1.5 * (2 ** attempt)
+        logger.warning(f"[Retry] Request failed ({last_error}). Retrying in {delay:.1f}s... (Attempt {attempt + 1}/{max_retries})")
+        await asyncio.sleep(delay)
+    return {"error": f"Failed after {max_retries + 1} attempts. Last error: {last_error}"}
 
 
 class AsyncETFAnalyzer:
@@ -274,7 +281,7 @@ class AsyncETFAnalyzer:
 
 【要求】:
 1. 必须基于提供的【原始数据】进行严谨客观的分析，严禁编造。
-2. 必须详细的分析报告 (analysis) 必须包含具体数据支撑，逐条分析，逻辑严密。
+2. 必须详细的分析报告 (analysis) 必须包含具体数据支撑，逐条分析，逻辑严密。报告必须要详细，必须要保留重要信息和数据。
 请严格输出 JSON：{{"dimension": "{dim_name}", "analysis": "详细分析"}}"""
 
         messages = [{"role": "system", "content": "只输出合法的 JSON。"}, {"role": "user", "content": prompt}]
@@ -296,7 +303,8 @@ class AsyncETFAnalyzer:
 
 【核心交易规则】:
 1. 你必须根据提供的【各维度分析结果】，全面综合分析评估标的，特别是各维度和各指标共振。
-2. 评级规则: 强烈看好(4个维度全部正面+逻辑顺畅), 看好(≥3个维度正面), 中性(多空交织), 看空(存在排雷信号或重大风险)。
+2. 如果维度的分析结果为空或者报错，必须要在分析结果中说明出来。
+3. 评级规则: 强烈看好(4个维度全部正面+逻辑顺畅), 看好(≥3个维度正面), 中性(多空交织), 看空(存在排雷信号或重大风险)。
 
 【交易金额规则】
 当前账户总资产{self.totalFund}元，可用资产{self.availableFund}元。如果需要【建仓|加仓】买入股票，那么买入金额绝对不能超过可用资产；如果可用资产不够，那么必须综合决策卖出多少已有的持仓，再新买入多少股票。
@@ -315,7 +323,7 @@ class AsyncETFAnalyzer:
  "date": "{self.today}", "symbol": "{self.code}", "type": "{self.type}",
  "rating": "强烈看好|看好|中性|看空",
  "core_logic": "2-3句话核心逻辑",
- "detailed_analysis": "对每个维度进行详细的分析报告",
+ "detailed_analysis": "对每个维度进行详细的分析，必须有理有据有数据支撑，严禁编造",
  "risk_warning": "2-3句话最需警惕的风险",
  "action_plan": {{
    "current_position": {json.dumps(self.hold, ensure_ascii=False) if self.has_position else "无持仓"},
@@ -347,3 +355,34 @@ class AsyncETFAnalyzer:
 
         logger.info("✅ 分析完成，JSON 解析成功。")
         return final_result
+
+
+async def analyze_etf_from_news(lastDay: str):
+    """ETF专属：从新闻中选取ETF"""
+    try:
+        api_chain = [
+            partial(getGlobalShortInfoFromSina, lastDay, logger),
+            partial(getGlobalShortInfoFromThs, lastDay, logger),
+            partial(getShortInfoMorning, logger)
+        ]
+        results = await asyncio.gather(*[api() for api in api_chain], return_exceptions=True)
+        lines = []
+        for res in results:
+            if isinstance(res, Exception) or not res:
+                lines.append("  - 获取失败")
+            else:
+                lines.append(f"{res}")
+
+        combined_data = "\\n".join(lines)
+
+        prompt = f"""
+{combined_data}
+【要求】:
+1. 必须基于提供的【原始数据】进行严谨客观的分析，严禁编造。
+2. 详细的分析报告 (analysis) 必须包含具体数据支撑，逻辑严密。
+请严格输出 JSON：{{"行业": "分析筛选出来的行业", "reason": "详细的理由"}}"""
+
+        messages = [{"role": "system", "content": "只输出合法的 JSON。"}, {"role": "user", "content": prompt}]
+        return await chat(messages)
+    except:
+        logger.error(traceback.format_exc())
