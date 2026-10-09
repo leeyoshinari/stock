@@ -15,15 +15,15 @@ from utils.model import EtfInfoList
 from utils.selectStock import getStockZhuLiFundFromTencent
 from utils.ai_model import queryGemini, webSearchTopicBak, queryOpenAi, auto_sell_prompt
 from utils.logging import logger
-from utils.results import Result, getStockRegion
+from utils.results import Result
 from utils.scheduler import scheduler
-from utils.aiAnalyzer import AsyncETFAnalyzer
+from utils.aiAnalyzer import AsyncETFAnalyzer, analyze_etf_from_news
 from utils.initData import initStockData, getStockFundFlow
 from utils.webSearch import searchWithDuckDuckGo
-from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
+from utils.queryStockHq import getStockHqFromTencent
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands, getStockLimitUp, evaluate_sell_strategy
-from utils.database import Recommend, Stock, Detail, Tools, DBExecutor, ETF, Transaction, TradeType
+from utils.database import Recommend, Stock, Detail, Tools, DBExecutor, ETF, Transaction, TradeType, Capital
 from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HISTORY_PATH
 
 
@@ -72,6 +72,7 @@ def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shar
             total_value = cost * shares + price * number + fee
             shares += number
             cost = round(total_value / shares, 6)
+            profit = (price - cost) * shares
         else:    # 减仓/清仓
             if number > shares:
                 raise Exception(f"卖出数量大于持仓数量, {number} > {shares} ...")
@@ -81,7 +82,6 @@ def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shar
                 cost = cost - (profit / shares)
 
         result = {'cost': cost, 'shares': shares, 'profit': profit}
-        logger.debug(f"计算持仓数据成功, 操作: {status}, 数量: {price} - {number}, 最新成本: {cost} - {shares}")
     except:
         logger.error(traceback.format_exc())
     return result
@@ -121,8 +121,9 @@ async def get_holding(user_id: int = None, code: str = None, status: str = None)
                     logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
                 else:
                     info = {'name': stock[-1].name, 'code': stock[-1].code, 'create_time': stock[0].create_time.strftime("%Y-%m-%d"),
-                            'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': None, 'status': trade_type}
+                            'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': res['profit'], 'status': trade_type}
                     result.append(info)
+                    logger.info(f"{stock[-1].code} - {stock[-1].name} - {res}")
         except:
             logger.error(traceback.format_exc())
         return result
@@ -148,7 +149,7 @@ async def run_command(command: str) -> str:
         raise Exception(f"Error: {stderr.decode('utf-8').strip()}")
 
 
-async def queryByCode(code: str, site: str = None) -> Result:
+async def queryByCode(code: str, userId: int = None) -> Result:
     result = Result()
     try:
         tool: Tools = await Tools.get_one("openDoor")
@@ -201,16 +202,16 @@ async def queryByCode(code: str, site: str = None) -> Result:
             st: ETF = await ETF.get_one(code)
         else:
             st: Stock = await Stock.get_one(code)
-        trans: list[Transaction] = await Transaction.query().equal(code=code).order_by(Transaction.id.asc()).all()
+        trans: list[Transaction] = await Transaction.query().equal(code=code, user_id=userId).order_by(Transaction.id.asc()).all()
         coords = []
         for r in trans:
             logger.info(f"{r.status} - {TradeType.MAN}")
-            if r.status != TradeType.MAN and r.status != TradeType.AUTO:
+            if r.status in [TradeType.BUY, TradeType.SELL, TradeType.RECD, TradeType.AIS]:
                 coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
-        profit_res = await get_holding(code=code)
+        profit_res = await get_holding(user_id=userId, code=code, status="M")
         if x[-1] != day:
             logger.info(f"No real data, start query read data - code: {code}")
-            stockDo: dict = await calc_stock_real_data(code, site)
+            stockDo: dict = await calc_stock_real_data(code)
             if stockDo:
                 x.append(day)
                 data.append([stockDo['open_price'], stockDo['current_price'], stockDo['min_price'], stockDo['max_price'], stockDo['volume'], stockDo['qrr'], 0, 0, stockDo['dea'], stockDo['turnover_rate'], stockDo['fund']])
@@ -432,7 +433,7 @@ async def buy_stock(code: str, site: str = None, source: str = None, day: str = 
         is_stock = [item for item in stock_data if item['day'] == day]
         if not is_stock:
             logger.info(f"query newest data - {code}")
-            stockDo: dict = await calc_stock_real_data(code, site)
+            stockDo: dict = await calc_stock_real_data(code)
             stock_data.insert(0, stockDo)
         else:
             if stock_data[0]['day'] == current_day:
@@ -470,7 +471,7 @@ async def sell_stock(code: str, price: str = None, t: str = None, site: str = No
         is_stock = [item for item in stock_data if item['day'] == day]
         if not is_stock:
             logger.info(f"query newest data - {code}")
-            stockDo: dict = await calc_stock_real_data(code, site)
+            stockDo: dict = await calc_stock_real_data(code)
             stock_data.insert(0, stockDo)
         else:
             fflow = await getStockZhuLiFundFromTencent(code)
@@ -559,7 +560,7 @@ async def all_stock_info(query: SearchStockParam) -> Result:
             stockList = [StockInfoList.from_orm_format(stockInfo).model_dump()]
         elif query.name or query.region or query.industry or query.concept or query.filter:
             if query.filter == 'buy':
-                hold_id_list = await get_holding()
+                hold_id_list = await get_holding(user_id=query.userId, status="M")
                 hold_stock_list = [r['code'] for r in hold_id_list]
                 stockInfo: list[Stock] = await Stock.query().isin(code=hold_stock_list).all()
                 etfInfo: list[ETF] = await ETF.query().isin(code=hold_stock_list).all()
@@ -775,7 +776,7 @@ async def init_stock_fund_data(query: updateFundDo) -> Result:
     return result
 
 
-async def calc_stock_real_data(code: str, site: str = None) -> dict:
+async def calc_stock_real_data(code: str) -> dict:
     res_stock: dict = await getStockHqFromTencent('', [{code: "-", f"{code}count": 5}], logger)
     if not res_stock['data']:
         return None
@@ -882,13 +883,13 @@ async def set_user_hold(data: SetStockHold) -> Result:
 #     return result
 
 
-async def queryTradeStockList(page: int = 1) -> Result:
+async def queryTradeStockList(userId: int = None, page: int = 1) -> Result:
     result = Result()
     pageSize = 20
     try:
         offset = (page - 1) * pageSize
-        total_num: int = await Transaction.query().equal(status=TradeType.MAN).count()
-        stockInfo: list[Transaction] = await Transaction.query().equal(status=TradeType.MAN).order_by(Transaction.create_time.desc()).offset(offset).limit(pageSize).all()
+        total_num: int = await Transaction.query().equal(status=TradeType.MAN, user_id=userId).count()
+        stockInfo: list[Transaction] = await Transaction.query().equal(status=TradeType.MAN, user_id=userId).order_by(Transaction.create_time.desc()).offset(offset).limit(pageSize).all()
         stockList = [TradeStockList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
@@ -953,13 +954,14 @@ async def setEtf(code: str, running: int) -> Result:
 async def getEtf() -> Result:
     result = Result()
     try:
-        text = ''
-        index = 1
+        exclude = ['159934', '513500', '159941']    # 排除 黄金ETF、标普500ETF、纳指100ETF
+        index = []
         etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
         for r in etfInfo:
-            text += f"{index}. 名称:{r.name}, 代码:{r.code}\n"
-            index += 1
-        result.data = text
+            if r.code in exclude:
+                continue
+            index.append({"名称": r.name, "代码": r.code, "跟踪指数": r.industry})
+        result.data = index
         logger.info("Query ETF data Success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -1152,7 +1154,7 @@ async def queryByCodeForAI(code: str, isEtf: bool, limit: int = 20) -> Result:
 
         if stockInfo[-1].day != day:
             logger.info(f"No real data, start query read data - code: {code}")
-            stockDo: dict = await calc_stock_real_data(code, None)
+            stockDo: dict = await calc_stock_real_data(code)
             if stockDo:
                 today = {'code': code, 'name': '', 'day': day, 'current_price': stockDo['current_price'], 'last_price': 0,
                          'open_price': stockDo['open_price'], 'max_price': stockDo['max_price'], 'min_price': stockDo['min_price'],
@@ -1189,6 +1191,23 @@ async def webSearch(q: str, df: str) -> Result:
     return result
 
 
+async def analysizeEtfFromNews() -> Result:
+    """从财经新闻中筛选出ETF"""
+    result = Result()
+    try:
+        res = await getEtf()
+        tool = await Tools.get_one("openDoor")
+        open_time = tool.value
+        lastDay = f"{open_time[:4]}-{open_time[4:6]}-{open_time[6:]}"
+        resp = await analyze_etf_from_news(res.data, lastDay)
+        result.data = resp
+        logger.info(f"从新闻中提取出的ETF结果 {resp}")
+    except:
+        logger.error(traceback.format_exc())
+        result.success = False
+    return result
+
+
 async def analysize(code: str, userId: str) -> Result:
     result = Result()
     try:
@@ -1197,15 +1216,18 @@ async def analysize(code: str, userId: str) -> Result:
             stock: ETF = await ETF.get_one(code)
         else:
             stock: Stock = await Stock.get_one(code)
-        res: Result = await queryByCodeForAI(code, isEtf, 20)
+        res: Result = await queryByCodeForAI(code, isEtf, 10)
         if not res.success:
             logger.error(f"Get K-line Error: code:{code}, {res.msg}")
             return res
         hold = await get_holding(user_id=int(userId), code=stock.code)
+        tool = await Tools.get_one("openDoor")
+        open_time = tool.value
         user_input = {
             "type": "etf" if isEtf else "stock",
             "name": stock.name,
             "code": stock.code,
+            "lastDay": f"{open_time[:4]}-{open_time[4:6]}-{open_time[6:]}",
             "totalFund": 100000,
             "availableFund": 55520,
             "userId": userId,
@@ -1217,7 +1239,140 @@ async def analysize(code: str, userId: str) -> Result:
         }
         analyzer = AsyncETFAnalyzer(input_data=user_input)
         result.data = await analyzer.analyze()
+        logger.info(f"{stock.code} - {stock.name} analyze result is : {result.data}")
     except:
         logger.error(traceback.format_exc())
         result.success = False
     return result
+
+
+async def write_analysize_result(data: dict):
+    """将分析结果写入到数据库中"""
+    operation = data['action_plan']['operation']
+    amount = data['action_plan']['operation_amount']
+    shares = data['action_plan']['operation_shares']
+    price = round(amount / shares, 3)
+    code = data['symbol']
+    isEtf = code.startswith("1") or code.startswith("5")
+    if isEtf:
+        stock: ETF = await ETF.get_one(code)
+    else:
+        stock: Stock = await Stock.get_one(code)
+
+    if operation in ['建仓', '加仓']:
+        status = TradeType.TEMB
+    elif operation in ['减仓', '清仓']:
+        status = TradeType.TEMS
+    else:
+        pass
+    await Transaction.create(code=code, name=stock.name, price=price, shares=shares, status=status, user_id=99, flag=0, content=json.dumps(data, ensure_ascii=False))
+
+
+async def auto_analysize_etf():
+    """获取新闻，分析筛选ETF"""
+    logger.info("🚀 开始获取新闻，分析筛选ETF")
+    result = await analysizeEtfFromNews()
+    if result.success:
+        for d in result.data:
+            logger.info(f"📡 开始分析 ETF - {d}")
+            res = await analysize(code=d['code'], userId='99')
+            if res.success:
+                try:
+                    logger.info(f"✅ 分析 ETF 成功 - {res.data}")
+                    await write_analysize_result(res.data)
+                except:
+                    logger.error("❌ Error: 分析结果入库失败")
+            else:
+                logger.error(f"❌ Error: 分析 ETF 失败 - {d}")
+            await asyncio.sleep(60)
+    else:
+        logger.error("❌ Error: 从财经新闻中筛选出 ETF 失败")
+    r = [d['code'] for d in result.data]
+    return r
+
+
+async def auto_buy_etf(status: str):
+    """开盘后自动先卖出、再买入ETF
+    :params status: "B"-买入, "S"=卖出 """
+    error_list = []
+    try:
+        current_day = time.strftime("%Y-%m-%d")
+        rows: list[Transaction] = await Transaction.query().equal(user_id=99, flag=0, status=TradeType.TEMS).greater(create_time=current_day + ' 05:20:21').less(fee=0.1).all()
+        for r in rows:
+            res_stock: dict = await getStockHqFromTencent('', [{r.code: r.name, f"{r.code}count": 5}], logger)
+            if not res_stock['data'] and res_stock['error']:
+                error_list.append(r.code)
+                continue
+            stockDo: StockModelDo = res_stock['data'][0]
+            fee = max((stockDo.current_price * r.shares) * etf_fee_ratio, 5)
+            '''todo: 真实的操作'''
+            await Transaction.update(r.id, price=stockDo.current_price, fee=round(fee, 2), status=TradeType.AIS)  # 更新买入价格和佣金
+            logger.info(f"自动卖出 {r.code} - {r.name}, price: {stockDo.current_price}, shares: {r.shares}, fee: {fee}")
+            await asyncio.sleep(3)
+    except:
+        logger.error(traceback.format_exc())
+    return error_list
+
+
+async def cala_fund_everyday() -> dict:
+    """获取 总金额 和 持仓金额"""
+    result = {}
+    try:
+        current_day = time.strftime("%Y-%m-%d")
+        day = current_day.replace('-', '')
+        capital: list[Capital] = await Capital.query().order_by(Capital.id.desc()).limit(1).all()
+        fund = 0    # 当天涨跌额
+        hold_fund = 0   # 当天持仓总金额
+        total_fund = capital[0].total
+        # 正持仓的数据
+        # rows1: list[Transaction] = await Transaction.query().equal(user_id=99, flag=0).greater(update_time=current_day + ' 05:20:21').all()
+        rows1: list[dict] = await get_holding(user_id=99, status="A")
+        for r in rows1:
+            detail = await Detail.get_one((r['code'], day))
+            fund += (detail.current_price - detail.last_price) * r['shares']
+            hold_fund += detail.current_price * r['shares']
+        # 已清仓的数据
+        rows2: list[Transaction] = await Transaction.query().equal(user_id=99, flag=1, status=TradeType.AUTO).greater(update_time=current_day + ' 05:20:21').all()
+        for r in rows2:
+            fund += r.fee
+
+        # await Capital.create(day=current_day, total=round(total_fund + fund, 2), hold=round(hold_fund, 2))
+        result = {'day': current_day, 'total': round(total_fund + fund, 2), 'hold': round(hold_fund, 2)}
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
+async def analysize_hold_etf(etfs: list):
+    """分析已经持仓的 ETF，判断是否应该卖出"""
+    logger.info("📡 开始分析持仓 ETF -")
+    hold_etf = await get_holding(user_id=99, status="A")
+    for hh in hold_etf:
+        if hh['code'] in etfs:
+            continue
+        res = await analysize(code=hh['code'], userId='99')
+        if res.success:
+            try:
+                logger.info(f"✅ 分析已持仓 ETF 成功 - {res.data}")
+                await write_analysize_result(res.data)
+            except:
+                logger.error("❌ Error: 已持仓分析结果入库失败")
+        else:
+            logger.error(f"❌ Error: 分析持仓的 ETF 失败 - {hh}")
+        await asyncio.sleep(60)
+
+
+async def analysize_etf_morning():
+    """早上开始分析 ETF"""
+    new_etf_list = []
+    try:
+        logger.info("开始从新闻中提取分析ETF")
+        new_etf_list = await auto_analysize_etf()
+    except:
+        logger.error(traceback.format_exc())
+
+    try:
+        logger.info("分析已持仓的ETF")
+        await analysize_hold_etf(new_etf_list)
+    except:
+        logger.error(traceback.format_exc())

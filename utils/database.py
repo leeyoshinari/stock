@@ -45,6 +45,10 @@ class TradeType(str, PyEnum):
     MAN = "M"
     # 自动已清仓
     AUTO = "A"
+    # 暂时买入，用于自动化处理
+    TEMB = "TB"
+    # 暂时卖出，用于自动化处理
+    TEMS = "TS"
 
 
 class Database:
@@ -602,11 +606,12 @@ class Transaction(Base, CRUDBase):
     code = Column(String(8), nullable=False, comment="股票代码")
     name = Column(String(16), nullable=False, comment="股票名称")
     status = Column(Enum(TradeType, native_enum=False, length=4), nullable=False, comment="交易类型: B/S/R/I/M/A")
-    price = Column(Float, nullable=False, comment="成本")
-    shares = Column(Integer, default=0, nullable=False, comment="数量")
+    price = Column(Float, nullable=True, comment="成本")
+    shares = Column(Integer, default=0, nullable=True, comment="数量")
     fee = Column(Float, default=0.0, comment="手续费/盈利金额(status=M/A)")
     flag = Column(Integer, default=0, nullable=False, comment="0:持仓, 1:清仓")
-    user_id = Column(Integer, nullable=False, comment="用户Id, 0:系统自动, 1:用户1 ...")
+    user_id = Column(Integer, nullable=False, comment="用户Id, 99:系统自动, 1:我自己 ...")
+    content = Column(Text, nullable=True, comment="分析结果")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -625,3 +630,13 @@ class ETF(Base, CRUDBase):
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     __sortable__ = {'capital': capital, 'fee': fee}
+
+
+class Capital(Base, CRUDBase):
+    __tablename__ = 'capital'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    day = Column(String(10), nullable=False, comment="日期")
+    total = Column(Float, nullable=False, comment="总金额")
+    available = Column(Float, nullable=False, comment="可用金额")
+    hold = Column(Float, nullable=False, comment="持仓金额")

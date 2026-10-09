@@ -59,5 +59,7 @@ async def clear_detail_data(logger: Logger):
             if len(trans) == 0 or trans[0].status == TradeType.MAN:
                 _ = await Detail.query().equal(code=c).less_equal(day=past_day).delete()
                 logger.info(f"Delete detail data success, {c} - {past_day}")
+            else:
+                logger.info(f"Delete detail data fail because not sold, {c} - {past_day}")
     except:
         logger.error(traceback.format_exc())

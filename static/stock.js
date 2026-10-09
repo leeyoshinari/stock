@@ -61,6 +61,7 @@ function getStockList() {
     let url = prefix + `/stock/list?pageSize=${pageSize}&page=${page}`;
     let stock_name = document.getElementById("stock-name").value;
     let stock_code = document.getElementById("stock-code").value;
+    let userId = localStorage.getItem('userId');
     if (stock_code || stock_code.trim()) {
         url = url + `&code=${stock_code}`;
     }
@@ -78,6 +79,9 @@ function getStockList() {
     }
     if (concept || concept.trim()) {
         url = url + `&concept=${concept}`;
+    }
+    if (userId || userId.trim()) {
+        url = url + `&userId=${userId}`;
     }
     fetch(url)
         .then(res => res.json())
@@ -110,18 +114,22 @@ function change_select() {page = 1;getStockList();}
 
 function get_stock_figure(code) {
     show_modal_cover();
-    let site = localStorage.getItem('site');
-    fetch(`${prefix}/get?code=${code}&site=${site}`)
+    let userId = localStorage.getItem('userId');
+    fetch(`${prefix}/get?code=${code}&userId=${userId}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
                 let profit = '';
+                let isEtf = false;
                 if (data.data.shares) {
-                    profit = ` - 成本: ${data.data.cost}, 数量: ${data.data.shares}, 利润: ${data.data.profit}`;
+                    profit = ` - 成本: ${data.data.cost}元, 数量: ${data.data.shares}股, 利润: ${data.data.profit}元`;
                 }
                 let region_str = ` - ${data.data.region}`;
                 if (code.startsWith("1") || code.startsWith("5")){
                     region_str = '';
+                }
+                if (code.startsWith('1') || code.startsWith('5')) {
+                    isEtf = true;
                 }
                 let title = `${data.data.name} - ${code}${region_str} - ${data.data.industry}${profit}`;
                 let figure = document.getElementById("figure");
@@ -130,7 +138,7 @@ function get_stock_figure(code) {
                 figure.removeAttribute("_echarts_instance_")
                 figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
-                plot_k_line(stockChart, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.total_shares, data.data.premium, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
+                plot_k_line(stockChart, isEtf, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.total_shares, data.data.premium, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
             }
         })
@@ -230,7 +238,11 @@ function analysize_stock_ai(code, name) {
             if (data.data.action_plan.operation !== "不操作") {
                 op_text = `, 费用: ${data.data.action_plan.operation_amount}, 股数: ${data.data.action_plan.operation_shares}`
             }
-            let s = `当前仓位: 成本: ${data.data.action_plan.current_position[0].price}, 股数: ${data.data.action_plan.current_position[0].shares} \n 评级: ${data.data.rating} \n 操作建议: ${data.data.action_plan.operation}${op_text} \n 核心观点: ${data.data.action_plan.operation_reason} \n 详细分析: ${data.data.detailed_analysis} \n 风险点: ${data.data.risk_warning} \n 止损位: ${data.data.action_plan.stop_loss_profit}`
+            let hold = '';
+            if (data.data.action_plan.current_position && data.data.action_plan.current_position.length > 0) {
+                hold = `当前仓位: 成本: ${data.data.action_plan.current_position[0].price}, 股数: ${data.data.action_plan.current_position[0].shares} \n `;
+            }
+            let s = `${hold}评级: ${data.data.rating} \n 操作建议: ${data.data.action_plan.operation}${op_text} \n 核心观点: ${data.data.action_plan.operation_reason} \n 详细分析: ${data.data.detailed_analysis} \n 风险点: ${data.data.risk_warning} \n 止损位: ${data.data.action_plan.stop_loss_profit}`
             document.getElementById("data-tips").innerText = `${code} - ${name} : ` + s;
             document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })

@@ -15,6 +15,7 @@ class SearchStockParam(BaseModel):
     concept: Optional[str] = None
     filter: Optional[str] = None
     day: Optional[str] = None
+    userId: Optional[int] = None
     pageSize: int = 20
     page: int = 1
     sortField: str = 'qrr'

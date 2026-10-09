@@ -28,7 +28,6 @@ async def get_detail(n):
     return (
         f"【标题】: {n.get('title')}\n"
         f"【时间】: {n.get('time')}\n"
-        f"【摘要】: {n.get('excerpt')}\n" if n.get('excerpt') else ''
         f"【正文】: {content}\n"
     )
 
@@ -54,7 +53,7 @@ async def getNewsDetail(keyword: str, logger: Logger) -> str:
             time_str = news["time"].split('T')[0]
             if time_str >= target_date:
                 recent_news.append(news)
-            if len(recent_news) >= 5:
+            if len(recent_news) >= 2:
                 break
         if not recent_news:
             return f"最近 {days} 天内无相关新闻"
@@ -62,6 +61,7 @@ async def getNewsDetail(keyword: str, logger: Logger) -> str:
         details = await asyncio.gather(*[get_detail(n) for n in recent_news])
         return "\n---\n".join(details)
     except Exception as e:
+        logger.error(result.text)
         logger.error(traceback.format_exc())
         return f"Get News Exception: {str(e)}"
 

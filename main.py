@@ -56,10 +56,10 @@ class StockController(Controller):
         return result
 
     @get('/get', summary="查询股票信息")
-    async def create_file(self, request: Request, code: str, site: str = None) -> Result:
+    async def create_file(self, request: Request, code: str, userId: str = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.queryByCode(code, site)
+            result = await views.queryByCode(code, userId)
         return result
 
     @get('/getRecommend', summary="获取推荐的股票")
@@ -110,7 +110,7 @@ class StockController(Controller):
         return result
 
     @get('/stock/list', summary="查询股票信息")
-    async def all_stock_list(self, request: Request, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", page: int = 1, pageSize: int = 20) -> Result:
+    async def all_stock_list(self, request: Request, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", userId: int = None, page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             query = model.SearchStockParam()
@@ -120,6 +120,7 @@ class StockController(Controller):
             query.industry = industry if industry else ""
             query.concept = concept if concept else ""
             query.filter = filter if filter else ""
+            query.userId = userId
             query.page = page
             query.pageSize = pageSize
             result = await views.all_stock_info(query)
@@ -197,8 +198,10 @@ class StockController(Controller):
         return result
 
     @get('/hold/list', summary="查询仓位列表")
-    async def get_hold_list(self, request: Request, page: int = 1) -> Result:
-        result = await views.queryTradeStockList(page)
+    async def get_hold_list(self, request: Request, userId: int = None, page: int = 1) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.queryTradeStockList(userId=userId, page=page)
         return result
 
     @get('/hold/get/{userId: str}', summary="查询仓位数据")
@@ -256,6 +259,13 @@ class StockController(Controller):
     @get('/search', summary="调用duckduckgo搜索")
     async def search(self, request: Request, q: str, df: str = None) -> Result:
         result = await views.webSearch(q, df)
+        return result
+
+    @get('/etf/analyzer', summary="从财经新闻中选出ETF")
+    async def analyzer_etf_data(self, request: Request) -> Result:
+        result = Result()
+        # if checkout(request.headers.get('referered', '123')):
+        result = await views.analysizeEtfFromNews()
         return result
 
     @get('/analyzer', summary="全面分析标的")

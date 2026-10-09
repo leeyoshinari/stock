@@ -34,6 +34,7 @@ def get_config(key):
 
 sync_with_dotenv()  # 更新配置
 load_dotenv()   # 加载配置
+TOTAL_FUND = 100000     # 自动模拟买入股票的总仓位
 FILE_PATH = os.path.join(BASE_PATH, "files")
 HISTORY_PATH = os.path.join(BASE_PATH, "historys")
 PROMPT_PATH = os.path.join(BASE_PATH, "prompts")

@@ -1,4 +1,4 @@
-function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, shares, premium, turnover_rate, fund, boll_up, boll_low, coords) {
+function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, shares, premium, turnover_rate, fund, boll_up, boll_low, coords) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
   total_len = parseInt(120 / 600 * document.body.clientWidth * 0.8);
@@ -34,8 +34,9 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
     }});
   let option;
   myChart.clear();
-  myChart.setOption(
-    (option = {
+  // myChart.setOption(
+  //   (
+  option = {
       animation: false,
       title: {
         text: title,
@@ -366,62 +367,68 @@ function plot_k_line(myChart, title, x, price, volume, ma5, ma10, ma20, qrr, dif
           showSymbol: false,
           lineStyle: {color: 'orange', opacity: 0.9, width: 1},
           itemStyle: { color: 'orange' }
-        },{
-          name: 'K',
-          type: 'line',
-          xAxisIndex: 4,
-          yAxisIndex: 6,
-          data: kdjk,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {color: 'blue', opacity: 0.9, width: 1},
-          itemStyle: { color: 'blue' }
-        },{
-          name: 'D',
-          type: 'line',
-          xAxisIndex: 4,
-          yAxisIndex: 6,
-          data: kdjd,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {color: 'orange', opacity: 0.9, width: 1},
-          itemStyle: { color: 'orange' }
-        },{
-          name: 'J',
-          type: 'line',
-          xAxisIndex: 4,
-          yAxisIndex: 6,
-          data: kdjj,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {color: 'purple', opacity: 0.9, width: 1},
-          itemStyle: { color: 'purple' }
-        },{
-          name: '份额(亿)',
-          type: 'line',
-          xAxisIndex: 4,
-          yAxisIndex: 7,
-          data: shares,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {color: 'chocolate', opacity: 0.9, width: 1},
-          itemStyle: { color: 'chocolate' }
-        },{
-          name: '溢价率(%)',
-          type: 'line',
-          xAxisIndex: 4,
-          yAxisIndex: 7,
-          data: premium,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {color: 'CornflowerBlue', opacity: 0.9, width: 1},
-          itemStyle: { color: 'CornflowerBlue' }
         }
       ]
-    }),
-    true
-  );
-  option && myChart.setOption(option);
+  };
+  if (isEtf) {
+    option.series.push({
+      name: '份额(亿)',
+      type: 'line',
+      xAxisIndex: 4,
+      yAxisIndex: 6,
+      data: shares,
+      smooth: true,
+      showSymbol: false,
+      lineStyle: {color: 'chocolate', opacity: 0.9, width: 1},
+      itemStyle: { color: 'chocolate' }
+    });
+    option.series.push({
+      name: '溢价率(%)',
+      type: 'line',
+      xAxisIndex: 4,
+      yAxisIndex: 7,
+      data: premium,
+      smooth: true,
+      showSymbol: false,
+      lineStyle: {color: 'CornflowerBlue', opacity: 0.9, width: 1},
+      itemStyle: { color: 'CornflowerBlue' }
+    });
+  } else {
+    option.series.push({
+      name: 'K',
+      type: 'line',
+      xAxisIndex: 4,
+      yAxisIndex: 6,
+      data: kdjk,
+      smooth: true,
+      showSymbol: false,
+      lineStyle: {color: 'blue', opacity: 0.9, width: 1},
+      itemStyle: { color: 'blue' }
+    });
+    option.series.push({
+      name: 'D',
+      type: 'line',
+      xAxisIndex: 4,
+      yAxisIndex: 6,
+      data: kdjd,
+      smooth: true,
+      showSymbol: false,
+      lineStyle: {color: 'orange', opacity: 0.9, width: 1},
+      itemStyle: { color: 'orange' }
+    });
+    option.series.push({
+      name: 'J',
+      type: 'line',
+      xAxisIndex: 4,
+      yAxisIndex: 6,
+      data: kdjj,
+      smooth: true,
+      showSymbol: false,
+      lineStyle: {color: 'purple', opacity: 0.9, width: 1},
+      itemStyle: { color: 'purple' }
+    });
+  }
+  option && myChart.setOption(option, true);
 };
 
 function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l, saleList) {
