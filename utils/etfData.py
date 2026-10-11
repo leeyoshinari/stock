@@ -202,3 +202,24 @@ async def getEtfShareFromSZ(code: str, current_day: str, logger: Logger) -> floa
     except:
         logger.error(traceback.format_exc())
     return shares / 10000
+
+
+async def getEtfShareDictFromSZ(code: str, start_day: str, end_day: str, logger: Logger) -> dict[str, float]:
+    """ 获取单个 code 的份额, 用于刷数据, https://fund.szse.cn/marketdata/fundslist/index.html
+    :params current_day: format: %Y-%m-%d
+    """
+    etf = {}
+    try:
+        t = int(time.time() * 1000)
+        res = await http.get(f"https://fund.szse.cn/api/report/ShowReport/data?SHOWTYPE=JSON&CATALOGID=fund_jjgm&TABKEY=tab1&txtDm={code}&txtStart={start_day}&txtEnd={end_day}&random=0.574{t}")
+        if res.status_code == 200:
+            res_json = json.loads(res.text)
+            for r in res_json[0]['data']:
+                day = r['size_date'].replace('-', '')
+                shares = float(r['current_size'].replace(',', ''))
+                etf.update({day: shares / 10000})
+        else:
+            raise Exception(f"request error: {res.status_code}")
+    except:
+        logger.error(traceback.format_exc())
+    return etf
