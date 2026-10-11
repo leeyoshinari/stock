@@ -5,6 +5,7 @@
 import re
 import time
 import json
+import asyncio
 import traceback
 from logging import Logger
 from utils.http_client import http
@@ -148,3 +149,56 @@ def extract_fund_info(html):
         "sales_service_fee": sales_service_fee,
         "tracking": tracking_index
     }
+
+
+async def getEtfShareFromSH(current_day: str, logger: Logger) -> dict[str, float]:
+    """ 只能拉取整个 etf 列表, https://www.sse.com.cn/market/funddata/volumn/etfvolumn
+    :params current_day: format: %Y-%m-%d
+    """
+    etf = {}
+    try:
+        # current_day = time.strftime("%Y-%m-%d")
+        t = int(time.time() * 1000)
+        page = 1
+        hh = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+            'host': 'query.sse.com.cn', 'referer': 'https://www.sse.com.cn/'
+        }
+        res = await http.get(f"https://query.sse.com.cn/commonQuery.do?jsonCallBack=jsonpCallback29249111&isPagination=true&pageHelp.pageSize=100&pageHelp.pageNo={page}&pageHelp.beginPage={page}&pageHelp.cacheSize=1&pageHelp.endPage={page}&sqlId=COMMON_SSE_ZQPZ_ETFZL_XXPL_ETFGM_SEARCH_L&STAT_DATE={current_day}&_={t}", headers=hh)
+        if res.status_code == 200:
+            res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+            res_json = json.loads('{' + res_text + '}')
+            total_page = res_json['pageHelp']['pageCount']
+            logger.info(f"上交所获取ETF份额, 第 {page} / {total_page} 页")
+            for r in res_json['pageHelp']['data']:
+                etf.update({r['SEC_CODE']: float(r['TOT_VOL']) / 10000})
+            for p in range(1, total_page):
+                res = await http.get(f"https://query.sse.com.cn/commonQuery.do?jsonCallBack=jsonpCallback29249111&isPagination=true&pageHelp.pageSize=100&pageHelp.pageNo={p + 1}&pageHelp.beginPage={p + 1}&pageHelp.cacheSize=1&pageHelp.endPage={p + 1}&sqlId=COMMON_SSE_ZQPZ_ETFZL_XXPL_ETFGM_SEARCH_L&STAT_DATE={current_day}&_={t}", headers=hh)
+                if res.status_code == 200:
+                    res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+                    res_json = json.loads('{' + res_text + '}')
+                    logger.info(f"上交所获取ETF份额, 第 {p + 1} / {total_page} 页")
+                    for r in res_json['pageHelp']['data']:
+                        etf.update({r['SEC_CODE']: float(r['TOT_VOL']) / 10000})
+                    await asyncio.sleep(3)
+    except:
+        logger.error(traceback.format_exc())
+    return etf
+
+
+async def getEtfShareFromSZ(code: str, current_day: str, logger: Logger) -> float:
+    """ 获取单个 code 的份额, https://fund.szse.cn/marketdata/fundslist/index.html
+    :params current_day: format: %Y-%m-%d
+    """
+    shares = 0.0
+    try:
+        t = int(time.time() * 1000)
+        res = await http.get(f"https://fund.szse.cn/api/report/ShowReport/data?SHOWTYPE=JSON&CATALOGID=fund_jjgm&TABKEY=tab1&txtDm={code}&txtStart={current_day}&txtEnd={current_day}&random=0.574{t}")
+        if res.status_code == 200:
+            res_json = json.loads(res.text)
+            shares = float(res_json[0]['data'][0]['current_size'].replace(',', ''))
+        else:
+            raise Exception(f"request error: {res.status_code}")
+    except:
+        logger.error(traceback.format_exc())
+    return shares / 10000
