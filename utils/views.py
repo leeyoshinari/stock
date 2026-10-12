@@ -99,11 +99,11 @@ async def get_holding(user_id: int = None, code: str = None, status: str = None)
             if status == "A":
                 filter = [TradeType.RECD, TradeType.AIS]
                 trade_type = TradeType.AUTO
-            if user_id and code:
+            if user_id is not None and code:
                 rows = await Transaction.query().equal(code=code, user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-            elif user_id and not code:
+            elif user_id is not None and not code:
                 rows = await Transaction.query().equal(user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-            elif code and not user_id:
+            elif code and user_id is None:
                 rows = await Transaction.query().equal(code=code, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
             else:
                 rows = await Transaction.query().equal(flag=0).isin(status=filter).select("user_id", "code").distinct().all()

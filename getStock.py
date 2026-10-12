@@ -24,11 +24,12 @@ from utils.initData import initStockData
 from utils.results import getStockRegion
 from utils.ai_model import queryGemini, queryOpenAi, webSearchTopicBak, auto_buy_prompt
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
-from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes, find_shrink_stock
+from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
 from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent
 from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina
 from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent
+from utils.etfData import getEtfShareFromSH, getEtfShareFromSZ
 from utils.database import Stock, Detail, Tools, Recommend, ETF, write_worker
 from utils.logging_getstock import logger
 
@@ -407,11 +408,11 @@ async def startSelectStock():
                 await asyncio.sleep(3)
             scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
             current_day = time.strftime("%Y%m%d")
-            try:
-                _ = await Tools.get_one("openDoor2")
-                await Tools.update("openDoor2", value=current_day)
-            except NoResultFound:
-                await Tools.create(key="openDoor2", value=current_day)
+            # try:
+            #     _ = await Tools.get_one("openDoor2")
+            #     await Tools.update("openDoor2", value=current_day)
+            # except NoResultFound:
+            #     await Tools.create(key="openDoor2", value=current_day)
         except:
             logger.error(traceback.format_exc())
 
@@ -925,56 +926,6 @@ async def writeEtfDatabase(code: str):
         logger.error(traceback.format_exc())
 
 
-async def queryStockShrink():
-    try:
-        tool: Tools = await Tools.get_one("openDoor")
-        current_day = tool.value
-        if current_day == time.strftime("%Y%m%d"):
-            stockList = []
-            stocks: list[Stock] = await Stock.query().equal(running=1).all()
-            for s in stocks:
-                sd: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(3).all()
-                if len(sd) >= 3 and sd[0].ma_ten > sd[1].ma_ten and sd[1].ma_ten > sd[2].ma_ten:
-                    stockList.append({s.code: s.name, f'{s.code}count': 1})
-                else:
-                    logger.warning(f"股票最近不满足上涨趋势, {s.code} - {s.name}")
-                if len(stockList) > BATCH_SIZE:
-                    await queryTask.put(stockList)
-                    stockList = []
-            if len(stockList) > 0:
-                await queryTask.put(stockList)
-            await asyncio.sleep(10)
-
-            trunc_time = time.strftime("%Y-%m-%d") + splitTime
-            targetStock: list[Detail] = await Detail.query().equal(day=current_day).greater(create_time=trunc_time).all()
-            for s in targetStock:
-                sd: list[Detail] = await Detail.query().equal(code=s.code).order_by(Detail.day.desc()).limit(10).all()
-                sd.reverse()
-                dataList = detail2List(sd)
-                res = find_shrink_stock(dataList)
-                logger.info(f"Auto Select Shrink Stock is {s.code} - {s.name} - {res}")
-                if res['fund']:
-                    try:
-                        fflow = await getStockZhuLiFundFromTencent(s.code)
-                    except:
-                        logger.error(traceback.format_exc())
-                        try:
-                            fflow = await getStockZhuLiFundFromSina(s.code)
-                        except:
-                            logger.error(traceback.format_exc())
-                            sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '获取数据异常', f"获取 {s.code} 的资金流向数据异常～")
-                            fflow = 0.0
-                    dataList['fund'][-1] = fflow
-                    await Detail.update((s.code, current_day), fund=fflow)
-                    stock_dict = await queryGemini(json.dumps(dataList), API_URL, AUTH_CODE, 1)
-                    logger.info(f"AI-Shrink-Gemini: {s.code} - {s.name} - {stock_dict}")
-                    reason = f"Gemini: {stock_dict['reason']}"
-                    if stock_dict and stock_dict['is_shrink_down']:
-                        await Recommend.create(code=s.code, name=s.name, price=s.current_price, content=reason, source=2)
-    except:
-        logger.error(traceback.format_exc())
-
-
 async def getStockTopic():
     try:
         global current_topic
@@ -1004,6 +955,38 @@ async def getStockTopic():
         logger.error("数据更新异常...")
 
 
+async def updateEtfShares():
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        d = tool.value
+        pre_day = f"{d[:4]}-{d[4:6]}-{d[6:]}"
+        d1 = datetime.strptime(pre_day, "%Y-%m-%d").date()
+        diff_days = (datetime.today().date() - d1).days
+        if diff_days == 1:
+            logger.info("开始从上交所获取 ETF 份额 ~")
+            res = await getEtfShareFromSH(pre_day, logger)
+            for k, v in res.items():
+                try:
+                    _ = await Detail.get_one((k, d))
+                    await Detail.update2return((k, d), shares=round(v, 5))
+                    logger.info(f"{d} - {k} - {v}")
+                except:
+                    continue
+
+            logger.info("开始深交所获取 ETF 份额 ~")
+            stocks: list[ETF] = await ETF.query().equal(running=1).all()
+            for s in stocks:
+                if s.code.startswith('1'):
+                    res = await getEtfShareFromSZ(s.code, pre_day, logger)
+                    await Detail.update2return((s.code, d), shares=round(res, 5))
+                    logger.info(f"{d} - {s.code} - {res}")
+                    await asyncio.sleep(5)
+        else:
+            logger.info(f"No need update ETF shares, because {time.strftime("%Y-%m-%d")} - {pre_day} ≠ 1")
+    except:
+        logger.error(traceback.format_exc())
+
+
 async def stopTask():
     if scheduler.get_job(running_job_id):
         scheduler.remove_job(running_job_id)
@@ -1031,6 +1014,7 @@ async def initData():
 
 
 async def main():
+    scheduler.add_job(updateEtfShares, 'cron', hour=8, minute=30, second=50, misfire_grace_time=10)    # 更新前一天的ETF份额
     scheduler.add_job(checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)    # 启动任务
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)    # 中午更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20, misfire_grace_time=10)    # 中午更新股票信息

@@ -61,26 +61,26 @@ function getStockList() {
     let url = prefix + `/stock/list?pageSize=${pageSize}&page=${page}`;
     let stock_name = document.getElementById("stock-name").value;
     let stock_code = document.getElementById("stock-code").value;
-    let userId = localStorage.getItem('userId');
-    if (stock_code || stock_code.trim()) {
+    let userId = localStorage.getItem('userId') || "0";
+    if (stock_code && stock_code.trim()) {
         url = url + `&code=${stock_code}`;
     }
-    if (stock_name || stock_name.trim()) {
+    if (stock_name && stock_name.trim()) {
         url = url + `&name=${stock_name}`;
     }
-    if (filter || filter.trim()) {
+    if (filter && filter.trim()) {
         url = url + `&filter=${filter}`;
     }
-    // if (region || region.trim()) {
+    // if (region && region.trim()) {
     //     url = url + `&region=${region}`;
     // }
-    if (industry || industry.trim()) {
+    if (industry && industry.trim()) {
         url = url + `&industry=${industry}`;
     }
-    if (concept || concept.trim()) {
+    if (concept && concept.trim()) {
         url = url + `&concept=${concept}`;
     }
-    if (userId || userId.trim()) {
+    if (userId && userId.trim()) {
         url = url + `&userId=${userId}`;
     }
     fetch(url)
