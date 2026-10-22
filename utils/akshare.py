@@ -5,10 +5,10 @@
 import re
 import json
 import time
+import logging
 import asyncio
 import traceback
 import aiohttp
-from logging import Logger
 from datetime import datetime, timedelta
 import trafilatura
 # import akshare as ak
@@ -16,18 +16,19 @@ from utils.http_client import http
 from utils.results import getStockRegion
 
 
+logger = logging.getLogger(__name__)
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"}
 
 
-async def getGlobalShortInfoFromSina(lastDay: str, logger: Logger) -> str:
+async def getGlobalShortInfoFromSina(lastDay: str) -> str:
     """
     新浪财经-全球财经快讯\n
-    :param lastDay: '2026-09-24'\n
+    :param lastDay: '2026-09-24 16:00:00'\n
     https://finance.sina.com.cn/7x24
     """
     try:
-        # 1-宏观，3-公司，5-市场，6-观点，10-A股
-        tagList = ['1', '3', '5', '6', '10']
+        # 1-宏观，5-市场，7-央行，102-国际
+        tagList = ['1', '5', '7', '102']
         content = ''
         url = "https://zhibo.sina.com.cn/api/zhibo/feed"
         for tag in tagList:
@@ -45,8 +46,11 @@ async def getGlobalShortInfoFromSina(lastDay: str, logger: Logger) -> str:
             data_json = json.loads(r.text)
             data = data_json['result']['data']['feed']['list']
             for d in data:
-                if d['create_time'] > lastDay and len(d['rich_text']) > 50:
-                    content += f"【时间】：{d['create_time']}【内容】：{d['rich_text']} \n"
+                if d['create_time'] > lastDay:
+                    if len(d['rich_text']) > 50:
+                        content += f"【时间】：{d['create_time']}【内容】：{d['rich_text']} \n"
+                else:
+                    break
             await asyncio.sleep(0.5)
         logger.info(content)
         return content
@@ -55,7 +59,7 @@ async def getGlobalShortInfoFromSina(lastDay: str, logger: Logger) -> str:
         return ''
 
 
-async def getShortInfoMorning(logger: Logger) -> str:
+async def getShortInfoMorning() -> str:
     """
     东方财富-财经早餐\n
     https://stock.eastmoney.com/a/czpnc.html
@@ -80,7 +84,7 @@ async def getShortInfoMorning(logger: Logger) -> str:
         if res.status_code == 200:
             extracted = trafilatura.extract(res.text, include_comments=False, include_tables=False)
             content = f"【标题】：{data['title']}\n【摘要】：{data['summary']}\n【正文】：{extracted}"
-            logger.info(f"【标题】：{data['title']} -【链接】：{data['url']}")
+            logger.info(content)
             return content
         else:
             return ''
@@ -89,10 +93,10 @@ async def getShortInfoMorning(logger: Logger) -> str:
         return ''
 
 
-async def getGlobalShortInfoFromThs(lastDay: str, logger: Logger) -> str:
+async def getGlobalShortInfoFromThs(lastDay: str) -> str:
     """
     同花顺财经-全球财经直播\n
-    :param lastDay: '2026-09-24'\n
+    :param lastDay: '2026-09-24 16:00:00'\n
     https://news.10jqka.com.cn/realtimenews.html
     """
     try:
@@ -110,6 +114,8 @@ async def getGlobalShortInfoFromThs(lastDay: str, logger: Logger) -> str:
             rtime = datetime.fromtimestamp(int(d['rtime'])).strftime("%Y-%m-%d %H:%M:%S")
             if rtime > lastDay:
                 content += f"【时间】：{rtime}【内容】：{d['digest']} \n"
+            else:
+                break
         logger.info(content)
         return content
     except:
@@ -117,7 +123,7 @@ async def getGlobalShortInfoFromThs(lastDay: str, logger: Logger) -> str:
         return ''
 
 
-async def getStockResearchReport(code: str, logger: Logger) -> list[dict]:
+async def getStockResearchReport(code: str) -> list[dict]:
     '''获取个股研报\n
     ak.stock_research_report_em\n
     返回值: {'name': '格力电器', 'code': '000651', 'title': '2026年中报点评：高基数下收入承压，盈利能力维持稳定', 'orgName': '国信证券', 'ratingName': '增持', 'time': '2026-09-24', 'url': 'https://pdf.dfcfw.com/pdf/H3_AP202609241829832275_1.pdf'}
@@ -157,7 +163,7 @@ async def getStockResearchReport(code: str, logger: Logger) -> list[dict]:
     return result
 
 
-async def getStockFinanceReportFromSina(code: str, logger: Logger) -> str:
+async def getStockFinanceReportFromSina(code: str) -> str:
     '''获取股票的财务报表-关键指标\n
     code: 000001, stock_financial_abstract
     '''
@@ -264,7 +270,7 @@ async def _get_baidu_cookie(session: aiohttp.ClientSession, headers: dict) -> st
         raise ValueError(f"Regex pattern error: {str(e)}") from e
 
 
-async def getStockDivideDate(day: str, logger: Logger) -> list[dict]:
+async def getStockDivideDate(day: str) -> list[dict]:
     """
     百度股市通日历数据基础函数（支持分页），获取指定 date 的分红派息数据\n
     :param date: 查询日期 (格式: YYYYMMDD)\n

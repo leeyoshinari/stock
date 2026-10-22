@@ -8,8 +8,7 @@ from typing import Any
 
 
 def getStockLimitUp(code: str, name: str) -> float:
-    if 'st' in name.lower():
-        return 0.05
+    """股票涨停数值，10% or 20%"""
     if code.startswith("30") or code.startswith("68"):
         return 0.2
     return 0.1

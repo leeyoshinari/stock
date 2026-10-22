@@ -5,17 +5,18 @@
 import json
 import time
 import math
-import random
+import logging
 import traceback
 from typing import List
-from logging import Logger
+from warnings import deprecated
 from utils.model import StockModelDo
 from utils.database import Detail
-from utils.http_client import http
+from utils.http_client import http, cffi_request
 from utils.results import getStockRegion, getStockRegionNum
 from settings import TUSHARE_API_KEY
 
 
+logger = logging.getLogger(__name__)
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 }
@@ -50,7 +51,7 @@ def bollinger_bands(prices, middle, n=20, k=2):
     return up, dn
 
 
-async def getQfqFactorFromSina(code: str, logger: Logger) -> list[dict]:
+async def getQfqFactorFromSina(code: str) -> list[dict]:
     try:
         h = {
             'Referer': 'https://finance.sina.com.cn',
@@ -66,7 +67,7 @@ async def getQfqFactorFromSina(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockFromSohu(datas: List, factor_list: list[dict], logger: Logger):
+async def getStockFromSohu(datas: List, factor_list: list[dict]):
     ''' datas = [{'002868': '*ST绿康'}] '''
     start_date = "20250801"
     current_day = time.strftime("%Y%m%d")
@@ -86,13 +87,17 @@ async def getStockFromSohu(datas: List, factor_list: list[dict], logger: Logger)
                     if len(d["hq"]) == 0:
                         continue
                     code = d["code"].split("_")[-1]
+                    isEtf = code.startswith("1") or code.startswith("5")
                     stockDo.name = dataDict[code]
                     stockDo.code = code
                     history_list = d["hq"]
                     history_list_sorted = sorted(history_list, key=lambda x: x[0])
                     for r in history_list_sorted:
                         stockDo.day = r[0].replace('-', '')
-                        factor = float(next((d['f'] for d in factor_list if r[0] >= d['d']), 1.0))
+                        if isEtf:
+                            factor = float(next((d['s'] for d in factor_list if r[0] >= d['d']), 1.0))
+                        else:
+                            factor = float(next((d['f'] for d in factor_list if r[0] >= d['d']), 1.0))
                         stockDo.current_price = float(r[2]) / factor
                         stockDo.open_price = float(r[1]) / factor
                         stockDo.volume = int(r[7])
@@ -140,8 +145,9 @@ async def saveStockInfo(stockDo: StockModelDo, flag: str = 'create'):
         await Detail.update((stockDo.code, stockDo.day), qrr=round(stockDo.volume / average_volume, 2))
 
 
-async def getAllStockData(code: str, factor_list: list[dict], logger: Logger):
+async def getAllStockData(code: str, factor_list: list[dict]):
     try:
+        isEtf = code.startswith("1") or code.startswith("5")
         res = await http.get(f"https://hq.stock.sohu.com/mkline/cn/{code[-3:]}/cn_{code}-10_2.html?_={int(time.time() * 1000)}", headers=headers)
         if res.status_code == 200:
             res_text = res.text[17:-1]
@@ -164,7 +170,10 @@ async def getAllStockData(code: str, factor_list: list[dict], logger: Logger):
             await Detail.update((code, data_basic[-1][0]), emas=ema1, emal=ema1, dea=dea, kdjk=kdjk, kdjd=kdjd, kdjj=kdjj)
             for item in data_basic[::-1][1:]:
                 date_str = item[0]
-                factor = float(next((d['f'] for d in factor_list if date_str >= d['d'].replace('-', '')), 1.0))
+                if isEtf:
+                    factor = float(next((d['s'] for d in factor_list if date_str >= d['d'].replace('-', '')), 1.0))
+                else:
+                    factor = float(next((d['f'] for d in factor_list if date_str >= d['d'].replace('-', '')), 1.0))
                 price = float(item[2]) / factor
                 h_price = float(item[3]) / factor
                 l_price = float(item[4]) / factor
@@ -198,7 +207,7 @@ async def getAllStockData(code: str, factor_list: list[dict], logger: Logger):
         logger.error(traceback.format_exc())
 
 
-async def update_stock_turnover_rate(code, logger: Logger):
+async def update_stock_turnover_rate(code):
     try:
         current_day = time.strftime("%Y%m%d")
         res = await http.get(f"https://q.stock.sohu.com/hisHq?code=cn_{code}&start=20250901&end={current_day}", headers=headers)
@@ -226,16 +235,18 @@ async def update_stock_turnover_rate(code, logger: Logger):
         logger.error(traceback.format_exc())
 
 
-async def getStockFundFlow(code, cookie, logger: Logger):
+@deprecated("需要提供东方财富的cookie")
+async def getStockFundFlow(code, cookie):
     '''从东方财富获取资金流向
     https://data.eastmoney.com/zjlx/002149.html
     '''
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-              'host': 'push2his.eastmoney.com', 'origin': 'https://data.eastmoney.com', 'referer': 'https://data.eastmoney.com', 'cookie': cookie}
+              'host': 'push2his.eastmoney.com', 'origin': 'https://data.eastmoney.com', 'referer': 'https://data.eastmoney.com/zjlx/002149.html', 'cookie': cookie,
+              "Accept": "*/*", "Accept-Language": "zh-CN,zh;q=0.9", "sec-fetch-dest": "empty", "sec-fetch-mode": "cors", "sec-fetch-site": "same-site"}
     try:
-        rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
-        url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{int(time.time() * 1000)}&klt=101&_={int(time.time() * 1000)}'
-        res = await http.get(url, headers=header)
+        random_str = str(time.time()).replace('.', '')
+        url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(code)}.{code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=0&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{random_str}_{int(time.time() * 1000)}&klt=101&_={int(time.time() * 1000)}'
+        res = await cffi_request(url, headers=header)
         res_json = json.loads(res.text.split('(')[1].split(')')[0])
         klines = res_json['data']['klines']
         for k in klines:
@@ -257,7 +268,7 @@ async def getStockFundFlow(code, cookie, logger: Logger):
         logger.error(traceback.format_exc())
 
 
-async def getStockZhuLiFundFromTencentL5D(code: str, logger: Logger) -> float:
+async def getStockZhuLiFundFromTencentL5D(code: str) -> float:
     '''获取腾讯财经当前股票的主力净流入'''
     '''https://gu.qq.com/sz300274/gp'''
     try:
@@ -269,13 +280,39 @@ async def getStockZhuLiFundFromTencentL5D(code: str, logger: Logger) -> float:
         for item in day_list:
             day = item['date'].replace('-', '')
             fund = round(float(item['mainNetIn']) / 10000, 2)
-            await Detail.update2return((code, day), fund=fund)
+            await Detail.update((code, day), fund=fund)
             logger.info(f"{code} L5D fund - {day} - {fund}")
     except:
         logger.error(traceback.format_exc())
 
 
-async def getStockFromTushare(code: str, logger: Logger):
+async def updateEtfSharesHistory(code: str, factor_list: list[dict]):
+    try:
+        delay = False
+        curr_f = 1.0
+        pending_f = 1.0
+        idx = 0
+        events_list = sorted(factor_list, key=lambda x: x['d'], reverse=True)
+        stocks: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).all()
+        for r in stocks:
+            if idx < len(events_list) and r.day == events_list[idx]['d'].replace("-", ""):
+                if idx + 1 < len(events_list):
+                    pending_f = float(events_list[idx + 1]['s'])
+                else:
+                    pending_f = float(events_list[idx]['s'])
+                delay = True
+                idx += 1
+            await Detail.update((code, r.day), shares=r.shares * curr_f)
+            if delay:
+                delay = False
+            else:
+                curr_f = pending_f
+            logger.info(f"update shares success, {code} - {r.day} - {r.shares} - {curr_f}")
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def getStockFromTushare(code: str):
     try:
         header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
                   "Accept": "application/json", "apiKey": TUSHARE_API_KEY}
@@ -289,10 +326,12 @@ async def getStockFromTushare(code: str, logger: Logger):
         logger.error(traceback.format_exc())
 
 
-async def initStockData(code: str, name: str, logger: Logger):
-    factorList: list[dict] = await getQfqFactorFromSina(code, logger)
-    await getStockFromSohu([{code: name}], factorList, logger)    # update price and volume
-    await getAllStockData(code, factorList, logger)   # update MACD/KDJ
-    await update_stock_turnover_rate(code, logger)    # update turnover rate
-    await getStockZhuLiFundFromTencentL5D(code, logger)      # update fund
+async def initStockData(code: str, name: str):
+    factorList: list[dict] = await getQfqFactorFromSina(code)
+    await getStockFromSohu([{code: name}], factorList)    # update price and volume
+    await getAllStockData(code, factorList)   # update MACD/KDJ
+    await update_stock_turnover_rate(code)    # update turnover rate
+    await getStockZhuLiFundFromTencentL5D(code)      # update fund
+    if code.startswith("1") or code.startswith("5"):
+        await updateEtfSharesHistory(code, factorList)
     await Detail.query().equal(code=code).less(day='20250901').delete()

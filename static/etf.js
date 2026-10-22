@@ -1,4 +1,5 @@
 const pageSize = 20;
+const defaultUserId = "99";
 const showFlag = window.location.href.endsWith("trump");
 let page = 1;
 const originalFetch = window.fetch;
@@ -92,11 +93,16 @@ function change_select() {page = 1;getStockList();}
 
 function get_stock_figure(code) {
     show_modal_cover();
-    let userId = localStorage.getItem('userId');
+    let userId = localStorage.getItem('userId') || defaultUserId;
     fetch(`${prefix}/get?code=${code}&userId=${userId}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
+                let figure = document.getElementById("figure");
+                figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
+                figure.style.height = '';
+                figure.removeAttribute("_echarts_instance_");
+                figure.innerHTML = '';
                 let profit = '';
                 let isEtf = false;
                 if (data.data.shares) {
@@ -104,13 +110,9 @@ function get_stock_figure(code) {
                 }
                 if (code.startsWith('1') || code.startsWith('5')) {
                     isEtf = true;
+                    figure.style.height = '520px';
                 }
                 let title = `${data.data.name} - ${code} - ${data.data.industry}${profit}`;
-                let figure = document.getElementById("figure");
-                figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
-                figure.style.height = '';
-                figure.removeAttribute("_echarts_instance_")
-                figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
                 plot_k_line(stockChart, isEtf, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.total_shares, data.data.premium, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
@@ -142,7 +144,7 @@ function get_stock_real_figure(code) {
 
 function analysize_stock_ai(code, name) {
     show_modal_cover();
-    let userId = localStorage.getItem('userId');
+    let userId = localStorage.getItem('userId') || defaultUserId;
     fetch(`${prefix}/analyzer?code=${code}&userId=${userId}`)
         .then(res => res.json())
         .then(data => {
@@ -189,18 +191,6 @@ function set_etf(code, running) {
     fetch(`${prefix}/etf/set?code=${code}&running=${running}`)
         .then(res => res.json())
         .then(data => {getStockList();})
-        .finally(() => {close_modal_cover();})
-}
-
-function query_stock_ai(code, name, source) {
-    show_modal_cover();
-    let site = localStorage.getItem('site');
-    fetch(`${prefix}/buy/stock?code=${code}&site=${site}&source=${source}`)
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
-            document.getElementsByClassName("stock-data")[0].style.display = "flex";
-        })
         .finally(() => {close_modal_cover();})
 }
 

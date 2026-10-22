@@ -3,8 +3,8 @@
 # Author: leeyoshinari
 
 import json
+import logging
 import traceback
-from logging import Logger
 from urllib.parse import urlencode
 from datetime import datetime, timedelta
 from utils.http_client import http
@@ -12,6 +12,7 @@ from utils.results import getStockRegion
 from settings import TUSHARE_API_KEY
 
 
+logger = logging.getLogger(__name__)
 HOST = "https://data.infoway.io"
 
 
@@ -27,7 +28,7 @@ async def get(path: str, params: dict) -> dict:
         raise Exception(f"{path} status code is {res.status_code}, request data: {params}, response: {res.text}")
 
 
-async def getStockInfo(code: str, logger: Logger) -> list[dict]:
+async def getStockInfo(code: str) -> list[dict]:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-symbol-basic-info
     用于获取标的的基础信息
@@ -42,7 +43,7 @@ async def getStockInfo(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockDetail(code: str, logger: Logger) -> dict:
+async def getStockDetail(code: str) -> dict:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-symbol-basic-info-1
     用于获取标的的详细信息
@@ -57,7 +58,7 @@ async def getStockDetail(code: str, logger: Logger) -> dict:
         logger.error(traceback.format_exc())
 
 
-async def getStockEarningStatus(code: str, logger: Logger) -> dict:
+async def getStockEarningStatus(code: str) -> dict:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-financial-data
     用于获取个股的财报发布状态
@@ -72,7 +73,7 @@ async def getStockEarningStatus(code: str, logger: Logger) -> dict:
         logger.error(traceback.format_exc())
 
 
-async def getStockIncome(code: str, logger: Logger) -> list[dict]:
+async def getStockIncome(code: str) -> list[dict]:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-financial-data
     用于获取公司的收入、成本、利润等经营数据
@@ -90,7 +91,7 @@ async def getStockIncome(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockRevenue(code: str, logger: Logger) -> list[dict]:
+async def getStockRevenue(code: str) -> list[dict]:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-financial-data
     查询收入按业务板块或地区的拆分明细
@@ -108,7 +109,7 @@ async def getStockRevenue(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockCashFlow(code: str, logger: Logger) -> list[dict]:
+async def getStockCashFlow(code: str) -> list[dict]:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-financial-data
     查询经营/投资/筹资三大现金流数据
@@ -123,7 +124,7 @@ async def getStockCashFlow(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockBalance(code: str, logger: Logger) -> list[dict]:
+async def getStockBalance(code: str) -> list[dict]:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-financial-data
     查询资产、负债、股东权益等时点数据
@@ -138,7 +139,7 @@ async def getStockBalance(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockStatistics(code: str, logger: Logger) -> list[dict]:
+async def getStockStatistics(code: str) -> list[dict]:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-financial-data
     查询 PE、PB、ROE 等估值与财务比率
@@ -156,7 +157,7 @@ async def getStockStatistics(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockDividend(code: str, logger: Logger) -> list[dict]:
+async def getStockDividend(code: str) -> list[dict]:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-financial-data
     查询每股股息、股息率、派息率等指标
@@ -171,7 +172,7 @@ async def getStockDividend(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockEarnings(code: str, logger: Logger) -> list[dict]:
+async def getStockEarnings(code: str) -> list[dict]:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-financial-data
     查询 EPS 和 Revenue 的实际值与预期值（Beat/Miss）
@@ -186,7 +187,7 @@ async def getStockEarnings(code: str, logger: Logger) -> list[dict]:
         logger.error(traceback.format_exc())
 
 
-async def getStockHistoryValuation(code: str, logger: Logger) -> dict:
+async def getStockHistoryValuation(code: str) -> dict:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-fundamental
     获取标的PE/PB历史数据，可用于画估值走势图
@@ -201,7 +202,7 @@ async def getStockHistoryValuation(code: str, logger: Logger) -> dict:
         logger.error(traceback.format_exc())
 
 
-async def getStockRatings(code: str, logger: Logger) -> dict:
+async def getStockRatings(code: str) -> dict:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-fundamental
     获取机构买入/增持/持有/减持/卖出评级家数统计趋势
@@ -216,7 +217,7 @@ async def getStockRatings(code: str, logger: Logger) -> dict:
         logger.error(traceback.format_exc())
 
 
-async def getStockDrivers(code: str, logger: Logger) -> dict:
+async def getStockDrivers(code: str) -> dict:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-stock-fundamental
     获取AI生成的业务驱动因素分析
@@ -231,7 +232,7 @@ async def getStockDrivers(code: str, logger: Logger) -> dict:
         logger.error(traceback.format_exc())
 
 
-async def getMarketOverview(logger: Logger) -> dict:
+async def getMarketOverview() -> dict:
     '''
     https://docs.infoway.io/rest-api/basic-info/get-market-overview
     获取该市场当日的大盘点评（由上游根据当日行情自动生成的一段文字），可直接用于首页市场快讯位

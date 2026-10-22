@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stock-2026-03-25-08-33-52';
+const CACHE_NAME = 'stock';
 const staticFileExtensions = ['/static/', '.css', '.js', '.html', '.json'];
 const excludeFiles = ['/background.jpg', '/avatar.jpg'];
 const regex = new RegExp(`(${staticFileExtensions.join('|').replace(/\./g, '\\.')})`, 'i');

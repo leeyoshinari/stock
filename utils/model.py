@@ -64,7 +64,7 @@ class StockDataList(BaseModel):
     min_price: float = None
     volume: int = None
     turnover_rate: float = None
-    fund: float = None
+    fund: Optional[float] = None
     ma_five: float = None
     ma_ten: float = None
     ma_twenty: float = None
@@ -84,10 +84,10 @@ class StockDataList(BaseModel):
 
     @classmethod
     def from_orm_format(cls, obj):
-        return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price,
+        return cls(code=obj.code, name=obj.name, day=obj.day, current_price=obj.current_price, last_price=obj.last_price, turnover_rate=obj.turnover_rate,
                    open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volume, fund=obj.fund,
-                   ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=obj.emas - obj.emal,
-                   dea=obj.dea, k=obj.kdjk, d=obj.kdjd, j=obj.kdjj, shares=obj.shares, premium=obj.premium, turnover_rate=obj.turnover_rate,
+                   ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=round(obj.emas - obj.emal, 3),
+                   dea=round(obj.dea, 3), k=round(obj.kdjk, 3), d=round(obj.kdjd, 3), j=round(obj.kdjj, 3), shares=round(obj.shares, 2), premium=obj.premium,
                    boll_up=obj.boll_up, boll_low=obj.boll_low)
 
 

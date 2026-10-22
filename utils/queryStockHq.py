@@ -4,14 +4,16 @@
 
 import time
 import json
+import logging
 import traceback
-from logging import Logger
 from warnings import deprecated
 from utils.model import StockModelDo, StockMinuteDo
 from utils.http_client import http
+from utils.dispatcher import AsyncRoundRobinDispatcher
 from utils.results import getStockRegion, getStockRegionNum
 
 
+logger = logging.getLogger(__name__)
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
@@ -44,7 +46,7 @@ def generateStockCodeForSina(data: dict) -> str:
     return ",".join(s)
 
 
-async def getStockHqFromTencent(host: str, datas: list[dict], logger: Logger) -> dict[str, list]:
+async def getStockHqFromTencent(host: str, datas: list[dict]) -> dict[str, list]:
     '''
     从腾讯获取股票实时行情数据
     '''
@@ -108,7 +110,7 @@ async def getStockHqFromTencent(host: str, datas: list[dict], logger: Logger) ->
     return result
 
 
-async def getStockHqFromXueQiu(host: str, datas: list[dict], logger: Logger) -> dict[str, list]:
+async def getStockHqFromXueQiu(host: str, datas: list[dict]) -> dict[str, list]:
     '''
     从雪球获取股票实时行情数据
     '''
@@ -170,7 +172,7 @@ async def getStockHqFromXueQiu(host: str, datas: list[dict], logger: Logger) -> 
     return result
 
 
-async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> dict[str, list]:
+async def getStockHqFromSina(host: str, datas: list[dict]) -> dict[str, list]:
     '''
     从新浪获取股票实时行情数据
     '''
@@ -267,7 +269,7 @@ async def getStockHqFromSina(host: str, datas: list[dict], logger: Logger) -> di
 
 
 @deprecated("缺少均价")
-async def getMinuteKFromTencent(host: str, code: str, logger: Logger) -> list[StockMinuteDo]:
+async def getMinuteKFromTencent(host: str, code: str) -> list[StockMinuteDo]:
     '''
     从腾讯获取股票当天的分钟级数据
     '''
@@ -303,7 +305,7 @@ async def getMinuteKFromTencent(host: str, code: str, logger: Logger) -> list[St
     return result
 
 
-async def getMinuteKFromTongHuaShun(host: str, code: str, logger: Logger) -> list[StockMinuteDo]:
+async def getMinuteKFromTongHuaShun(host: str, code: str) -> list[StockMinuteDo]:
     '''
     从同花顺获取股票当天的分钟级数据
     '''
@@ -339,7 +341,7 @@ async def getMinuteKFromTongHuaShun(host: str, code: str, logger: Logger) -> lis
     return result
 
 
-async def getMinuteKFromSina(host: str, code: str, logger: Logger) -> list[StockMinuteDo]:
+async def getMinuteKFromSina(host: str, code: str) -> list[StockMinuteDo]:
     '''
     从新浪获取股票当天的分钟级数据
     '''
@@ -378,7 +380,7 @@ async def getMinuteKFromSina(host: str, code: str, logger: Logger) -> list[Stock
     return result
 
 
-async def getMinuteKFromDongcai(host: str, code: str, logger: Logger) -> list[StockMinuteDo]:
+async def getMinuteKFromDongcai(host: str, code: str) -> list[StockMinuteDo]:
     '''
     从东方财富获取股票当天的分钟级数据: https://quote.eastmoney.com/sh600726.html#fullScreenChart
     '''
@@ -416,7 +418,7 @@ async def getMinuteKFromDongcai(host: str, code: str, logger: Logger) -> list[St
 
 
 @deprecated("需要设置 Cookie")
-async def getMinuteKFromXueQiu(host: str, code: str, logger: Logger) -> list[StockMinuteDo]:
+async def getMinuteKFromXueQiu(host: str, code: str) -> list[StockMinuteDo]:
     '''
     从雪球获取股票当天的分钟级数据: https://xueqiu.com/S/SH601012
     '''
@@ -451,3 +453,20 @@ async def getMinuteKFromXueQiu(host: str, code: str, logger: Logger) -> list[Sto
     except:
         logger.error(traceback.format_exc())
     return result
+
+
+def getStockHqResponseValid(result: dict) -> bool:
+    """getStockHq调度器业务规则校验 \n
+    如果既没有成功的数据也没有失败的数据，则报错"""
+    if result['data'] or result['error']:
+        return True
+    return False
+
+
+getStockHqList = [getStockHqFromSina, getStockHqFromTencent, getStockHqFromXueQiu]
+hq_dispatcher = AsyncRoundRobinDispatcher(methods=getStockHqList, max_retries=5, timeout=15, cooldown=3600, success_validator=getStockHqResponseValid, name="StockHqDispatcher")
+
+
+async def getStockHq(*args, **kwargs):
+    """ ETF如果需要获取份额和溢价率，只能单独调 `getStockHqFromTencent` 方法，其他情况可以调用这个方法。"""
+    return await hq_dispatcher.call(*args, **kwargs)

@@ -2,20 +2,23 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import logging
 import traceback
 import lxml.html
 import trafilatura
-from logging import Logger
 from urllib.parse import quote
 from utils.http_client import http
-from settings import HTTP_HOST1
+from settings import HTTP_HOST_CLOUD
 
 
-async def searchWithSerper(query: str, logger: Logger, df: str = 'w'):
+logger = logging.getLogger(__name__)
+
+
+async def searchWithSerper(query: str, df: str = 'w'):
     '''使用 serper 搜索，每月 2000 次搜索
     :params df: h-过去一小时 / d-过去一天 / w-过去一周 / m-过去一个月 / y-过去一年
     '''
-    url = f"{HTTP_HOST1}/api/search/serper?q={quote(query)}&dateRestrict={df}"
+    url = f"{HTTP_HOST_CLOUD}/api/search/serper?q={quote(query)}&dateRestrict={df}"
     try:
         resp = await http.get(url)
         logger.info(resp.text)
@@ -25,7 +28,7 @@ async def searchWithSerper(query: str, logger: Logger, df: str = 'w'):
         logger.error(traceback.format_exc())
 
 
-async def searchWithDuckDuckGo(query: str, logger: Logger, df: str = 'w', max_results: int = 5) -> list[dict]:
+async def searchWithDuckDuckGo(query: str, df: str = 'w', max_results: int = 5) -> list[dict]:
     """DuckDuckGo 搜索 (限制最近一周 df=w) + trafilatura 正文提取"""
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",

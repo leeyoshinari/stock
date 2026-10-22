@@ -34,8 +34,6 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
     }});
   let option;
   myChart.clear();
-  // myChart.setOption(
-  //   (
   option = {
       animation: false,
       title: {
@@ -88,11 +86,6 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
           right: '30px',
           top: '470px',
           height: '40px'
-        },{
-          left: '30px',
-          right: '30px',
-          top: '520px',
-          height: '40px'
         }
       ],
       xAxis: [{
@@ -137,17 +130,6 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
           axisLabel: { show: false },
           min: 'dataMin',
           max: 'dataMax'
-        },{
-          type: 'category',
-          gridIndex: 4,
-          data: x,
-          boundaryGap: false,
-          axisLine: { onZero: true },
-          axisTick: { show: false },
-          splitLine: { show: false },
-          axisLabel: { show: false },
-          min: 'dataMin',
-          max: 'dataMax'
         }
       ],
       yAxis: [{
@@ -177,42 +159,24 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
           gridIndex: 2,
           splitNumber: 2,
           axisLabel: { show: false },
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: false },
-          position: 'left'
-        },{
-          scale: true,
-          gridIndex: 2,
-          splitNumber: 2,
-          axisLabel: { show: false },
-          axisLine: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: false },
-          position: 'right'
-        },{
-          scale: true,
-          gridIndex: 3,
-          splitNumber: 2,
-          axisLabel: { show: false },
           axisLine: { show: false, onZero: true },
           axisTick: { show: false },
           splitLine: { show: false }
         },{
           scale: true,
-          gridIndex: 4,
+          gridIndex: 3,
           splitNumber: 2,
           axisLabel: { show: false },
-          axisLine: { show: false, onZero: true },
+          axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
           position: 'left'
         },{
           scale: true,
-          gridIndex: 4,
+          gridIndex: 3,
           splitNumber: 2,
           axisLabel: { show: false },
-          axisLine: { show: false, onZero: true },
+          axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
           position: 'right'
@@ -220,7 +184,7 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
       ],
       dataZoom: [{
           type: 'inside',
-          xAxisIndex: [0, 1, 2, 3, 4],
+          xAxisIndex: [0, 1, 2, 3],
           start: startValue,
           end: 100,
           zoomLock: false,
@@ -232,7 +196,7 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
         },
         {
           show: false,
-          xAxisIndex: [0, 1, 2, 3, 4],
+          xAxisIndex: [0, 1, 2, 3],
           type: 'slider',
           start: startValue,
           end: 100
@@ -316,31 +280,10 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
           lineStyle: {color: 'blue', opacity: 0.9, width: 1},
           itemStyle: { color: 'blue' }
         },{
-          name: '主力资金(万)',
+          name: 'MACD',
           type: 'bar',
           xAxisIndex: 2,
           yAxisIndex: 3,
-          data: fund,
-          itemStyle: {
-            color: function(params) {
-              return params.value >= 0 ? upColor : downColor;
-            }
-          }
-        },{
-          name: '换手率(%)',
-          type: 'line',
-          xAxisIndex: 2,
-          yAxisIndex: 4,
-          data: turnover_rate,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {color: 'blue', opacity: 0.9, width: 1},
-          itemStyle: { color: 'blue' }
-        },{
-          name: 'MACD',
-          type: 'bar',
-          xAxisIndex: 3,
-          yAxisIndex: 5,
           data: macd,
           itemStyle: {
             color: function(params) {
@@ -350,8 +293,8 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
         },{
           name: 'DIFF',
           type: 'line',
-          xAxisIndex: 3,
-          yAxisIndex: 5,
+          xAxisIndex: 2,
+          yAxisIndex: 3,
           data: diff,
           smooth: true,
           showSymbol: false,
@@ -360,8 +303,8 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
         },{
           name: 'DEA',
           type: 'line',
-          xAxisIndex: 3,
-          yAxisIndex: 5,
+          xAxisIndex: 2,
+          yAxisIndex: 3,
           data: dea,
           smooth: true,
           showSymbol: false,
@@ -374,8 +317,8 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
     option.series.push({
       name: '份额(亿)',
       type: 'line',
-      xAxisIndex: 4,
-      yAxisIndex: 6,
+      xAxisIndex: 3,
+      yAxisIndex: 4,
       data: shares,
       smooth: true,
       showSymbol: false,
@@ -385,8 +328,8 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
     option.series.push({
       name: '溢价率(%)',
       type: 'line',
-      xAxisIndex: 4,
-      yAxisIndex: 7,
+      xAxisIndex: 3,
+      yAxisIndex: 5,
       data: premium,
       smooth: true,
       showSymbol: false,
@@ -394,11 +337,74 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
       itemStyle: { color: 'CornflowerBlue' }
     });
   } else {
+    option.grid.push({
+      left: '30px',
+      right: '30px',
+      top: '520px',
+      height: '40px'
+    });
+    option.xAxis.push({
+      type: 'category',
+      gridIndex: 4,
+      data: x,
+      boundaryGap: false,
+      axisLine: { onZero: true },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      min: 'dataMin',
+      max: 'dataMax'
+    });
+    option.yAxis.push({
+      scale: true,
+      gridIndex: 4,
+      splitNumber: 2,
+      axisLabel: { show: false },
+      axisLine: { show: false, onZero: true },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      position: 'left'
+    });
+    option.yAxis.push({
+      scale: true,
+      gridIndex: 4,
+      splitNumber: 2,
+      axisLabel: { show: false },
+      axisLine: { show: false, onZero: true },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      position: 'right'
+    });
+    option.dataZoom[0].xAxisIndex = [0, 1, 2, 3, 4];
+    option.dataZoom[1].xAxisIndex = [0, 1, 2, 3, 4];
+    option.series.push({
+      name: '主力资金(万)',
+      type: 'bar',
+      xAxisIndex: 4,
+      yAxisIndex: 6,
+      data: fund,
+      itemStyle: {
+        color: function(params) {
+          return params.value >= 0 ? upColor : downColor;
+        }
+      }
+    });
+    option.series.push({
+      name: '换手率(%)',
+      type: 'line',
+      xAxisIndex: 4,
+      yAxisIndex: 7,
+      data: turnover_rate,
+      smooth: true,
+      showSymbol: false,
+      lineStyle: {color: 'blue', opacity: 0.9, width: 1},
+      itemStyle: { color: 'blue' }
+    }); 
     option.series.push({
       name: 'K',
       type: 'line',
-      xAxisIndex: 4,
-      yAxisIndex: 6,
+      xAxisIndex: 3,
+      yAxisIndex: 4,
       data: kdjk,
       smooth: true,
       showSymbol: false,
@@ -408,8 +414,8 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
     option.series.push({
       name: 'D',
       type: 'line',
-      xAxisIndex: 4,
-      yAxisIndex: 6,
+      xAxisIndex: 3,
+      yAxisIndex: 4,
       data: kdjd,
       smooth: true,
       showSymbol: false,
@@ -419,8 +425,8 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
     option.series.push({
       name: 'J',
       type: 'line',
-      xAxisIndex: 4,
-      yAxisIndex: 6,
+      xAxisIndex: 3,
+      yAxisIndex: 4,
       data: kdjj,
       smooth: true,
       showSymbol: false,

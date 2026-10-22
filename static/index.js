@@ -1,4 +1,5 @@
 const pageSize = 20;
+const defaultUserId = "99";
 let page = 1;
 const originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
@@ -62,7 +63,7 @@ function getStockList() {
                 let zhang = (item.current_price - item.last_price) / item.last_price * 100;
                 let zhen = (item.max_price - item.min_price) / item.last_price * 100;
                 let color = zhang >= 0 ? zhang > 0 ? 'red' : 'black' : 'green';
-                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div><a onclick="query_stock_ai('${item.code}', '${item.name}', '');">${item.current_price}</a></div><div><a onclick="query_stock_ai('${item.code}', '${item.name}', 'shrink');">${zhang.toFixed(2)}%</a></div><div>${zhen.toFixed(2)}%</div>
+                s += `<div id="${item.code}" class="item-list" style="color:${color};"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div><div>${item.current_price}</div><div>${zhang.toFixed(2)}%</div><div>${zhen.toFixed(2)}%</div>
                       <div>${item.volume}</div><div>${item.qrr}</div><div>${item.turnover_rate}%</div><div>${item.fund.toFixed(0)}万</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
@@ -84,11 +85,15 @@ function change_select() {page=1;getStockList();}
 
 function get_stock_figure(code) {
     show_modal_cover();
-    let userId = localStorage.getItem('userId');
+    let userId = localStorage.getItem('userId') || defaultUserId;
     fetch(`${prefix}/get?code=${code}&userId=${userId}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
+                let figure = document.getElementById("figure");
+                figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
+                figure.removeAttribute("_echarts_instance_");
+                figure.innerHTML = '';
                 let profit = '';
                 let isEtf = false;
                 if (data.data.shares) {
@@ -97,15 +102,10 @@ function get_stock_figure(code) {
                 let region_str = ` - ${data.data.region}`;
                 if (code.startsWith("1") || code.startsWith("5")){
                     region_str = '';
-                }
-                if (code.startsWith('1') || code.startsWith('5')) {
                     isEtf = true;
+                    figure.style.height = '520px';
                 }
                 let title = `${data.data.name} - ${code}${region_str} - ${data.data.industry}${profit}`;
-                let figure = document.getElementById("figure");
-                figure.style.width = parseInt(document.body.clientWidth * 0.8) + 'px';
-                figure.removeAttribute("_echarts_instance_")
-                figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
                 plot_k_line(stockChart, isEtf, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.total_shares, data.data.premium, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
@@ -137,22 +137,6 @@ function get_stock_real_figure(code) {
             }
         })
         .finally(() => {close_modal_cover();})
-}
-
-function query_stock_ai(code, name, source) {
-    show_modal_cover();
-    let site = localStorage.getItem('site');
-    let stock_date = document.getElementById("stock-date").value;
-    fetch(`${prefix}/buy/stock?code=${code}&site=${site}&source=${source}&day=${stock_date}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                // let s = `<div class="header">${name} - ${code}</div><div><div class="title">价格-3日均线</div><div class="value"><div><span>L3D: </span></div></div></div>`;
-                document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
-                document.getElementsByClassName("stock-data")[0].style.display = "flex";
-            }
-            close_modal_cover();
-        })
 }
 
 function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}

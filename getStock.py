@@ -13,8 +13,8 @@ import traceback
 from contextlib import suppress
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
-from settings import BATCH_SIZE, All_STOCK_DATA_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, HTTP_HOST1, HTTP_HOST2
-from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HTTP_HOST3, HISTORY_PATH
+from settings import BATCH_SIZE, All_STOCK_DATA_SIZE, BATCH_INTERVAL, SENDER_EMAIL, RECEIVER_EMAIL, EMAIL_PASSWORD, HTTP_HOST_CLOUD, HTTP_HOST_VERCEL
+from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, API_URL, AUTH_CODE, FILE_PATH, HTTP_HOST_NETLIFY, HISTORY_PATH
 from utils.model import StockModelDo, StockDataList
 from utils.scheduler import scheduler
 from utils.writer_queue import writer_queue
@@ -22,7 +22,7 @@ from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
 from utils.results import getStockRegion
-from utils.ai_model import queryGemini, queryOpenAi, webSearchTopicBak, auto_buy_prompt
+from utils.ai_model import queryGemini, queryOpenAi, auto_buy_prompt
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes
 from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, getStockBanKuaiFromDOngCai, normalize_topic
@@ -30,7 +30,7 @@ from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFr
 from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina
 from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent
 from utils.etfData import getEtfShareFromSH, getEtfShareFromSZ
-from utils.database import Stock, Detail, Tools, Recommend, ETF, write_worker
+from utils.database import Stock, Detail, Tools, Recommend, ETF, Transaction, write_worker, TradeType
 from utils.logging_getstock import logger
 
 
@@ -93,6 +93,18 @@ def calc_MA(data: list, window: int, digit: int = 2) -> float:
     return round(sum(data[:window]) / len(data[:window]), digit)
 
 
+def get_past_date(days_diff: int) -> str:
+    """
+    根据当前日期和相差天数，计算之前的日期
+    :param days_diff: 相差天数
+    :return: 之前的日期字符串
+    """
+    date_format = "%Y%m%d"  # 日期字符串格式
+    current_date = datetime.now()
+    past_date = current_date - timedelta(days=days_diff)
+    return past_date.strftime(date_format)
+
+
 def detail2List(data: list[Detail]) -> dict:
     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
@@ -130,7 +142,7 @@ async def getStockFromTencent(host):
             datas = None
             datas = await queryTask.get()
             if datas == 'end': break
-            result: dict = await getStockHqFromTencent(host, datas, logger)
+            result: dict = await getStockHqFromTencent(host, datas)
             dataList: list[StockModelDo] = result['data']
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
@@ -155,7 +167,7 @@ async def getStockFromXueQiu(host):
             datas = None
             datas = await queryTask.get()
             if datas == 'end': break
-            result: dict = await getStockHqFromXueQiu(host, datas, logger)
+            result: dict = await getStockHqFromXueQiu(host, datas)
             dataList: list[StockModelDo] = result['data']
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
@@ -181,7 +193,7 @@ async def getStockFromSina(host):
             saveErrorList = []
             datas = await queryTask.get()
             if datas == 'end': break
-            result: dict = await getStockHqFromSina(host, datas, logger)
+            result: dict = await getStockHqFromSina(host, datas)
             dataList: list[StockModelDo] = result['data']
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
@@ -213,7 +225,7 @@ async def getEtfFromTencent(host):
             datas = None
             datas = await etfTask.get()
             if datas == 'end': break
-            result: dict = await getStockHqFromTencent(host, datas, logger)
+            result: dict = await getStockHqFromTencent(host, datas)
             dataList: list[StockModelDo] = result['data']
             errorList: list[dict] = result['error']
             if len(errorList) > 0:
@@ -853,7 +865,7 @@ async def setAllSHEtf():
         page = 1
         total_page = 20
         while page <= total_page:
-            res = await getEtfInfoFromSH(page, logger)
+            res = await getEtfInfoFromSH(page)
             if res:
                 total_page = res['pageCount']
                 data_list = res['data']
@@ -871,7 +883,7 @@ async def setAllSZEtf():
         page = 1
         total_page = 70
         while page <= total_page:
-            res = await getEtfInfoFromSZ(page, logger)
+            res = await getEtfInfoFromSZ(page)
             if res:
                 total_page = res['metadata']['pagecount']
                 data_list = res['data']
@@ -894,7 +906,7 @@ async def updateEtfHoldStock(host: str = ''):
         for r in etfInfo:
             if r.code == '159934':      # 黄金ETF过滤掉
                 continue
-            res = await getHoldStockOfEtfFromTencent(host, r.code, logger)
+            res = await getHoldStockOfEtfFromTencent(host, r.code)
             await ETF.update(r.code, stocks=res)
             logger.info(f"{r.name} - {r.code} 的前10大重仓股是 {res}")
             await asyncio.sleep(8)
@@ -905,7 +917,7 @@ async def updateEtfHoldStock(host: str = ''):
 async def writeEtfDatabase(code: str):
     try:
         etf: ETF = await ETF.get_one(code)
-        etf_info = await getEtfDetailFromDongCai(code, logger)
+        etf_info = await getEtfDetailFromDongCai(code)
         if etf_info and etf_info['code'] == code:
             name = etf_info['name'] if etf_info['name'] else etf.name
             capital = etf_info['capital'] if etf_info['capital'] > 0 else etf.capital
@@ -915,7 +927,7 @@ async def writeEtfDatabase(code: str):
         else:
             logger.error(f"获取ETF信息失败: {code} - {etf_info}")
     except NoResultFound:
-        etf_info = await getEtfDetailFromDongCai(code, logger)
+        etf_info = await getEtfDetailFromDongCai(code)
         if etf_info and etf_info['code'] == code:
             await ETF.create(code=code, name=etf_info['name'], capital=etf_info['capital'], fee=etf_info['fee'],
                              industry=etf_info['tracking'], create_time=datetime.strptime(etf_info['date'], "%Y-%m-%d"))
@@ -926,33 +938,33 @@ async def writeEtfDatabase(code: str):
         logger.error(traceback.format_exc())
 
 
-async def getStockTopic():
-    try:
-        global current_topic
-        tool: Tools = await Tools.get_one("openDoor")
-        current_day = tool.value
-        current_date = tool.update_time.strftime("%Y年%m月%d日")
-        if current_day == time.strftime("%Y%m%d"):
-            res = await webSearchTopicBak(API_URL, AUTH_CODE, current_date)
-            file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(res)
-            data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].replace(':', '').replace('：', '').strip().split("\n")[0]
-            res_list = [r.replace('。', '').strip() for r in data.split(',')]
-            try:
-                tool: Tools = await Tools.get_one(current_day)
-                await Tools.update(tool.key, value=',' .join(res_list))
-            except NoResultFound:
-                await Tools.create(key=current_day, value=',' .join(res_list))
-            logger.info(f"Current hot topic is {res}")
-            current_topic = [normalize_topic(r) for r in res_list]
-            logger.info(f"Normalized topic: {current_topic}")
-    except IndexError:
-        logger.error(traceback.format_exc())
-        logger.error(res)
-    except:
-        logger.error(traceback.format_exc())
-        logger.error("数据更新异常...")
+# async def getStockTopic():
+#     try:
+#         global current_topic
+#         tool: Tools = await Tools.get_one("openDoor")
+#         current_day = tool.value
+#         current_date = tool.update_time.strftime("%Y年%m月%d日")
+#         if current_day == time.strftime("%Y%m%d"):
+#             res = await webSearchTopicBak(API_URL, AUTH_CODE, current_date)
+#             file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
+#             with open(file_path, 'w', encoding='utf-8') as f:
+#                 f.write(res)
+#             data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].replace(':', '').replace('：', '').strip().split("\n")[0]
+#             res_list = [r.replace('。', '').strip() for r in data.split(',')]
+#             try:
+#                 tool: Tools = await Tools.get_one(current_day)
+#                 await Tools.update(tool.key, value=',' .join(res_list))
+#             except NoResultFound:
+#                 await Tools.create(key=current_day, value=',' .join(res_list))
+#             logger.info(f"Current hot topic is {res}")
+#             current_topic = [normalize_topic(r) for r in res_list]
+#             logger.info(f"Normalized topic: {current_topic}")
+#     except IndexError:
+#         logger.error(traceback.format_exc())
+#         logger.error(res)
+#     except:
+#         logger.error(traceback.format_exc())
+#         logger.error("数据更新异常...")
 
 
 async def updateEtfShares():
@@ -963,27 +975,35 @@ async def updateEtfShares():
         d1 = datetime.strptime(pre_day, "%Y-%m-%d").date()
         diff_days = (datetime.today().date() - d1).days
         if diff_days == 1:
-            logger.info("开始从上交所获取 ETF 份额 ~")
-            res = await getEtfShareFromSH(pre_day, logger)
-            for k, v in res.items():
-                try:
-                    _ = await Detail.get_one((k, d))
-                    await Detail.update2return((k, d), shares=round(v, 5))
-                    logger.info(f"{d} - {k} - {v}")
-                except:
-                    continue
-
+            res = await getEtfShareFromSZ('159915', pre_day)    # 查询深交所数据是否已更新
+            if len(res) < 1:
+                # 10 分钟后再次查询
+                scheduler.add_job(updateEtfShares, "date", run_date=datetime.now() + timedelta(minutes=10), id="updateEtfShares_retry", replace_existing=True, misfire_grace_time=10)
+                logger.warning("深交所数据未更新, 10分钟后再次查询 ~")
+                return
             logger.info("开始深交所获取 ETF 份额 ~")
             stocks: list[ETF] = await ETF.query().equal(running=1).all()
             for s in stocks:
                 if s.code.startswith('1'):
-                    res = await getEtfShareFromSZ(s.code, pre_day, logger)
-                    await Detail.update2return((s.code, d), shares=round(res, 5))
-                    logger.info(f"{d} - {s.code} - {res}")
+                    res = await getEtfShareFromSZ(s.code, pre_day)
+                    shares = float(res[0]['current_size'].replace(',', '')) / 10000
+                    await Detail.update((s.code, d), shares=round(shares, 5))
+                    logger.info(f"day: {d}, code: {s.code}, shares: {shares}")
                     await asyncio.sleep(5)
+
+            logger.info("开始从上交所获取 ETF 份额 ~")
+            res = await getEtfShareFromSH(pre_day)
+            for k, v in res.items():
+                try:
+                    _ = await Detail.get_one((k, d))
+                    await Detail.update((k, d), shares=round(v, 5))
+                    logger.info(f"day: {d}, code: {k}, shares: {v}")
+                except:
+                    continue
         else:
             logger.info(f"No need update ETF shares, because {time.strftime("%Y-%m-%d")} - {pre_day} ≠ 1")
     except:
+        sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '更新 ETF 份额异常')
         logger.error(traceback.format_exc())
 
 
@@ -996,10 +1016,20 @@ async def stopTask():
 
 
 async def clearStockData():
-    tool: Tools = await Tools.get_one("openDoor")
-    current_day = tool.value
-    if current_day == time.strftime("%Y%m%d"):
-        await getStockTopic()
+    try:
+        stock: list[Stock] = await Stock.query().all()
+        etf: list[ETF] = await ETF.query().equal(running=1).all()
+        code = [f.code for f in stock] + [f.code for f in etf]
+        past_day = get_past_date(383)    # 383天大概是一年多的数据，大概共256个交易日
+        for c in code:
+            trans: list[Transaction] = await Transaction.query().equal(code=c).order_by(Transaction.id.desc()).limit(3).all()
+            if len(trans) == 0 or trans[0].status == TradeType.MAN:
+                _ = await Detail.query().equal(code=c).less_equal(day=past_day).delete()
+                logger.info(f"Delete detail data success, {c} - {past_day}")
+            else:
+                logger.info(f"Delete detail data fail because not sold, {c} - {past_day}")
+    except:
+        logger.error(traceback.format_exc())
 
 
 async def initData():
@@ -1019,13 +1049,13 @@ async def main():
     scheduler.add_job(setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)    # 中午更新股票信息
     scheduler.add_job(setAllSZStock, 'cron', hour=12, minute=0, second=20, misfire_grace_time=10)    # 中午更新股票信息
     scheduler.add_job(startSelectStock, 'cron', hour=14, minute=48, second=30, misfire_grace_time=10)  # 开始选股
-    scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
+    # scheduler.add_job(getStockTopic, 'cron', hour=14, minute=48, second=1, misfire_grace_time=10)     # 获取热门题材
     scheduler.add_job(stopTask, 'cron', hour=15, minute=1, second=20, misfire_grace_time=10)          # 停止任务
     scheduler.add_job(setAvailableStock, 'cron', hour='14,15', minute=36, second=8, misfire_grace_time=10)     # 收盘后更新数据
     scheduler.add_job(updateStockFund, 'cron', hour=15, minute=45, second=20, args=[1], misfire_grace_time=10)  # 更新主力流入数据
     scheduler.add_job(updateRecommendPrice, 'cron', hour=15, minute=50, second=50, misfire_grace_time=10)       # 更新推荐股票的价格
-    scheduler.add_job(clearStockData, 'cron', hour=20, minute=20, second=20, misfire_grace_time=10)         # 删除数据
-    scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0, misfire_grace_time=10)        # 更新股票行业、概念等数据
+    scheduler.add_job(clearStockData, 'cron', day_of_week='sat', hour=0, minute=20, second=20, misfire_grace_time=10)    # 删除数据
+    scheduler.add_job(updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=0, second=0, misfire_grace_time=10)  # 更新股票行业、概念等数据
     # scheduler.add_job(selectStockMetric, "date", run_date=datetime.now() + timedelta(seconds=10))
     # scheduler.add_job(initData, "date", run_date=datetime.now() + timedelta(seconds=10))
     # scheduler.add_job(setAllSHEtf, "date", run_date=datetime.now() + timedelta(seconds=10))
@@ -1036,17 +1066,17 @@ async def main():
 
     worker_task = asyncio.create_task(write_worker())
     asyncio.create_task(getStockFromTencent('base'))
-    asyncio.create_task(getStockFromTencent(HTTP_HOST1))
-    asyncio.create_task(getStockFromTencent(HTTP_HOST2))
-    asyncio.create_task(getStockFromTencent(HTTP_HOST3))
+    asyncio.create_task(getStockFromTencent(HTTP_HOST_CLOUD))
+    asyncio.create_task(getStockFromTencent(HTTP_HOST_VERCEL))
+    asyncio.create_task(getStockFromTencent(HTTP_HOST_NETLIFY))
     asyncio.create_task(getStockFromXueQiu('base'))
-    asyncio.create_task(getStockFromXueQiu(HTTP_HOST1))
-    asyncio.create_task(getStockFromXueQiu(HTTP_HOST2))
-    asyncio.create_task(getStockFromXueQiu(HTTP_HOST3))
+    asyncio.create_task(getStockFromXueQiu(HTTP_HOST_CLOUD))
+    asyncio.create_task(getStockFromXueQiu(HTTP_HOST_VERCEL))
+    asyncio.create_task(getStockFromXueQiu(HTTP_HOST_NETLIFY))
     asyncio.create_task(getStockFromSina('base'))
-    asyncio.create_task(getStockFromSina(HTTP_HOST1))
-    asyncio.create_task(getStockFromSina(HTTP_HOST2))
-    asyncio.create_task(getStockFromSina(HTTP_HOST3))
+    asyncio.create_task(getStockFromSina(HTTP_HOST_CLOUD))
+    asyncio.create_task(getStockFromSina(HTTP_HOST_VERCEL))
+    asyncio.create_task(getStockFromSina(HTTP_HOST_NETLIFY))
     asyncio.create_task(getEtfFromTencent('base'))
 
     try:

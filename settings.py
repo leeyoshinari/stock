@@ -34,6 +34,7 @@ def get_config(key):
 
 sync_with_dotenv()  # 更新配置
 load_dotenv()   # 加载配置
+DEFAULT_USER_ID = 99    # 程序自动交易的默认用户
 TOTAL_FUND = 100000     # 自动模拟买入股票的总仓位
 FILE_PATH = os.path.join(BASE_PATH, "files")
 HISTORY_PATH = os.path.join(BASE_PATH, "historys")
@@ -41,30 +42,24 @@ PROMPT_PATH = os.path.join(BASE_PATH, "prompts")
 PREFIX = get_config("backEndPrefix")
 HOST = get_config("host")
 PORT = int(get_config("port"))
+RUN_ENV = get_config("runEnv")
 DB_URL = get_config("dbUrl")
 DB_POOL_SIZE = int(get_config("connectionPoolSize"))
 BATCH_SIZE = int(get_config("batchSize"))   # 每一个请求的股票数
-All_STOCK_DATA_SIZE = int(get_config("allStockDataSize"))   # 总共有多少个线程在运行
 BATCH_INTERVAL = int(get_config("batchInterval"))
 LOGGER_LEVEL = get_config("logLevel")
 SENDER_EMAIL = get_config("senderEmail")
 RECEIVER_EMAIL = get_config("receiverEmail")
 EMAIL_PASSWORD = get_config("emailPassword")
-API_URL = get_config("apiUrl")
-AI_MODEL = get_config("aiModel")
-AI_MODEL25 = get_config("aiModel25")
 AUTH_CODE = get_config("authCode")
 OPENAI_URL = get_config("openAIUrl")
 OPENAI_MODEL = get_config("openAIModel")
 OPENAI_KEY = get_config("openAIKey")
-HTTP_HOST1 = get_config("HTTPHost1")
-HTTP_HOST2 = get_config("HTTPHost2")
-HTTP_HOST3 = get_config("HTTPHost3")
+HTTP_HOST_CLOUD = get_config("HTTPHostCloud")
+HTTP_HOST_VERCEL = get_config("HTTPHostVercel")
+HTTP_HOST_NETLIFY = get_config("HTTPHostNetlify")
 ACCESS_KEY = get_config("accessKey")
 BACKUP_PATH = get_config("backupPath")
-ANALYSIZE_API_URL = get_config("analysizeApiUrl")
-ANALYSIZE_API_KEY = get_config("analysizeApiKey")
-ANALYSIZE_API_MODEL = get_config("analysizeApiModel")
 TUSHARE_API_KEY = get_config("tushareApiKey")
 LONGBRIDGE_URL = get_config("longbridgeUrl")
 
@@ -83,3 +78,13 @@ if not os.path.exists(FILE_PATH):
     os.mkdir(FILE_PATH)
 if not os.path.exists(HISTORY_PATH):
     os.mkdir(HISTORY_PATH)
+
+
+def read_prompt(fileName: str) -> str:
+    with open(os.path.join(PROMPT_PATH, fileName), 'r', encoding='utf-8') as f:
+        res = f.read()
+    return res
+
+
+# 通用判断是否买入的提示词
+# ANALYSIZE_PROMPT = read_prompt(os.path.join(PROMPT_PATH, 'buy-common.md'))

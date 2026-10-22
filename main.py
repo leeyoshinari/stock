@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
+import utils.logging
 
 import os
 import time
@@ -14,13 +15,12 @@ from litestar.openapi.plugins import SwaggerRenderPlugin
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
-from settings import PREFIX, HOST, PORT, BASE_PATH, checkout, BACKUP_PATH
+from settings import PREFIX, HOST, PORT, BASE_PATH, checkout, BACKUP_PATH, RUN_ENV
 from utils.scheduler import scheduler
-from utils.backup import zip_file, clear_detail_data
-from utils.logging import logger
+from utils.backup import zip_file
 from utils.database import Database, write_worker
 from utils.results import Result
-from utils import model, views
+from utils import model, views, getStock
 
 
 db_path = os.path.join(BASE_PATH, 'sqlite3.db')
@@ -76,19 +76,19 @@ class StockController(Controller):
             result = await views.deleteRecommendStock(rId)
         return result
 
-    @get('/buy/stock', summary="询问AI股票走势 - 通用")
-    async def stock_ai_data(self, request: Request, code: str, site: str | None = None, source: str | None = None, day: str | None = None) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.buy_stock(code, site, source, day)
-        return result
+    # @get('/buy/stock', summary="询问AI股票走势 - 通用")
+    # async def stock_ai_data(self, request: Request, code: str, site: str | None = None, source: str | None = None, day: str | None = None) -> Result:
+    #     result = Result()
+    #     if checkout(request.headers.get('referered', '123')):
+    #         result = await views.buy_stock(code, site, source, day)
+    #     return result
 
-    @get('/sell/stock', summary="AI股票卖出判断")
-    async def sell_stock(self, request: Request, code: str, price: str | None = None, t: str | None = None, site: str | None = None) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.sell_stock(code, price, t, site)
-        return result
+    # @get('/sell/stock', summary="AI股票卖出判断")
+    # async def sell_stock(self, request: Request, code: str, price: str | None = None, t: str | None = None, site: str | None = None) -> Result:
+    #     result = Result()
+    #     if checkout(request.headers.get('referered', '123')):
+    #         result = await views.sell_stock(code, price, t, site)
+    #     return result
 
     @get('/query/stock/return', summary="查询选出来的股票的收益")
     async def stock_return(self, request: Request, fee: int = 0) -> Result:
@@ -102,12 +102,12 @@ class StockController(Controller):
             result = await views.calc_stock_real(code, site)
         return result
 
-    @get('/query/price', summary="查询股票当前价格")
-    async def stock_current_price(self, request: Request, code: str, site: str = None) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.get_current_price(code, site)
-        return result
+    # @get('/query/price', summary="查询股票当前价格")
+    # async def stock_current_price(self, request: Request, code: str, site: str = None) -> Result:
+    #     result = Result()
+    #     if checkout(request.headers.get('referered', '123')):
+    #         result = await views.get_current_price(code, site)
+    #     return result
 
     @get('/stock/list', summary="查询股票信息")
     async def all_stock_list(self, request: Request, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", userId: int = None, page: int = 1, pageSize: int = 20) -> Result:
@@ -161,29 +161,29 @@ class StockController(Controller):
             result = await views.init_stock_fund_data(data)
         return result
 
-    @get('/topic/list', summary="查询热门题材列表")
-    async def all_topic_list(self, request: Request, page: int = 1, pageSize: int = 20) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            query = model.SearchStockParam()
-            query.page = page
-            query.pageSize = pageSize
-            result = await views.all_topic_info(query)
-        return result
+    # @get('/topic/list', summary="查询热门题材列表")
+    # async def all_topic_list(self, request: Request, page: int = 1, pageSize: int = 20) -> Result:
+    #     result = Result()
+    #     if checkout(request.headers.get('referered', '123')):
+    #         query = model.SearchStockParam()
+    #         query.page = page
+    #         query.pageSize = pageSize
+    #         result = await views.all_topic_info(query)
+    #     return result
 
-    @get('/topic/get', summary="查询实时热门题材")
-    async def get_current_topic(self, request: Request) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.get_current_topic()
-        return result
+    # @get('/topic/get', summary="查询实时热门题材")
+    # async def get_current_topic(self, request: Request) -> Result:
+    #     result = Result()
+    #     if checkout(request.headers.get('referered', '123')):
+    #         result = await views.get_current_topic()
+    #     return result
 
-    @get('/topic/file', summary="查询完整题材分析")
-    async def get_topic_file(self, request: Request, code: str) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.get_topic_file(code)
-        return result
+    # @get('/topic/file', summary="查询完整题材分析")
+    # async def get_topic_file(self, request: Request, code: str) -> Result:
+    #     result = Result()
+    #     if checkout(request.headers.get('referered', '123')):
+    #         result = await views.get_topic_file(code)
+    #     return result
 
     @post('/set/stock', summary="设置股票数据")
     async def set_stock(self, request: Request, data: model.SetStockParam) -> Result:
@@ -261,28 +261,21 @@ class StockController(Controller):
         result = await views.webSearch(q, df)
         return result
 
-    @get('/etf/analyzer', summary="从财经新闻中选出ETF")
-    async def analyzer_etf_data(self, request: Request) -> Result:
-        result = Result()
-        # if checkout(request.headers.get('referered', '123')):
-        result = await views.analysizeEtfFromNews()
-        return result
-
     @get('/analyzer', summary="全面分析标的")
     async def analyzer(self, request: Request, code: str, userId: str | None = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.analysize(code, userId)
+            result = await views.analysize(code=code, userId=int(userId))
         return result
 
-    @get('/runCmd', summary="执行 shell 命令")
-    async def runCmd(self, request: Request, cmd: str) -> str:
-        # if checkout(request.headers.get('referered', '123')):
-        try:
-            res = await views.run_command(cmd)
-            return res
-        except Exception as e:
-            return str(e)
+    # @get('/runCmd', summary="执行 shell 命令")
+    # async def runCmd(self, request: Request, cmd: str) -> str:
+    #     if checkout(request.headers.get('referered', '123')):
+    #         try:
+    #             res = await views.run_command(cmd)
+    #             return res
+    #         except Exception as e:
+    #             return str(e)
 
     @post('/test')
     async def test(self, request: Request, data: model.ToolsInfoList) -> Result:
@@ -331,11 +324,18 @@ route_handlers = [Router(path=PREFIX, route_handlers=[StockController]), Router(
 @asynccontextmanager
 async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
-    scheduler.add_job(zip_file, 'cron', hour=16, minute=20, second=20, args=[[db_path], zip_path, logger], misfire_grace_time=10)  # 备份数据库
-    scheduler.add_job(clear_detail_data, 'cron', day_of_week='sat', hour=0, minute=0, second=0, args=[logger], misfire_grace_time=10)  # 清理数据
-    scheduler.add_job(views.start_auto_sell_stock, 'cron', hour=9, minute=34, second=50, misfire_grace_time=10)
-    scheduler.add_job(views.stop_auto_sell_stock, 'cron', hour=14, minute=58, second=58, misfire_grace_time=10)
-    scheduler.start()   # 启动定时任务，在启动前，必须已经add_job
+    if RUN_ENV != 'dev':
+        scheduler.add_job(getStock.updateEtfShares, 'cron', hour=8, minute=8, second=20, misfire_grace_time=10)    # 更新前一天的ETF份额
+        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=8, minute=54, second=0, misfire_grace_time=10)    # 开始分析 ETF
+        scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)     # 检查今天是否开市
+        scheduler.add_job(getStock.setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)     # 中午更新股票信息
+        scheduler.add_job(getStock.setAllSZStock, 'cron', hour=12, minute=0, second=20, misfire_grace_time=10)                 # 中午更新股票信息
+        scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新数据
+        scheduler.add_job(getStock.updateStockFund, 'cron', hour=15, minute=45, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
+        scheduler.add_job(zip_file, 'cron', hour=16, minute=20, second=20, args=[[db_path], zip_path], misfire_grace_time=10)  # 备份数据库
+        scheduler.add_job(getStock.clearStockData, 'cron', day_of_week='sat', hour=0, minute=0, second=20, misfire_grace_time=10)       # 删除数据
+        scheduler.add_job(getStock.updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=20, second=0, misfire_grace_time=10)   # 更新股票行业、概念等数据
+    scheduler.start()   # 启动定时任务
     worker_task = asyncio.create_task(write_worker())
     await modify_sw()
     yield

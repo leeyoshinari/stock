@@ -4,7 +4,8 @@
 
 import aiohttp
 import asyncio
-from typing import Optional
+from typing import Optional, Any, Union
+from curl_cffi.requests import AsyncSession, Response
 
 
 class HttpResponse:
@@ -17,7 +18,7 @@ class HttpResponse:
 
 
 class HttpClient:
-    def __init__(self, timeout: int = 180, max_connections: int = 200, max_per_host: int = 50, retry: int = 2):
+    def __init__(self, timeout: int = 120, max_connections: int = 50, max_per_host: int = 20, retry: int = 2):
         self.timeout = timeout
         self.max_connections = max_connections
         self.max_per_host = max_per_host
@@ -85,6 +86,46 @@ class HttpClient:
 
     async def post(self, url: str, **kwargs) -> HttpResponse:
         return await self.request("POST", url, **kwargs)
+
+
+async def cffi_request(url: str, method: str = "GET", params: Optional[dict[str, Any]] = None,
+                       data: Optional[Union[dict[str, Any], str]] = None, json_data: Optional[dict[str, Any]] = None,
+                       headers: Optional[dict[str, str]] = None, impersonate: str = "chrome131", timeout: int = 15
+                       ) -> Response:
+    """
+    通用的异步 HTTP 请求方法 (基于 curl_cffi，支持绕过 TLS 指纹反爬)
+
+    :param url: 请求的 URL
+    :param method: HTTP 方法，如 "GET", "POST"
+    :param params: URL 查询参数 (字典)
+    :param data: 表单数据或字符串 (用于 POST/PUT)
+    :param json_data: JSON 格式的请求体 (用于 POST/PUT)
+    :param headers: 请求头字典
+    :param impersonate: 模拟的浏览器指纹，默认 "chrome131"
+    :param timeout: 超时时间(秒)
+    :return: Response对象
+    """
+    method = method.upper()
+    session = AsyncSession()
+
+    try:
+        response: Response = await session.request(
+            method=method,
+            url=url,
+            params=params,
+            data=data,
+            json=json_data,
+            headers=headers,
+            impersonate=impersonate,
+            timeout=timeout
+        )
+        # 检查 HTTP 状态码
+        response.raise_for_status()
+        return response
+    except:
+        raise
+    finally:
+        await session.close()
 
 
 # 全局单例

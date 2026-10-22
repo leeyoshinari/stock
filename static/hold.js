@@ -1,4 +1,5 @@
 const pageSize = 20;
+const defaultUserId = "99";
 let page = 1;
 const showFlag = window.location.href.endsWith("trump");
 const originalFetch = window.fetch;
@@ -51,7 +52,7 @@ document.getElementById("next-page").addEventListener("click", () => {
 })
 
 function getStockList() {
-    let userId = localStorage.getItem('userId');
+    let userId = localStorage.getItem('userId') || defaultUserId;
     let url = prefix + `/hold/list?pageSize=${pageSize}&page=${page}&userId=${userId}`;
     fetch(url)
         .then(res => res.json())
@@ -75,25 +76,24 @@ function getStockList() {
 
 function get_stock_figure(code) {
     show_modal_cover();
-    let userId = localStorage.getItem('userId');
+    let userId = localStorage.getItem('userId') || defaultUserId;
     fetch(`${prefix}/get?code=${code}&userId=${userId}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
+                let figure = document.getElementById("figure");
+                figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
+                figure.style.height = '';
+                figure.removeAttribute("_echarts_instance_");
+                figure.innerHTML = '';
                 let isEtf = false;
                 let region_str = ` - ${data.data.region}`;
                 if (code.startsWith("1") || code.startsWith("5")){
                     region_str = '';
-                }
-                if (code.startsWith('1') || code.startsWith('5')) {
                     isEtf = true;
+                    figure.style.height = '520px';
                 }
                 let title = `${data.data.name} - ${code}${region_str} - ${data.data.industry}`;
-                let figure = document.getElementById("figure");
-                figure.style.width = parseInt(document.body.clientWidth * 0.85) + 'px';
-                figure.style.height = '';
-                figure.removeAttribute("_echarts_instance_")
-                figure.innerHTML = '';
                 let stockChart = echarts.init(figure);
                 plot_k_line(stockChart, isEtf, title, data.data.x, data.data.price, data.data.volume, data.data.ma_five, data.data.ma_ten, data.data.ma_twenty, data.data.qrr, data.data.diff, data.data.dea, data.data.macd, data.data.k, data.data.d, data.data.j, data.data.total_shares, data.data.premium, data.data.turnover_rate, data.data.fund, data.data.boll_up, data.data.boll_low, data.data.coord);
                 document.getElementsByClassName("stock-chart")[0].style.display = "flex";
@@ -179,21 +179,21 @@ function query_ai_hold(itemId) {
         .finally(() => {close_modal_cover();})
 }
 
-function query_profit(itemId, code) {
-    show_modal_cover();
-    fetch(`${prefix}/query/price?code=${code}&site=`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                let current_price = data.data;
-                let buy_price = parseFloat(document.getElementById(`price-${itemId}`).innerText);
-                let ele = document.getElementById(`profit-${itemId}`);
-                ele.style.color = current_price > buy_price ? "red" : current_price < buy_price ? "green" : "";
-                ele.innerText = ((current_price - buy_price) / buy_price * 100).toFixed(2) + '%';
-            }
-        })
-        .finally(() => {close_modal_cover();})
-}
+// function query_profit(itemId, code) {
+//     show_modal_cover();
+//     fetch(`${prefix}/query/price?code=${code}&site=`)
+//         .then(res => res.json())
+//         .then(data => {
+//             if (data.success) {
+//                 let current_price = data.data;
+//                 let buy_price = parseFloat(document.getElementById(`price-${itemId}`).innerText);
+//                 let ele = document.getElementById(`profit-${itemId}`);
+//                 ele.style.color = current_price > buy_price ? "red" : current_price < buy_price ? "green" : "";
+//                 ele.innerText = ((current_price - buy_price) / buy_price * 100).toFixed(2) + '%';
+//             }
+//         })
+//         .finally(() => {close_modal_cover();})
+// }
 
 function delete_data(codeId) {
     fetch(`${prefix}/deleteHold?hId=${codeId}`)
