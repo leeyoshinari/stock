@@ -9,6 +9,7 @@ import logging
 import traceback
 from typing import List
 from warnings import deprecated
+from datetime import datetime, timedelta
 from utils.model import StockModelDo
 from utils.database import Detail
 from utils.http_client import http, cffi_request
@@ -333,5 +334,8 @@ async def initStockData(code: str, name: str):
     await update_stock_turnover_rate(code)    # update turnover rate
     await getStockZhuLiFundFromTencentL5D(code)      # update fund
     if code.startswith("1") or code.startswith("5"):
-        await updateEtfSharesHistory(code, factorList)
-    await Detail.query().equal(code=code).less(day='20250901').delete()
+        await updateEtfSharesHistory(code, factorList)  # update etf history shares with qfq
+    date_format = "%Y%m%d"
+    current_date = datetime.now()
+    past_date = current_date - timedelta(days=383)
+    await Detail.query().equal(code=code).less(day=past_date.strftime(date_format)).delete()

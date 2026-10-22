@@ -772,7 +772,10 @@ async def init_stock_data(code: str) -> Result:
 async def init_stock_fund_data(query: updateFundDo) -> Result:
     result = Result()
     try:
-        stock: Stock = await Stock.get_one(query.code)
+        if query.code.startswith('1') or query.code.startswith('5'):
+            stock: ETF = await ETF.get_one(query.code)
+        else:
+            stock: Stock = await Stock.get_one(query.code)
         await getStockFundFlow(query.code, query.cookie)
         logger.info(f"更新股票主力资金数据成功 - {query.code} - {stock.name}")
     except Exception as e:

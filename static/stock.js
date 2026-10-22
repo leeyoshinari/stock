@@ -183,7 +183,7 @@ function show_stock_filter(code) {
 // }
 
 function hold_stock(code, name) {
-    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="datetime-local" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div class="title"><label>数量：</label><input type="text" id="buy-number" placeholder="" autocomplete="off"></div><div class="title"><label>用户：</label><select id="hold-user"><option value='2'>用户1</option><option value='1'>小白</option></select></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_hold('${code}', '1');">买入</button><button onclick="set_stock_hold('${code}', '0');">卖出</button></div></div>`;
+    let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="datetime-local" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div class="title"><label>数量：</label><input type="text" id="buy-number" placeholder="" autocomplete="off"></div><div class="title"><label>用户：</label><select id="hold-user" style="width:99px;height:22px;"><option value='2'>用户1</option><option value='1'>小白</option></select></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_hold('${code}', '1');">买入</button><button onclick="set_stock_hold('${code}', '0');">卖出</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
     document.getElementsByClassName("stock-data")[0].style.display = "flex";
 }
