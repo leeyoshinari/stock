@@ -12,7 +12,7 @@ import traceback
 import aiohttp
 from datetime import datetime, timedelta
 import trafilatura
-import akshare as ak
+# import akshare as ak
 from bs4 import BeautifulSoup
 from utils.http_client import http
 from utils.results import getStockRegion
@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"}
 
 
-def testAkShare(s):
-    res = ak.tool_trade_date_hist_sina()
-    print(res)
+# def testAkShare(s):
+#     res = ak.tool_trade_date_hist_sina()
+#     print(res)
 
 
 async def getGlobalShortInfoFromSina(lastDay: str) -> str:
