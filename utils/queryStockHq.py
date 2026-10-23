@@ -8,7 +8,7 @@ import logging
 import traceback
 from warnings import deprecated
 from utils.model import StockModelDo, StockMinuteDo
-from utils.http_client import http
+from utils.http_client import http, cffi_request
 from utils.dispatcher import AsyncRoundRobinDispatcher
 from utils.results import getStockRegion, getStockRegionNum
 
@@ -380,18 +380,32 @@ async def getMinuteKFromSina(host: str, code: str) -> list[StockMinuteDo]:
     return result
 
 
-async def getMinuteKFromDongcai(host: str, code: str) -> list[StockMinuteDo]:
+async def getMinuteKFromDongcai(code: str) -> list[StockMinuteDo]:
     '''
     从东方财富获取股票当天的分钟级数据: https://quote.eastmoney.com/sh600726.html#fullScreenChart
     '''
     result = []
     try:
+        h = {
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en,zh-CN;q=0.9,zh;q=0.8",
+            "cache-control": "no-cache",
+            "connection": "keep-alive",
+            "cookie": "qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_sp=2025-11-19%2014%3A19%3A16; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858; st_asi=delete",
+            "host": "push2his.eastmoney.com",
+            "pragma": "no-cache",
+            "referer": "https://quote.eastmoney.com/",
+            "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "script",
+            "sec-fetch-mode": "no-cors",
+            "sec-fetch-site": "same-site",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        }
         url = f"https://push2his.eastmoney.com/api/qt/stock/trends2/get?fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f17&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ut=fa5fd1943c7b386f172d6893dbfba10b&secid={getStockRegionNum(code)}.{code}&ndays=1&iscr=0&iscca=0&cb=jsonp{int(time.time() * 1000)}"
-        if host and host.startswith('http'):
-            param_data = {"url": url, "method": "GET"}
-            res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
-        else:
-            res = await http.get(url, headers=headers)
+        res = await cffi_request(url, method="GET", headers=h)
         if res.status_code == 200:
             res_json = json.loads(res.text.split("(")[1].split(")")[0])
             if len(res_json['data']['trends']) > 0:
@@ -407,11 +421,11 @@ async def getMinuteKFromDongcai(host: str, code: str) -> list[StockMinuteDo]:
                     stockDo.volume = int(d[5])
                     stockDo.price_avg = round(float(d[7]), 3)
                     result.append(stockDo)
-                logger.info(f"DongFangCaiFu-minute({host}) - {code}")
+                logger.info(f"DongFangCaiFu-minute - {code}")
             else:
-                logger.error(f"DongFangCaiFu-minute({host}) - {code} - {res.text}")
+                logger.error(f"DongFangCaiFu-minute - {code} - {res.text}")
         else:
-            logger.error(f"DongFangCaiFu-minute({host}) - 请求未正常返回... {res.text}")
+            logger.error(f"DongFangCaiFu-minute - 请求未正常返回... {res.text}")
     except:
         logger.error(traceback.format_exc())
     return result

@@ -46,7 +46,7 @@ def normalize_topic(name: str) -> str:
 
 async def isOpenStock() -> bool:
     url = 'https://w.sinajs.cn/?&list=market_status_cn'
-    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    header = {'Referer': 'https://finance.sina.com.cn', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     res = await http.get(url, headers=header)
     if res.status_code == 200:
         if "未开盘" in res.text:

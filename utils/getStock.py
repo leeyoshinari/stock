@@ -11,11 +11,9 @@ import random
 import logging
 import asyncio
 import traceback
-# from contextlib import suppress
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from settings import BATCH_SIZE, BATCH_INTERVAL, SENDER_EMAIL, EMAIL_PASSWORD, HTTP_HOST_CLOUD, HTTP_HOST_VERCEL, HTTP_HOST_NETLIFY
-# from settings import OPENAI_URL, OPENAI_KEY, OPENAI_MODEL, AUTH_CODE, FILE_PATH, HISTORY_PATH, RECEIVER_EMAIL
 from utils.model import StockModelDo
 from utils.dispatcher import AsyncRoundRobinDispatcher
 from utils.scheduler import scheduler
@@ -23,10 +21,8 @@ from utils.http_client import http
 from utils.send_email import sendEmail
 from utils.initData import initStockData
 from utils.results import getStockRegion
-# from utils.ai_model import queryGemini, queryOpenAi, auto_buy_prompt
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import analyze_buy_signal_new, bollinger_bands, real_traded_minutes
-# from utils.selectStock import getStockDaDanFromTencent, getStockDaDanFromSina, normalize_topic
 from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent
 from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina, getStockBanKuaiFromDOngCai
 from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent

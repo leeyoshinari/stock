@@ -8,7 +8,6 @@ import logging
 import asyncio
 import traceback
 from urllib.parse import quote
-from datetime import datetime, timedelta
 from utils.http_client import http
 from utils.results import getStockRegion
 from settings import LONGBRIDGE_URL
@@ -35,14 +34,14 @@ async def get_detail(n):
     )
 
 
-async def getNewsDetail(keyword: str) -> str:
+async def getNewsDetail(keyword: str, lastDay: str) -> str:
     """
-    新闻搜索 + 过滤最近 5 天 + 并发获取正文详情
+    新闻搜索 + 并发获取正文详情\n
+    :params lastDay: 筛选日期, 格式: YYYY-MM-DD
     """
     await asyncio.sleep(random.random() * 1.5 + 0.5)
     try:
-        days = 5
-        # 1. 搜索新闻列表
+        # 搜索新闻列表
         cmd = f'longbridge news search "{keyword}" --format json'
         result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
         logger.debug(f"Run cmd: {cmd} result is {result.text}")
@@ -50,9 +49,8 @@ async def getNewsDetail(keyword: str) -> str:
         if not isinstance(news_list, list) or not news_list:
             return "News: 未找到相关新闻"
 
-        # 2. 过滤最近 N 天的新闻
-        cutoff_date = datetime.now() - timedelta(days=days)
-        target_date = cutoff_date.strftime("%Y-%m-%d")
+        # 过滤最近 N 天的新闻
+        target_date = lastDay + " 09:30:00"
         recent_news = []
         for news in news_list:
             time_str = news["time"].split('T')[0]
@@ -61,7 +59,7 @@ async def getNewsDetail(keyword: str) -> str:
             if len(recent_news) >= 2:
                 break
         if not recent_news:
-            return f"最近 {days} 天内无相关新闻"
+            return "最近 N 天内无相关新闻"
 
         details = await asyncio.gather(*[get_detail(n) for n in recent_news])
         logger.info(f"Run cmd: `{cmd}` result is {details}")
@@ -72,14 +70,15 @@ async def getNewsDetail(keyword: str) -> str:
         return f"Get News Exception: {str(e)}"
 
 
-async def getStockNews(code: str) -> str:
+async def getStockNews(code: str, lastDay: str) -> str:
     """
-    获取股票新闻 + 并发获取正文详情. code: 000001.SZ
+    获取股票新闻 + 并发获取正文详情. \n
+    :params code: 000001.SZ
+    :params lastDay: 筛选日期, 格式: YYYY-MM-DD
     """
     await asyncio.sleep(random.random() * 1.5 + 0.5)
     try:
-        days = 5
-        # 1. 搜索新闻列表
+        # 搜索新闻列表
         cmd = f'longbridge news {code}.{getStockRegion(code).upper()} --format json'
         result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
         logger.debug(f"Run cmd: {cmd} result is {result.text}")
@@ -87,9 +86,8 @@ async def getStockNews(code: str) -> str:
         if not isinstance(news_list, list) or not news_list:
             return "News: 未找到相关新闻"
 
-        # 2. 过滤最近 N 天的新闻
-        cutoff_date = datetime.now() - timedelta(days=days)
-        target_date = cutoff_date.strftime("%Y-%m-%d")
+        # 过滤最近 N 天的新闻
+        target_date = lastDay + " 09:30:00"
         recent_news = []
         for news in news_list:
             time_str = news["published_at"].split('T')[0]
@@ -99,7 +97,7 @@ async def getStockNews(code: str) -> str:
             if len(recent_news) >= 5:
                 break
         if not recent_news:
-            return f"最近 {days} 天内无相关新闻"
+            return "最近 N 天内无相关新闻"
 
         details = await asyncio.gather(*[get_detail(n) for n in recent_news])
         logger.info(f"Run cmd: `{cmd}` result is {details}")

@@ -9,12 +9,10 @@ import traceback
 from datetime import datetime, timedelta
 from typing import Any, Callable
 from functools import partial
-from utils.http_client import http
 from utils.ai_model import chat
 from utils.webSearch import searchWithDuckDuckGo
 from settings import read_prompt
-from utils.akshare import getGlobalShortInfoFromSina, getGlobalShortInfoFromThs, getStockResearchReport, getStockFinanceReportFromSina, getShortInfoMorning
-# from utils.tushare import getStockIncome, getStockEarnings, getStockStatistics, getStockDrivers, getStockHistoryValuation, getStockRatings, getMarketOverview, getStockEarningStatus
+from utils.akshare import getGlobalShortInfoFromSina, getGlobalShortInfoFromThs, getStockResearchReport, getStockFinanceReportFromSina, getShortInfoMorning, getNewsFromDongCai
 from utils.longbridge import getNewsDetail, getStockNews, getStockReport, getStockCalcIndex, getStockCapital, getStockValuation, getStockFinancialStatement, getStockFinancialAnalysis
 
 
@@ -41,23 +39,6 @@ async def search_and_extract(query: str, max_results: int = 5) -> str:
         return f"Search Exception: {str(e)}"
 
 
-# async def generate_search_keyword(context: str, dimension: str) -> str:
-#     """当 API 数据缺失时，调用 LLM 动态生成精准的搜索关键词"""
-#     prompt = f"你是一个金融搜索专家。为了分析【{context}】的【{dimension}】维度，请生成1个最精准、最容易搜到最新资讯的中文搜索关键词（不超过12个字）。只返回关键词本身，不要任何解释。"
-#     messages = [{"role": "user", "content": prompt}]
-#     try:
-#         # 使用极简配置快速生成
-#         headers = {"Authorization": f"Bearer {ANALYSIZE_API_KEY}", "Content-Type": "application/json"}
-#         payload = {"model": ANALYSIZE_API_MODEL, "messages": messages, "temperature": 0.1, "max_tokens": 20}
-#         resp = await http.post(f"{ANALYSIZE_API_URL}/chat/completions", json_data=payload, headers=headers)
-#         if resp.status_code == 200:
-#             keyword = json.loads(resp.text)["choices"][0]["message"]["content"].strip()
-#             return keyword.replace('"', '').replace("'", "")
-#     except:
-#         pass
-#     return f"{context} {dimension} 最新消息"
-
-
 class AsyncETFAnalyzer:
     def __init__(self, input_data: dict):
         self.today: str = input_data.get("toDay", datetime.now().strftime("%Y-%m-%d"))
@@ -68,8 +49,8 @@ class AsyncETFAnalyzer:
         self.code: str = input_data.get("code", "")     # 股票code
         self.current_price = input_data.get("current_price", None)  # 当前价格
         self.news_reason: str = input_data.get("newsRes", None)   # 从每日新闻中选出的ETF的原因
-        self.industry: str = input_data.get("industry", "未知行业")     # 行业
-        self.concept: str = input_data.get("concept", "无")     # 股票概念
+        self.industry: str = input_data.get("industry", self.name)     # 行业
+        self.concept: str = input_data.get("concept", self.code)     # 股票概念
         # raw_stocks = input_data.get("stocks", [])
         # self.stocks: list[str] = [s.get("code", s) if isinstance(s, dict) else s for s in raw_stocks]   # ETF前10重仓股
         self.kLine: str = input_data.get("k_line", "")      # K线等技术数据
@@ -138,9 +119,10 @@ class AsyncETFAnalyzer:
                     "name": "金融财经新闻",
                     "aggregate": False,
                     "api_chain": [
-                        partial(getNewsDetail, f"{self.industry} 产业政策 监管"),
+                        partial(getNewsDetail, f"{self.industry} 产业政策 监管", self.today),
                         # partial(getNewsDetail, f"{self.industry} 行业景气度 营收", logger),
-                        partial(getNewsDetail, f"{self.industry} 行业")
+                        partial(getNewsDetail, f"{self.industry} 行业", self.today),
+                        partial(getNewsFromDongCai, self.concept, self.today)
                     ],
                     "prompt": "你是一位资深的宏观策略与产业政策分析师，擅长从政策文本、行业新闻和宏观数据中剥离噪音，精准判断行业中观景气度与政策底/市场底。\n你的任务：基于用户提供的行业政策与新闻数据，评估该行业近期的政策导向、供需格局及整体景气度，最终判定该行业对 ETF 的宏观基本面是构成实质性利好、利空还是中性，并重点提示潜在的监管或产业风险。",
                     "rule": """【分析框架与约束条件】（请在思考时严格遵循，并在输出中体现）：
@@ -172,10 +154,10 @@ class AsyncETFAnalyzer:
                     "name": "宏观政策与监管环境",
                     "aggregate": False,
                     "api_chain": [
-                        partial(getNewsDetail, f"{self.industry}产业政策监管"),
-                        partial(getStockNews, self.code),
+                        partial(getNewsDetail, f"{self.industry}产业政策监管", self.today),
+                        partial(getStockNews, self.code, self.today),
                         # partial(searchWithDuckDuckGo, f"{self.industry} 产业链 上游 原材料 价格", logger),
-                        # partial(searchWithDuckDuckGo, f"{self.industry} 美股 对标 海外", logger)
+                        partial(getNewsFromDongCai, f"{self.industry} 美股 海外", self.today)
                     ],
                     "prompt": "你是一位资深股票基本面与宏观行业分析师，擅长从宏观政策、产业链结构及全球宏观视角，对行业及特定标的进行深度、客观、数据驱动的基本面分析。请基于用户输入的数据，对指定标的及其所属行业进行严谨的基本面分析。",
                     "rule": """【分析框架】（请在 analysis 中综合涵盖以下相关维度，若数据缺失请明确说明“原始数据未提供相关信息”，严禁臆测）：
@@ -367,7 +349,7 @@ class AsyncETFAnalyzer:
         configs = self._get_dimension_configs()
 
         logger.info(f"📡 正在并发执行 {len(configs)} 个维度的 [API降级获取 + 定制化分析] ...")
-        dimension_results = await asyncio.gather(*[self._analyze_single_dimension(cfg) for cfg in configs])
+        dimension_results = await asyncio.gather(*[self._analyze_single_dimension(cfg) for cfg in configs if len(cfg['api_chain']) > 0])
 
         logger.info("✅ 维度分析完成，正在进行最终汇总决策 (Reduce)...")
         final_result = await self._final_decision(dimension_results)
@@ -376,7 +358,7 @@ class AsyncETFAnalyzer:
             logger.error(f"❌ 最终决策失败: {final_result['error']}")
             return {"error": "Final Decision Failed", "raw": final_result}
 
-        logger.info(f"✅ 分析完成，JSON 解析成功。{final_result}")
+        logger.info(f"✅ 分析完成, JSON 解析成功。{final_result}")
         return final_result
 
 

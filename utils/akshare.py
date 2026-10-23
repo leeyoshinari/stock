@@ -5,19 +5,26 @@
 import re
 import json
 import time
+import random
 import logging
 import asyncio
 import traceback
 import aiohttp
 from datetime import datetime, timedelta
 import trafilatura
-# import akshare as ak
+import akshare as ak
+from bs4 import BeautifulSoup
 from utils.http_client import http
 from utils.results import getStockRegion
 
 
 logger = logging.getLogger(__name__)
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"}
+
+
+def testAkShare(s):
+    res = ak.tool_trade_date_hist_sina()
+    print(res)
 
 
 async def getGlobalShortInfoFromSina(lastDay: str) -> str:
@@ -83,7 +90,7 @@ async def getShortInfoMorning() -> str:
         res = await http.get(data['url'], headers=headers)
         if res.status_code == 200:
             extracted = trafilatura.extract(res.text, include_comments=False, include_tables=False)
-            content = f"【标题】：{data['title']}\n【摘要】：{data['summary']}\n【正文】：{extracted}"
+            content = f"【摘要】：{data['summary']}\n【正文】：{extracted}"
             logger.info(content)
             return content
         else:
@@ -120,6 +127,70 @@ async def getGlobalShortInfoFromThs(lastDay: str) -> str:
         return content
     except:
         logger.error(traceback.format_exc())
+        return ''
+
+
+async def getNewsFromDongCai(keyword: str, lastDay: str) -> str:
+    """
+    东方财富-个股新闻-最近 100 条新闻 https://so.eastmoney.com/news/s?keyword=603777
+
+    :params keyword: 股票代码
+    :params lastDay: 筛选日期, 格式: YYYY-MM-DD
+    :return: 新闻
+    :rtype: str
+    """
+    url = "https://search-api-web.eastmoney.com/search/jsonp"
+    inner_param = {
+        "uid": "",
+        "keyword": keyword,
+        "type": ["cmsArticleWebOld"],
+        "client": "web",
+        "clientType": "web",
+        "clientVersion": "curr",
+        "param": {
+            "cmsArticleWebOld": {
+                "searchScope": "default",
+                "sort": "default",
+                "pageIndex": 1,
+                "pageSize": 10,
+                "preTag": "<em>",
+                "postTag": "</em>",
+            }
+        },
+    }
+    params = {
+        "cb": "jQuery35101792940631092459_1764599530165",
+        "param": json.dumps(inner_param, ensure_ascii=False),  # 保留中文，
+        "_": "1764599530176",
+    }
+    headers = {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "en,zh-CN;q=0.9,zh;q=0.8",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "cookie": "qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_sp=2025-11-19%2014%3A19%3A16; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858; st_asi=delete",
+        "host": "search-api-web.eastmoney.com",
+        "pragma": "no-cache",
+        "referer": "https://so.eastmoney.com/news/s?keyword=603777",
+        "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "script",
+        "sec-fetch-mode": "no-cors",
+        "sec-fetch-site": "same-site",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    }
+    res = await http.get(url, params=params, headers=headers)
+    if res.status_code == 200:
+        res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+        datas = json.loads('{' + res_text + '}')
+        news_list = datas['result']['cmsArticleWebOld']
+        target_day = lastDay + " 09:30:00"
+        recent_news = [r for r in news_list if r['date'] > target_day]
+        details = await asyncio.gather(*[get_detail(n) for n in recent_news])
+        return "\n---\n".join(details)
+    else:
         return ''
 
 
@@ -349,3 +420,44 @@ async def getStockDivideDate(day: str) -> list[dict]:
                             processed_data = {"name": item["name"], "code": item["code"], "diviDate": item["diviDate"]}
                             big_list.append(processed_data)
         return big_list
+
+
+async def get_detail(n):
+    await asyncio.sleep(random.random())
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}
+    html_resp = await http.get(n["url"], headers=headers)
+    content = n.get('excerpt')
+    if html_resp.status_code == 200:
+        content = await extract_paragraphs_async(html_resp.text, 'ContentBody')
+    return (
+        f"【标题】: {n.get('title', '').replace('<em>', '').replace('</em>', '')}\n"
+        f"【时间】: {n.get('date')}\n"
+        f"【正文】: {content}\n"
+    )
+
+
+async def extract_paragraphs_async(html_content: str, target_id: str = None) -> str:
+    """
+    同步的 HTML 解析函数。
+    此函数会被放入线程池执行，不会阻塞 asyncio 事件循环。
+    """
+    if not html_content:
+        return ""
+
+    def _parse_html_sync(html_content: str, target_id: str) -> str:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        # 如果指定了目标区域，则优先在该区域内查找，提高准确率并减少解析量
+        search_area = soup.find(id=target_id) if target_id else soup
+        if not search_area:
+            search_area = soup  # 降级为全局搜索
+
+        extracted_texts = []
+        for p in search_area.find_all('p'):
+            # separator='' 防止块级元素被意外加空格，strip=True 去除首尾空白
+            text = p.get_text(separator='', strip=True)
+            if text:
+                extracted_texts.append(text)
+        return '\n'.join(extracted_texts)
+
+    result = await asyncio.to_thread(_parse_html_sync, html_content, target_id)
+    return result

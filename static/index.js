@@ -116,8 +116,7 @@ function get_stock_figure(code) {
 
 function get_stock_real_figure(code) {
     show_modal_cover();
-    let site = localStorage.getItem('site');
-    fetch(`${prefix}/query/day/k?code=${code}&site=${site}`)
+    fetch(`${prefix}/query/day/k?code=${code}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {

@@ -14,7 +14,6 @@ from utils.model import StockModelDo
 from utils.database import Detail
 from utils.http_client import http, cffi_request
 from utils.results import getStockRegion, getStockRegionNum
-from settings import TUSHARE_API_KEY
 
 
 logger = logging.getLogger(__name__)
@@ -236,11 +235,12 @@ async def update_stock_turnover_rate(code):
         logger.error(traceback.format_exc())
 
 
-@deprecated("需要提供东方财富的cookie")
-async def getStockFundFlow(code, cookie):
+@deprecated("可能需要提供东方财富的cookie")
+async def getStockFundFlow(code, cookie=None):
     '''从东方财富获取资金流向
     https://data.eastmoney.com/zjlx/002149.html
     '''
+    cookie = cookie if cookie else "qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_sp=2025-11-19%2014%3A19%3A16; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858; st_asi=delete"
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
               'host': 'push2his.eastmoney.com', 'origin': 'https://data.eastmoney.com', 'referer': 'https://data.eastmoney.com/zjlx/002149.html', 'cookie': cookie,
               "Accept": "*/*", "Accept-Language": "zh-CN,zh;q=0.9", "sec-fetch-dest": "empty", "sec-fetch-mode": "cors", "sec-fetch-site": "same-site"}
@@ -309,20 +309,6 @@ async def updateEtfSharesHistory(code: str, factor_list: list[dict]):
             else:
                 curr_f = pending_f
             logger.info(f"update shares success, {code} - {r.day} - {r.shares} - {curr_f}")
-    except:
-        logger.error(traceback.format_exc())
-
-
-async def getStockFromTushare(code: str):
-    try:
-        header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-                  "Accept": "application/json", "apiKey": TUSHARE_API_KEY}
-        url = f"https://data.infoway.io/common/basic/symbols/adjustment_factors?market=CN&beginDay=20251024&endDay=20260930&symbol={code}.{getStockRegion(code).upper()}"
-        res = await http.get(url, headers=header)
-        if res.status_code == 200:
-            logger.info(res.text)
-        else:
-            logger.error(f"status code is {res.status_code} - {res.text}")
     except:
         logger.error(traceback.format_exc())
 

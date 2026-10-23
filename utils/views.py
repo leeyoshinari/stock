@@ -9,11 +9,10 @@ import logging
 import asyncio
 import traceback
 from datetime import datetime, timedelta
-from sqlalchemy.exc import NoResultFound
-from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo, TradeStockList
-from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam, SetStockHold
-from utils.model import EtfInfoList
-from utils.selectStock import getStockZhuLiFundFromTencent
+from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo
+from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
+from utils.model import EtfInfoList, TradeStockList, SetStockHold
+from utils.selectStock import getStockZhuLiFundFromTencent, isOpenStock
 from utils.results import Result
 from utils.etfData import pre_filter_etf
 from utils.scheduler import scheduler, get_schedule_time
@@ -132,6 +131,9 @@ async def get_holding(user_id: int = None, code: str = None, status: str = None)
 
     if status:
         return await get_holding_call(user_id, code, status)
+    elif user_id:
+        s = "A" if user_id == 99 else "M"
+        return await get_holding_call(user_id, code, s)
     else:
         return await get_holding_call(user_id, code, "M") + await get_holding_call(user_id, code, "A")    # 手动操作和自动操作
 
@@ -207,7 +209,6 @@ async def queryByCode(code: str, userId: int = None) -> Result:
         trans: list[Transaction] = await Transaction.query().equal(code=code, user_id=userId).order_by(Transaction.id.asc()).all()
         coords = []
         for r in trans:
-            logger.info(f"{r.status} - {TradeType.MAN}")
             if r.status in [TradeType.BUY, TradeType.SELL, TradeType.RECD, TradeType.AIS]:
                 coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
         profit_res = await get_holding(user_id=userId, code=code, status="M")
@@ -507,17 +508,16 @@ async def calc_stock_return(fee) -> Result:
 #     return result
 
 
-async def calc_stock_real(code: str, site: str = None) -> Result:
+async def calc_stock_real(code: str) -> Result:
     result = Result()
     try:
         x = []
         price = []
         price_avg = []
         volume = []
-        if site == 'sina':
-            res: list[StockMinuteDo] = await getMinuteKFromSina('', code)
-        else:
-            res: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code)
+        res: list[StockMinuteDo] = await getMinuteKFromSina('', code)
+        if not res:
+            res: list[StockMinuteDo] = await getMinuteKFromDongcai(code)
         for r in res:
             x.append(r.time)
             price.append(r.price)
@@ -566,7 +566,7 @@ async def all_stock_info(query: SearchStockParam) -> Result:
             stockList = [StockInfoList.from_orm_format(stockInfo).model_dump()]
         elif query.name or query.region or query.industry or query.concept or query.filter:
             if query.filter == 'buy':
-                hold_id_list = await get_holding(user_id=query.userId, status="M")
+                hold_id_list = await get_holding(user_id=query.userId)
                 hold_stock_list = [r['code'] for r in hold_id_list]
                 stockInfo: list[Stock] = await Stock.query().isin(code=hold_stock_list).all()
                 etfInfo: list[ETF] = await ETF.query().isin(code=hold_stock_list).all()
@@ -967,12 +967,10 @@ async def setEtf(code: str, running: int) -> Result:
 async def getEtf() -> Result:
     result = Result()
     try:
-        exclude = ['513500', '159941']    # 排除 标普500ETF、纳指100ETF
+        exclude = ['513500', '159941', '159501', '159659']    # 排除 标普500ETF、纳指100ETF
         index = []
-        etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
+        etfInfo: list[ETF] = await ETF.query().equal(running=1).notin(code=exclude).all()
         for r in etfInfo:
-            if r.code in exclude:
-                continue
             index.append({"名称": r.name, "代码": r.code, "跟踪指数": r.industry})
         result.data = index
         logger.info("Query ETF data Success ~")
@@ -1169,16 +1167,16 @@ async def analysize(code: str, userId: int, totalFund: float = 100000, available
         else:
             stock: Stock = await Stock.get_one(code)
         res: Result = await queryByCodeForAI(code, 30)
+        hold = await get_holding(user_id=userId, code=stock.code)
         if not res.success:
             logger.error(f"Get K-line Error: code:{code}, {res.msg}")
             return res
-        if isAuto:
+        if isAuto and len(hold) < 1:    # 如果是自动处理，且未持仓，则需要预过滤，已持仓则直接走AI决策
             res_flag, reason = pre_filter_etf(res.data)
             if not res_flag:
                 result.success = res_flag
                 result.msg = reason
                 return result
-        hold = await get_holding(user_id=userId, code=stock.code)
         user_hold = [{"name": d['name'], "code": d['code'], "price": round(d['price'], 2), "shares": d["shares"]} for d in hold]
         user_input = {
             "type": "etf" if isEtf else "stock",
@@ -1190,7 +1188,7 @@ async def analysize(code: str, userId: int, totalFund: float = 100000, available
             "newsRes": newsRes,
             "userId": userId,
             "industry": stock.name.split("ETF")[0] if isEtf else stock.industry,
-            "concept": "" if isEtf else stock.concept,
+            "concept": stock.industry if isEtf else stock.concept,
             "stocks": stock.stocks if isEtf else "",
             "k_line": json.dumps(res.data, ensure_ascii=False),
             "hold": user_hold[0] if len(user_hold) > 0 else {}
@@ -1198,6 +1196,7 @@ async def analysize(code: str, userId: int, totalFund: float = 100000, available
         analyzer = AsyncETFAnalyzer(input_data=user_input)
         result.data = await analyzer.analyze()
         logger.info(f"{stock.code} - {stock.name} analyze result is : {result.data['rating']} - {result.data['core_logic']}")
+        await asyncio.sleep(30)
     except Exception as e:
         logger.error(traceback.format_exc())
         result.msg = str(e)
@@ -1231,6 +1230,13 @@ async def write_analysize_result(data: dict):
 
 async def auto_analysize_etf():
     """每天自动分析 ETF"""
+    today = datetime.today()
+    if today.weekday() >= 5:
+        logger.info("周末未开市，跳过...")
+        return
+    if not await isOpenStock():
+        logger.info("非交易日，未开市，跳过...")
+        return
     capital_res = await calc_capital()
     available = capital_res['available']
     logger.info("🚀 开始获取新闻，分析筛选ETF")
@@ -1266,10 +1272,9 @@ async def auto_analysize_etf():
                     available += float(res.data['action_plan']['operation_amount'])  # 卖出需要加上可用金额
                 logger.info(f"✅ 分析 ETF 成功 - {res.data}")
             except:
-                logger.error(f"❌ Error: 分析结果入库失败 - {traceback.format_exc()}")
+                logger.error(f"❌ Error: 分析结果入库失败 - {r} - {traceback.format_exc()}")
         else:
-            logger.error(f"❌ Error: 分析 ETF 失败 - {res.msg}")
-        await asyncio.sleep(30)
+            logger.error(f"❌ Error: 分析 ETF 失败 - {r} - {res.msg}")
     if time.strftime("%H:%M:%S") > "09:31:00":  # 如果已经开盘，则立即执行
         scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10))
     else:   # 如果还未开盘，则设置定时执行
@@ -1343,16 +1348,37 @@ async def auto_trade_etf():
         logger.error(traceback.format_exc())
 
 
+async def update_holding_capital():
+    """更新持仓数据和资金"""
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        current_day = tool.value
+        if current_day == time.strftime("%Y%m%d"):
+            _ = await get_holding()
+            if time.strftime("%H:%M:%S") > "15:50:00":
+                res: dict = await calc_capital()
+                await Capital.query().equal(day=time.strftime("%Y-%m-%d")).delete()
+                await Capital.create(day=res['day'], total=res['total'], available=res['available'], hold=res['hold'])
+                logger.info(f"update capital success - {res}")
+    except:
+        logger.error(traceback.format_exc())
+
+
 async def calc_capital() -> dict:
     """获取 总金额 和 持仓金额"""
     result = {}
     try:
         # 正持仓的数据
+        is_stop = time.strftime("%H:%M:%S") < "15:50:00" and time.strftime("%H:%M:%S") > "09:30:00"
+        tool: Tools = await Tools.get_one("openDoor")
         hold_fund = 0   # 当天持仓总金额
         rows1: list[dict] = await get_holding(user_id=DEFAULT_USER_ID, status="A")
         for r in rows1:
-            res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
-            stockDo: StockModelDo = res_stock['data'][0]
+            if is_stop:
+                res_stock: dict = await getStockHq('', [{r['code']: r['name'], f"{r['code']}count": 5}])
+                stockDo: StockModelDo = res_stock['data'][0]
+            else:
+                stockDo: Detail = await Detail.get_one((r['code'], tool.value))
             hold_fund += stockDo.current_price * r['shares']
 
         current_day = time.strftime("%Y-%m-%d")
@@ -1364,6 +1390,7 @@ async def calc_capital() -> dict:
         for r in rows2:
             available += r.fee
         result = {'day': current_day, 'total': round(hold_fund + available, 2), 'hold': round(hold_fund, 2), 'available': round(available, 2)}
+        logger.info(f"current capital is {result}")
     except:
         logger.error(traceback.format_exc())
     return result

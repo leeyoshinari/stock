@@ -60,7 +60,6 @@ HTTP_HOST_VERCEL = get_config("HTTPHostVercel")
 HTTP_HOST_NETLIFY = get_config("HTTPHostNetlify")
 ACCESS_KEY = get_config("accessKey")
 BACKUP_PATH = get_config("backupPath")
-TUSHARE_API_KEY = get_config("tushareApiKey")
 LONGBRIDGE_URL = get_config("longbridgeUrl")
 
 

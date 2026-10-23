@@ -634,7 +634,7 @@ class BaseQueryBuilder:
 
 class CRUDBase:
     @classmethod
-    @deprecated("不推荐使用, 无法保证并发安全和事务一致性")
+    @deprecated("不推荐使用, 无法保证并发安全")
     async def create2return(cls, **kwargs):
         async with DBExecutor.session_scope() as session:
             instance = cls(**kwargs)
@@ -700,7 +700,7 @@ class CRUDBase:
         return BaseQueryBuilder(cls)
 
     @classmethod
-    @deprecated("不推荐使用, 无法保证并发安全和事务一致性")
+    @deprecated("不推荐使用, 无法保证并发安全")
     async def update2return(cls, pk, **kwargs):
         """
         await User.update(user_id, name="New Name", is_backup=1)

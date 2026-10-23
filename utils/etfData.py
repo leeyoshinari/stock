@@ -245,11 +245,14 @@ def pre_filter_etf(records: list[dict]) -> tuple[bool, str]:
     high_thres = 1
     low_thres = -1
     if latest['premium'] > high_thres or latest['premium'] < low_thres:
-        return False, "极端溢价/折价"
+        return False, f"极端溢价/折价 - {latest['premium']}"
 
     # 明确的资金出逃（份额大幅减少，直接看空，无需分析）
     if latest['shares_delta'] < -1:  # 单日份额减少 > 1%
-        return False, "份额大幅流出(单日<-1%)"
+        return False, f"份额大幅流出(单日<-1%) - {latest['shares_delta']}"
+
+    if latest['shares_delta'] >= 50:
+        return False, f"份额异常增加，可能拆分 - {latest['shares_delta']}"
 
     # 份额显著流入（左侧建仓或右侧主升，必须分析）
     sum_delta_3 = sum(r['shares_delta'] for r in recent_3)
