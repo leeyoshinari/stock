@@ -835,40 +835,6 @@ class Detail(Base, CRUDBase):
     }
 
 
-class Recommend(Base, CRUDBase):
-    __tablename__ = 'recommend'
-    __table_args__ = (
-        Index('idx_recommend_code', 'code'),
-        {'sqlite_autoincrement': True}
-    )
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    code = Column(String(8), nullable=False, comment="股票代码")
-    name = Column(String(8), nullable=False, comment="股票名称")
-    price = Column(Float, nullable=False, comment="推荐时的价格")
-    last_one_price = Column(Float, nullable=True, comment="1天后的收盘价")
-    last_one_high = Column(Float, nullable=True, comment="1天后的最高")
-    last_one_low = Column(Float, nullable=True, comment="1天后的最低")
-    last_two_price = Column(Float, nullable=True, comment="2天后的收盘价")
-    last_two_high = Column(Float, nullable=True, comment="2天后的最高")
-    last_two_low = Column(Float, nullable=True, comment="2天后的最低")
-    last_three_price = Column(Float, nullable=True, comment="3天后的收盘价")
-    last_three_high = Column(Float, nullable=True, comment="3天后的最高")
-    last_three_low = Column(Float, nullable=True, comment="3天后的最低")
-    last_four_price = Column(Float, nullable=True, comment="4天后的收盘价")
-    last_four_high = Column(Float, nullable=True, comment="4天后的最高")
-    last_four_low = Column(Float, nullable=True, comment="4天后的最低")
-    last_five_price = Column(Float, nullable=True, comment="5天后的收盘价")
-    last_five_high = Column(Float, nullable=True, comment="5天后的最高")
-    last_five_low = Column(Float, nullable=True, comment="5天后的最低")
-    sale_price = Column(Float, nullable=True, comment="卖出价")
-    sale_time = Column(DateTime, nullable=True, comment="卖出时间")
-    content = Column(Text, nullable=True, comment="推荐 reason")
-    source = Column(Integer, default=0, nullable=False, comment="0-自动选, 1-手动买入, 2-缩量下跌")
-    create_time = Column(DateTime, default=datetime.now)
-    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-
 class Tools(Base, CRUDBase):
     __tablename__ = 'tools'
 
@@ -921,3 +887,4 @@ class Capital(Base, CRUDBase):
     total = Column(Float, nullable=False, comment="总金额")
     available = Column(Float, nullable=False, comment="可用金额")
     hold = Column(Float, nullable=False, comment="持仓金额")
+    campare = Column(Float, nullable=False, comment="对比沪深300指数价格")

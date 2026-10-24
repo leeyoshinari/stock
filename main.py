@@ -41,7 +41,7 @@ class StockController(Controller):
     path = ""
     tags = ['stock']
 
-    @get("/list", summary="查询股票列表")
+    @get("/list", summary="查询股票每天行情数据列表")
     async def query_stock_list(self, request: Request, code: str = "", name: str = "", day: str = "", sortField: str = '-qrr', page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
@@ -55,44 +55,11 @@ class StockController(Controller):
             result = await views.queryStockList(query)
         return result
 
-    @get('/get', summary="查询股票信息")
+    @get('/get', summary="查询股票k-line等技术指标数据")
     async def create_file(self, request: Request, code: str, userId: str = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.queryByCode(code, userId)
-        return result
-
-    @get('/getRecommend', summary="获取推荐的股票")
-    async def get_recommend(self, request: Request, source: int = 0, page: int = 1) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.queryRecommendStockList(source, page)
-        return result
-
-    @get('/deleteRecommend', summary="删除推荐的股票")
-    async def delte_recommend(self, request: Request, rId: int) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.deleteRecommendStock(rId)
-        return result
-
-    # @get('/buy/stock', summary="询问AI股票走势 - 通用")
-    # async def stock_ai_data(self, request: Request, code: str, site: str | None = None, source: str | None = None, day: str | None = None) -> Result:
-    #     result = Result()
-    #     if checkout(request.headers.get('referered', '123')):
-    #         result = await views.buy_stock(code, site, source, day)
-    #     return result
-
-    # @get('/sell/stock', summary="AI股票卖出判断")
-    # async def sell_stock(self, request: Request, code: str, price: str | None = None, t: str | None = None, site: str | None = None) -> Result:
-    #     result = Result()
-    #     if checkout(request.headers.get('referered', '123')):
-    #         result = await views.sell_stock(code, price, t, site)
-    #     return result
-
-    @get('/query/stock/return', summary="查询选出来的股票的收益")
-    async def stock_return(self, request: Request, fee: int = 0) -> Result:
-        result = await views.calc_stock_return(fee)
         return result
 
     @get('/query/day/k', summary="查询股票当日K线")
@@ -102,14 +69,7 @@ class StockController(Controller):
             result = await views.calc_stock_real(code)
         return result
 
-    # @get('/query/price', summary="查询股票当前价格")
-    # async def stock_current_price(self, request: Request, code: str, site: str = None) -> Result:
-    #     result = Result()
-    #     if checkout(request.headers.get('referered', '123')):
-    #         result = await views.get_current_price(code, site)
-    #     return result
-
-    @get('/stock/list', summary="查询股票信息")
+    @get('/stock/list', summary="查询股票列表")
     async def all_stock_list(self, request: Request, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", userId: int = None, page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
@@ -126,7 +86,7 @@ class StockController(Controller):
             result = await views.all_stock_info(query)
         return result
 
-    @get('/etf/list', summary="查询ETF信息")
+    @get('/etf/list', summary="查询ETF列表")
     async def all_etf_list(self, request: Request, code: str = "", name: str = "", sortField: str = "", filter: str = "1", page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
@@ -138,13 +98,6 @@ class StockController(Controller):
             query.page = page
             query.pageSize = pageSize
             result = await views.all_etf_info(query)
-        return result
-
-    @get('/stock/info', summary="查询股票板块、概念等信息")
-    async def get_stock_info(self, request: Request, code: str) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.get_stock_info(code)
         return result
 
     @get('/stock/init', summary="初始化股票数据")
@@ -161,40 +114,11 @@ class StockController(Controller):
             result = await views.init_stock_fund_data(data)
         return result
 
-    # @get('/topic/list', summary="查询热门题材列表")
-    # async def all_topic_list(self, request: Request, page: int = 1, pageSize: int = 20) -> Result:
-    #     result = Result()
-    #     if checkout(request.headers.get('referered', '123')):
-    #         query = model.SearchStockParam()
-    #         query.page = page
-    #         query.pageSize = pageSize
-    #         result = await views.all_topic_info(query)
-    #     return result
-
-    # @get('/topic/get', summary="查询实时热门题材")
-    # async def get_current_topic(self, request: Request) -> Result:
-    #     result = Result()
-    #     if checkout(request.headers.get('referered', '123')):
-    #         result = await views.get_current_topic()
-    #     return result
-
-    # @get('/topic/file', summary="查询完整题材分析")
-    # async def get_topic_file(self, request: Request, code: str) -> Result:
-    #     result = Result()
-    #     if checkout(request.headers.get('referered', '123')):
-    #         result = await views.get_topic_file(code)
-    #     return result
-
-    @post('/set/stock', summary="设置股票数据")
+    @post('/set/stock', summary="设置股票数据(添加/删除标签)")
     async def set_stock(self, request: Request, data: model.SetStockParam) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.set_stock(data)
-        return result
-
-    @get('/data/day')
-    async def get_data_by_day(self, request: Request, code: str, day: str) -> Result:
-        result = await views.get_data_by_day(code, day)
         return result
 
     @get('/hold/list', summary="查询仓位列表")
@@ -209,37 +133,18 @@ class StockController(Controller):
         result = await views.get_user_hold(userId)
         return result
 
-    @post('/hold/set', summary="设置仓位数据")
+    @post('/hold/set', summary="设置仓位数据(买入和卖出)")
     async def set_hold(self, request: Request, data: model.SetStockHold) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.set_user_hold(data)
         return result
 
-    # @post('/hold/ai/set', summary="设置AI分析结果")
-    # async def set_ai_hold(self, request: Request, data: model.SetStockAiText) -> Result:
-    #     result = Result()
-    #     if checkout(request.headers.get('referered', '123')):
-    #         result = await views.set_hold_ai_text(data)
-    #     return result
-
-    # @get('/hold/ai/get', summary="查询AI分析结果")
-    # async def get_ai_hold(self, request: Request, hId: int) -> Result:
-    #     result = Result()
-    #     if checkout(request.headers.get('referered', '123')):
-    #         result = await views.getHoldAiText(hId)
-    #     return result
-
-    @get('/deleteHold', summary="删除持仓的股票")
+    @get('/deleteHold', summary="删除持仓的股票(交易记录或者已清仓数据)")
     async def delte_hold(self, request: Request, hId: int) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.deleteHoldStock(hId)
-        return result
-
-    @get('/etf/get', summary="查询ETF数据")
-    async def get_etf_data(self) -> Result:
-        result = await views.getEtf()
         return result
 
     @get('/etf/delete', summary="删除ETF")
@@ -249,16 +154,11 @@ class StockController(Controller):
             result = await views.deleteEtf(code)
         return result
 
-    @get('/etf/set', summary="设置ETF")
+    @get('/etf/set', summary="设置ETF(启用或者禁用)")
     async def set_etf(self, request: Request, code: str, running: int) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.setEtf(code, running)
-        return result
-
-    @get('/search', summary="调用duckduckgo搜索")
-    async def search(self, request: Request, q: str, df: str = None) -> Result:
-        result = await views.webSearch(q, df)
         return result
 
     @get('/analyzer', summary="全面分析标的")
@@ -268,14 +168,12 @@ class StockController(Controller):
             result = await views.analysize(code=code, userId=int(userId))
         return result
 
-    # @get('/runCmd', summary="执行 shell 命令")
-    # async def runCmd(self, request: Request, cmd: str) -> str:
-    #     if checkout(request.headers.get('referered', '123')):
-    #         try:
-    #             res = await views.run_command(cmd)
-    #             return res
-    #         except Exception as e:
-    #             return str(e)
+    @get('/trade/data', summary="查询自动化交易数据")
+    async def getTradeData(self, request: Request) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.getTradeData()
+        return result
 
     @post('/test')
     async def test(self, request: Request, data: model.ToolsInfoList) -> Result:

@@ -8,33 +8,60 @@
     <script>
         const prefix = "{{ prefix }}";
     </script>
+    <style>
+        a {cursor: pointer;}
+        .title-header {
+            font-size: large;
+            font-weight: bold;
+        }
+        #today-list, #hold-list {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            flex-wrap: nowrap;
+            justify-content: space-around;
+            align-items: center;
+        }
+        #today-list>div, #hold-list>div {
+            text-align: center;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+            height: 36px;
+            align-items: center;
+        }
+        #hold-list>div {grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;}
+        #today-list>div > :first-child, #hold-list>div > :first-child {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #today-list>div:hover, #hold-list>div:hover {
+            background-color: #ffeaa7 !important;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
 <body>
-    <!--type=5查看5日的收盘价、最高价、最低价涨跌幅-->
-    <div class="container">
-        <div class="header">
-            <div>
-                <button id="stock-return">收益统计</button>
-                <button id="stock-return-line">收益趋势</button>
-            </div>
-            <div>
-                <button id="pre-page">上一页</button>
-                <button id="next-page">下一页</button>
-            </div>
-            <div>
-                <button id="stock-compare">对比列表</button>
-                <button id="stock-in-hand">持仓列表</button>
-            </div>
+    <div class="container" style="width:50%;margin:auto;">
+        <div class="capital-trend">
+            <div class="title-header">收益曲线</div>
+            <div class="capital-chart"><div id="capital-figure"></div></div>
         </div>
-        <div class="stock-list">
-            <div class="item-header"></div>
-            <div class="list"></div>
+        <div class="today-list" style="margin-top:36px;">
+            <div class="title-header">今日交易</div>
+            <div id="today-list"></div>
+        </div>
+        <div class="hold-list" style="margin-top:36px;">
+            <div class="title-header">持仓列表</div>
+            <div id="hold-list"></div>
         </div>
         <div class="stock-chart"><div id="figure"></div></div>
         <div class="stock-data"><div id="data-tips"></div></div>
         <div class="modal_cover"><div class="modal_gif"></div></div>
     </div>
 </body>
+<script src="{{ prefix }}/static/common.js"></script>
 <script src="{{ prefix }}/static/recommend.js"></script>
 <script src="{{ prefix }}/static/echarts.min.js"></script>
 <script src="{{ prefix }}/static/plot.js"></script>

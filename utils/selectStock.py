@@ -49,7 +49,7 @@ async def isOpenStock() -> bool:
     header = {'Referer': 'https://finance.sina.com.cn', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     res = await http.get(url, headers=header)
     if res.status_code == 200:
-        if "未开盘" in res.text:
+        if "未开盘" in res.text or '休市' in res.text:
             return False
         else:
             return True

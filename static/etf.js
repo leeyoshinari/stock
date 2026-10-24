@@ -73,7 +73,7 @@ function getStockList() {
                     setFlag = `<div><a onclick="set_etf('${item.code}', ${item.running === 1 ? 0 : 1});" style="margin-right:3%;">${item.running === 1 ? 'No' : 'Yes'}</a><a onclick="delete_etf('${item.code}');">删除</a></div>`;
                 }
                 s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a><img id="hold-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="hold_stock('${item.code}', '${item.name}');" /></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
-                      <div><img id="analyzer-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="analysize_stock_ai('${item.code}', '${item.name}');" style="width:20px;" /></div><div>${item.capital}</div><div>${item.fee}%</div><div>${item.create_time}</div><div>${item.industry}</div>${setFlag}</div>`;
+                      <div><img id="analyzer-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="analysize_stock_ai('${item.code}', '${item.name}');" style="width:20px;" /></div><div>${item.capital}</div><div>${item.fee}%</div><div>${item.create_time}</div><div onclick="show_top_stocks('${item.code}');">${item.industry}</div>${setFlag}<div id="stocks-${item.code}" style="display:none;">${JSON.stringify(item.stocks)}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -196,6 +196,18 @@ function set_etf(code, running) {
 function hold_stock(code, name) {
     let s = `<div class="header">${code} - ${name}</div><div><div class="title"><label>时间：</label><input type="datetime-local" id="buy-time" autocomplete="off"></div><div class="title"><label>价格：</label><input type="text" id="buy-price" placeholder="" autocomplete="off"></div><div class="title"><label>数量：</label><input type="text" id="buy-number" placeholder="" autocomplete="off"></div><div class="title"><label>用户：</label><select id="hold-user" style="width:99px;height:22px;"><option value='2'>用户1</option><option value='1'>小白</option></select></div><div style="margin-top:10px;"><button style="float:right;" onclick="set_stock_hold('${code}', '1');">买入</button><button onclick="set_stock_hold('${code}', '0');">卖出</button></div></div>`;
     document.getElementById("data-tips").innerHTML = s;
+    document.getElementsByClassName("stock-data")[0].style.display = "flex";
+}
+
+function show_top_stocks(code) {
+    const codeEle = document.getElementById('stocks-' + code);
+    const stockList = JSON.parse(codeEle.innerText);
+    let s = '<div style="display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:space-around;"><div>股票代码</div><div>股票名称</div><div>持仓比例</div></div>';
+    stockList.forEach(item => {
+        s += `<div style="display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:space-around;"><div>${item.code}</div><div>${item.name}</div><div>${item.ratio}%</div></div>`
+    })
+    document.getElementById("data-tips").innerHTML = s;
+    document.getElementById("data-tips").style.width = '300px';
     document.getElementsByClassName("stock-data")[0].style.display = "flex";
 }
 

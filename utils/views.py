@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
-import os
 import time
 import json
 import logging
@@ -10,7 +9,7 @@ import asyncio
 import traceback
 from datetime import datetime, timedelta
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo
-from utils.model import StockInfoList, RecommendStockDataList, ToolsInfoList, SetStockParam
+from utils.model import StockInfoList, ToolsInfoList, SetStockParam
 from utils.model import EtfInfoList, TradeStockList, SetStockHold
 from utils.selectStock import getStockZhuLiFundFromTencent, isOpenStock
 from utils.results import Result
@@ -18,11 +17,10 @@ from utils.etfData import pre_filter_etf
 from utils.scheduler import scheduler, get_schedule_time
 from utils.aiAnalyzer import AsyncETFAnalyzer, analyze_etf_from_news, analyze_buy_etf
 from utils.initData import initStockData, getStockFundFlow
-from utils.webSearch import searchWithDuckDuckGo
 from utils.queryStockHq import getStockHqFromTencent, getStockHq
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
-from utils.database import Recommend, Stock, Detail, Tools, DBExecutor, ETF, Transaction, TradeType, Capital
+from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital
 from settings import DEFAULT_USER_ID
 
 
@@ -143,21 +141,6 @@ async def get_holding(user_id: int = None, code: str = None, status: str = None)
         return await get_holding_call(user_id, code, s)
     else:
         return await get_holding_call(user_id, code, "M") + await get_holding_call(user_id, code, "A")    # 手动操作和自动操作
-
-
-# async def run_command(command: str) -> str:
-#     """异步执行单个 shell 命令"""
-#     process = await asyncio.create_subprocess_shell(
-#         command,
-#         stdout=asyncio.subprocess.PIPE,
-#         stderr=asyncio.subprocess.PIPE
-#     )
-#     stdout, stderr = await process.communicate()
-#     logger.info(f"Run Cmd {command} result is {stdout.decode('utf-8').strip()}")
-#     if process.returncode == 0:
-#         return stdout.decode('utf-8').strip()
-#     else:
-#         raise Exception(f"Error: {stderr.decode('utf-8').strip()}")
 
 
 async def queryByCode(code: str, userId: int = None) -> Result:
@@ -295,226 +278,6 @@ async def queryStockList(query: SearchStockParam) -> Result:
     return result
 
 
-async def queryRecommendStockList(source: int = 0, page: int = 1) -> Result:
-    result = Result()
-    pageSize = 20
-    try:
-        offset = (page - 1) * pageSize
-        if source == 1:
-            total_num: int = await Recommend.query().equal(source=source).count()
-            stockInfo: list[Recommend] = await Recommend.query().equal(source=source).order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
-            stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
-        elif source == 99:
-            count_sql = """
-                    select count(1) as total_num from (select code, sale_price, substr(create_time,1,10) as day from recommend where source=1) mm
-                    left join (select code, sale_price, substr(create_time,1,10) as day from recommend where source!=1) aa on
-                    mm.code=aa.code and mm.day=aa.day where aa.day is not null and aa.sale_price is not null and mm.sale_price is not null;
-                """
-            res_sql = """
-                    select * from (
-                    select aa.id, aa.code, aa.name, aa.create_time, aa.price, aa.sale_price as a_sale_price, aa.sale_time as a_sale_time, mm.sale_price as m_sale_price, mm.sale_time as m_sale_time, aa.content
-                    from (select code, name, price, create_time, sale_price, sale_time, substr(create_time,1,10) as day from recommend where source=1) mm
-                    left join (select id, code, name, price, create_time, sale_price, sale_time, content, substr(create_time,1,10) as day from recommend where source!=1) aa on
-                    mm.code=aa.code and mm.day=aa.day where aa.day is not null and aa.sale_price is not null and mm.sale_price is not null) order by create_time desc limit :limit offset :offset;
-                """
-            res = await DBExecutor.execute_sql(count_sql)
-            total_num: int = res[0].total_num
-            res = await DBExecutor.execute_sql(res_sql, {"offset": offset, "limit": pageSize})
-            stockList = [dict(r._mapping) for r in res]
-        else:
-            total_num: int = await Recommend.query().not_equal(source=1).count()
-            stockInfo: list[Recommend] = await Recommend.query().not_equal(source=1).order_by(Recommend.create_time.desc()).offset(offset).limit(pageSize).all()
-            if offset == 0:
-                current_day = time.strftime("%Y-%m-%d") + " 09:20:20"
-                todaySellStock: list[Recommend] = await Recommend.query().not_equal(source=1).greater(sale_time=current_day).all()
-                stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in todaySellStock] + \
-                            [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo if not f.sale_time or f.sale_time.strftime("%Y-%m-%d %H:%M:%S") < current_day]
-            else:
-                stockList = [RecommendStockDataList.from_orm_format(f).model_dump() for f in stockInfo]
-        result.total = total_num
-        result.data = stockList
-        logger.info("Query Recommend Stock List Success ~")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = str(e)
-    return result
-
-
-async def deleteRecommendStock(rId: int) -> Result:
-    result = Result()
-    try:
-        _ = await Recommend.query().equal(id=rId).delete()
-        logger.info(f"Delete Recommend Stock {rId} Success ~")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = str(e)
-    return result
-
-
-async def calc_stock_return(fee) -> Result:
-    result = Result()
-    try:
-        init_fund = 5000
-        coupon = 13
-        if fee > 0:
-            coupon = 0
-        r1, r1h, r1l, r2, r2h, r2l, r3, r3h, r3l, r4, r4h, r4l, r5, r5h, r5l, sale = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        x = []
-        y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l, saleList = [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
-        stocks: list[Recommend] = await Recommend.query().not_equal(source=1).greater(create_time='2026-03-27 00:00:00').order_by(Recommend.id.asc()).all()
-        for s in stocks:
-            s_time = s.create_time.strftime("%Y-%m-%d")
-            if s_time in x:
-                index = x.index(s_time)
-                y1[index] = y1[index] + round(init_fund * (s.last_one_price or 0) / 100 - coupon, 2)
-                y1h[index] = y1h[index] + round(init_fund * (s.last_one_high or 0) / 100 - coupon, 2)
-                y1l[index] = y1l[index] + round(init_fund * (s.last_one_low or 0) / 100 - coupon, 2)
-                y2[index] = y2[index] + round(init_fund * (s.last_two_price or 0) / 100 - coupon, 2)
-                y2h[index] = y2h[index] + round(init_fund * (s.last_two_high or 0) / 100 - coupon, 2)
-                y2l[index] = y2l[index] + round(init_fund * (s.last_two_low or 0) / 100 - coupon, 2)
-                y3[index] = y3[index] + round(init_fund * (s.last_three_price or 0) / 100 - coupon, 2)
-                y3h[index] = y3h[index] + round(init_fund * (s.last_three_high or 0) / 100 - coupon, 2)
-                y3l[index] = y3l[index] + round(init_fund * (s.last_three_low or 0) / 100 - coupon, 2)
-                y4[index] = y4[index] + round(init_fund * (s.last_four_price or 0) / 100 - coupon, 2)
-                y4h[index] = y4h[index] + round(init_fund * (s.last_four_high or 0) / 100 - coupon, 2)
-                y4l[index] = y4l[index] + round(init_fund * (s.last_four_low or 0) / 100 - coupon, 2)
-                y5[index] = y5[index] + round(init_fund * (s.last_five_price or 0) / 100 - coupon, 2)
-                y5h[index] = y5h[index] + round(init_fund * (s.last_five_high or 0) / 100 - coupon, 2)
-                y5l[index] = y5l[index] + round(init_fund * (s.last_five_low or 0) / 100 - coupon, 2)
-                saleList[index] = round(saleList[index] + init_fund * ((s.sale_price or s.price) - s.price) / s.price - coupon, 2)
-            else:
-                x.append(s_time)
-                y1.append(round(init_fund * (s.last_one_price or 0) / 100 - coupon, 2))
-                y1h.append(round(init_fund * (s.last_one_high or 0) / 100 - coupon, 2))
-                y1l.append(round(init_fund * (s.last_one_low or 0) / 100 - coupon, 2))
-                y2.append(round(init_fund * (s.last_two_price or 0) / 100 - coupon, 2))
-                y2h.append(round(init_fund * (s.last_two_high or 0) / 100 - coupon, 2))
-                y2l.append(round(init_fund * (s.last_two_low or 0) / 100 - coupon, 2))
-                y3.append(round(init_fund * (s.last_three_price or 0) / 100 - coupon, 2))
-                y3h.append(round(init_fund * (s.last_three_high or 0) / 100 - coupon, 2))
-                y3l.append(round(init_fund * (s.last_three_low or 0) / 100 - coupon, 2))
-                y4.append(round(init_fund * (s.last_four_price or 0) / 100 - coupon, 2))
-                y4h.append(round(init_fund * (s.last_four_high or 0) / 100 - coupon, 2))
-                y4l.append(round(init_fund * (s.last_four_low or 0) / 100 - coupon, 2))
-                y5.append(round(init_fund * (s.last_five_price or 0) / 100 - coupon, 2))
-                y5h.append(round(init_fund * (s.last_five_high or 0) / 100 - coupon, 2))
-                y5l.append(round(init_fund * (s.last_five_low or 0) / 100 - coupon, 2))
-                saleList.append(round(init_fund * ((s.sale_price or s.price) - s.price) / s.price - coupon, 2))
-            r1 += round(init_fund * (s.last_one_price or 0) / 100 - coupon, 2)
-            r1h += round(init_fund * (s.last_one_high or 0) / 100 - coupon, 2)
-            r1l += round(init_fund * (s.last_one_low or 0) / 100 - coupon, 2)
-            r2 += round(init_fund * (s.last_two_price or 0) / 100 - coupon, 2)
-            r2h += round(init_fund * (s.last_two_high or 0) / 100 - coupon, 2)
-            r2l += round(init_fund * (s.last_two_low or 0) / 100 - coupon, 2)
-            r3 += round(init_fund * (s.last_three_price or 0) / 100 - coupon, 2)
-            r3h += round(init_fund * (s.last_three_high or 0) / 100 - coupon, 2)
-            r3l += round(init_fund * (s.last_three_low or 0) / 100 - coupon, 2)
-            r4 += round(init_fund * (s.last_four_price or 0) / 100 - coupon, 2)
-            r4h += round(init_fund * (s.last_four_high or 0) / 100 - coupon, 2)
-            r4l += round(init_fund * (s.last_four_low or 0) / 100 - coupon, 2)
-            r5 += round(init_fund * (s.last_five_price or 0) / 100 - coupon, 2)
-            r5h += round(init_fund * (s.last_five_high or 0) / 100 - coupon, 2)
-            r5l += round(init_fund * (s.last_five_low or 0) / 100 - coupon, 2)
-            sale += init_fund * ((s.sale_price or s.price) - s.price) / s.price - coupon
-
-        result.data = {'r1': r1, 'r1h': r1h, 'r1l': r1l, 'r2': r2, 'r2h': r2h, 'r2l': r2l, 'r3': r3, 'r3h': r3h,
-                       'r3l': r3l, 'r4': r4, 'r4h': r4h, 'r4l': r4l, 'r5': r5, 'r5h': r5h, 'r5l': r5l, 'x': x,
-                       'y1': y1, 'y1h': y1h, 'y1l': y1l, 'y2': y2, 'y2h': y2h, 'y2l': y2l, 'y3': y3, 'y3h': y3h, 'sale': round(sale, 2),
-                       'y3l': y3l, 'y4': y4, 'y4h': y4h, 'y4l': y4l, 'y5': y5, 'y5h': y5h, 'y5l': y5l, 'saleList': saleList}
-    except:
-        logger.error(traceback.format_exc())
-        result.success = False
-    return result
-
-
-# async def buy_stock(code: str, site: str = None, source: str = None, day: str = None) -> Result:
-#     result = Result()
-#     try:
-#         tool: Tools = await Tools.get_one("openDoor")
-#         current_day = tool.value
-#         if day:
-#             day = day.replace('-', '')
-#         else:
-#             day = current_day
-#         stockList: list[Detail] = await Detail.query().equal(code=code).less_equal(day=day).order_by(Detail.day.desc()).limit(10).all()
-#         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
-#         is_stock = [item for item in stock_data if item['day'] == day]
-#         if not is_stock:
-#             logger.info(f"query newest data - {code}")
-#             stockDo: dict = await calc_stock_real_data(code)
-#             stock_data.insert(0, stockDo)
-#         else:
-#             if stock_data[0]['day'] == current_day:
-#                 fflow = await getStockZhuLiFundFromTencent(code)
-#                 stock_data[0]['fund'] = fflow
-#         stock_data.reverse()
-#         if source == 'shrink':
-#             stock_dict = await queryGemini(json.dumps(stock_data, ensure_ascii=False), API_URL, AUTH_CODE, 1)
-#         else:
-#             # post_data = detail2List_bak(stock_data)
-#             date_obj = datetime.strptime(day, "%Y%m%d")
-#             open_date = date_obj.strftime("%Y-%m-%d") + " 14:50:00"
-#             current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}, 所有数据都是截至当前时间实时计算出来的, 是盘中数据, 不是一整天的数据'
-#             if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
-#                 current_time = open_date
-#             day_line = await getMinuteKFromTongHuaShun('', code, logger)
-#             prompt = f"当前时间是: {current_time} \n这只股票的最近10日天级数据是: {json.dumps(stock_data, ensure_ascii=False)} \n当天分钟级数据是: {json.dumps(minute2List(day_line), ensure_ascii=False)}"
-#             # stock_dict = await queryGemini(prompt, API_URL, AUTH_CODE, 2)
-#             # stock_dict = await queryChatGPTLocal(ANALYSIZE_PROMPT, prompt)
-#             # stock_dict = await queryChatGPTCloud(ANALYSIZE_PROMPT, prompt)
-#             # stock_dict = await queryGeminiCloud(ANALYSIZE_PROMPT, prompt)
-#             stock_dict = await chat(ANALYSIZE_PROMPT, prompt)
-#         result.data = json.loads(stock_dict)    # ['reason'].replace("#", "").replace("*", "")
-#         logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
-#     except Exception as e:
-#         logger.error(traceback.format_exc())
-#         result.success = False
-#         result.msg = str(e)
-#     return result
-
-
-# async def sell_stock(code: str, price: str = None, t: str = None, site: str = None) -> Result:
-#     result = Result()
-#     try:
-#         tool: Tools = await Tools.get_one("openDoor")
-#         day = tool.value
-#         stockList: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(10).all()
-#         stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockList]
-#         is_stock = [item for item in stock_data if item['day'] == day]
-#         if not is_stock:
-#             logger.info(f"query newest data - {code}")
-#             stockDo: dict = await calc_stock_real_data(code)
-#             stock_data.insert(0, stockDo)
-#         else:
-#             fflow = await getStockZhuLiFundFromTencent(code)
-#             stock_data[0]['fund'] = fflow
-#         stock_data.reverse()
-#         # post_data = detail2List_bak(stock_data)
-#         if price and t:
-#             pass
-#         else:
-#             r: Recommend = await Recommend.query().equal(code=code).not_equal(source=1).order_by(Recommend.id.desc()).first()
-#             price = r.price
-#             t = r.create_time.strftime("%Y-%m-%d")
-#         date_obj = datetime.strptime(day, "%Y%m%d")
-#         open_date = date_obj.strftime("%Y-%m-%d") + " 14:50:00"
-#         current_time = f'{time.strftime("%Y-%m-%d %H:%M:%S")}, 所有数据都是截至当前时间实时计算出来的, 是盘中数据, 不是一整天的数据'
-#         if time.strftime("%Y-%m-%d %H:%M:%S") > open_date:
-#             current_time = open_date
-#         day_line = await getMinuteKFromTongHuaShun('', code, logger)
-#         prompt = f"当前时间是: {current_time} \n股票的买入时间是: {t} \n持仓成本是: {price} \n最近10日天级数据是: {json.dumps(stock_data, ensure_ascii=False)} \n当天分钟级数据是: {json.dumps(minute2List(day_line), ensure_ascii=False)}"
-#         stock_dict = await queryGemini(prompt, API_URL, AUTH_CODE, 4)
-#         result.data = stock_dict['reason'].replace("#", "").replace("*", "")
-#         logger.info(f"query AI suggestion successfully, code: {code}, result: {stock_dict}")
-#     except Exception as e:
-#         logger.error(traceback.format_exc())
-#         result.success = False
-#         result.msg = str(e)
-#     return result
-
-
 async def calc_stock_real(code: str) -> Result:
     result = Result()
     try:
@@ -544,24 +307,6 @@ async def calc_stock_real(code: str) -> Result:
         result.success = False
         result.msg = str(e)
     return result
-
-
-# async def get_current_price(code: str, site: str = None) -> Result:
-#     result = Result()
-#     try:
-#         try:
-#             res: list[StockMinuteDo] = await getMinuteKFromTongHuaShun('', code, logger)
-#             result.data = res[-1].price
-#         except IndexError:
-#             logger.error(f"query stock real data error, {traceback.format_exc}")
-#             res: list[StockMinuteDo] = await getMinuteKFromSina('', code, logger)
-#             result.data = res[-1].price
-#         logger.info(f"query current stock price success - {code}")
-#     except Exception as e:
-#         logger.error(traceback.format_exc())
-#         result.success = False
-#         result.msg = str(e)
-#     return result
 
 
 async def all_stock_info(query: SearchStockParam) -> Result:
@@ -642,85 +387,10 @@ async def all_etf_info(query: SearchStockParam) -> Result:
     return result
 
 
-# async def all_topic_info(query: SearchStockParam) -> Result:
-#     result = Result()
-#     try:
-#         offset = (query.page - 1) * query.pageSize
-#         total_num: int = await Tools.query().count()
-#         topicInfo: list[Tools] = await Tools.query().order_by(Tools.update_time.desc()).offset(offset).limit(query.pageSize).all()
-#         topicList = [ToolsInfoList.from_orm_format(f).model_dump() for f in topicInfo if not f.key.startswith('openDoor')]
-#         result.total = total_num
-#         result.data = topicList
-#         logger.info(f"Query Hot Topic List Success, params: {query}")
-#     except Exception as e:
-#         logger.error(traceback.format_exc())
-#         result.success = False
-#         result.msg = str(e)
-#     return result
-
-
-# async def get_current_topic() -> Result:
-#     result = Result()
-#     try:
-#         tool: Tools = await Tools.get_one("openDoor")
-#         current_day = tool.value
-#         current_date = tool.update_time.strftime("%Y年%m月%d日")
-#         res = await webSearchTopicBak(API_URL, AUTH_CODE, current_date)
-#         file_path = os.path.join(FILE_PATH, f"{current_day}.txt")
-#         with open(file_path, 'w', encoding='utf-8') as f:
-#             f.write(res)
-#         data = res.split("热点题材逻辑")[0].strip().split("点题材汇总")[1].replace(':', '').replace('：', '').strip().split("\n")[0]
-#         res_list = [r.replace('。', '').strip() for r in data.split(',')]
-#         try:
-#             tool: Tools = await Tools.get_one(current_day)
-#             await Tools.update(tool.key, value=',' .join(res_list))
-#         except NoResultFound:
-#             await Tools.create(key=current_day, value=',' .join(res_list))
-#         result.data = res
-#         logger.info(f"Current Topic is: {result.data}")
-#     except Exception as e:
-#         logger.error(traceback.format_exc())
-#         result.success = False
-#         result.msg = str(e)
-#     return result
-
-
-# async def get_topic_file(code: str) -> Result:
-#     result = Result()
-#     try:
-#         file_path = os.path.join(FILE_PATH, f"{code}.txt")
-#         if not os.path.exists(file_path):
-#             return result
-#         with open(file_path, 'r', encoding='utf-8') as f:
-#             result.data = f.read()
-#         logger.info(f"{code} Topic is: {result.data}")
-#     except Exception as e:
-#         logger.error(traceback.format_exc())
-#         result.success = False
-#         result.msg = str(e)
-#     return result
-
-
 async def set_stock(data: SetStockParam) -> Result:
     result = Result()
     try:
         stock: Stock = await Stock.get_one(data.code)
-        # if data.operate_type == "setBuy":
-        #     if not data.buy_time or not data.buy_price:
-        #         raise
-        #     date_obj = datetime.strptime(data.buy_time.replace("T", " ") + ":58", "%Y-%m-%d %H:%M:%S")
-        #     await Recommend.create(code=stock.code, name=stock.name, price=float(data.buy_price), create_time=date_obj, source=1)
-        #     logger.info(f"Set Stock Buy Success - {stock.code} - {stock.name} - {data.operate_type}")
-        # if data.operate_type == "setSale":
-        #     if not data.buy_time or not data.buy_price:
-        #         raise
-        #     date_obj = datetime.strptime(data.buy_time.replace("T", " ") + ":58", "%Y-%m-%d %H:%M:%S")
-        #     r: list[Recommend] = await Recommend.query().equal(code=stock.code, source=1).is_null('sale_price', 'sale_time').order_by(Recommend.id.desc()).all()
-        #     await Recommend.update(r[0].id, sale_price=float(data.buy_price), sale_time=date_obj)
-        #     if data.sell_empty == '1':
-        #         for i in range(1, len(r)):
-        #             await Recommend.update(r[i].id, sale_price=float(data.buy_price), sale_time=date_obj)
-        #     logger.info(f"Set Stock Sale Success - {stock.code} - {stock.name} - {data.operate_type}")
         if data.operate_type == "addFilter":
             if not data.tag:
                 raise
@@ -733,26 +403,6 @@ async def set_stock(data: SetStockParam) -> Result:
             res_list = [r for r in filter_list if r != data.tag]
             await Stock.update(stock.code, filter=",".join(res_list))
             logger.info(f"Remove Stock Label Success - {stock.code} - {stock.name} - {data.tag}")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = str(e)
-    return result
-
-
-async def get_stock_info(code: str) -> Result:
-    result = Result()
-    try:
-        code_list = code.split(',')
-        if len(code_list) == 1:
-            stock: Stock = await Stock.get_one(code_list[0])
-            stockList = [StockInfoList.from_orm_format(stock).model_dump()]
-        else:
-            stocks: list[Stock] = await Stock.query().isin(code=code_list).all()
-            stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stocks]
-        result.data = stockList
-        result.total = len(stockList)
-        logger.info(f"Query stock info success - {code}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
@@ -839,18 +489,6 @@ async def calc_stock_real_data(code: str) -> dict:
     return stockDo
 
 
-async def get_data_by_day(code: str, day: str) -> Result:
-    result = Result()
-    try:
-        stock: list[Detail] = await Detail.query().equal(code=code).less_equal(day=day).order_by(Detail.day.desc()).limit(6).all()
-        stock.reverse()
-        result.data = detail2List(stock)
-        logger.info(result.data)
-    except:
-        logger.error(traceback.format_exc())
-    return result
-
-
 async def get_user_hold(userId: str) -> Result:
     result = Result()
     try:
@@ -858,8 +496,9 @@ async def get_user_hold(userId: str) -> Result:
         result.data = [f for f in stockList if f['code'] not in ['603167', '000651']]
         result.total = len(result.data)
         logger.info(f"查询用户{userId} 持仓：{result.data}")
-    except:
+    except Exception as e:
         result.success = False
+        result.msg = str(e)
         logger.error(traceback.format_exc())
     return result
 
@@ -889,19 +528,6 @@ async def set_user_hold(data: SetStockHold) -> Result:
     return result
 
 
-# async def set_hold_ai_text(data: SetStockAiText) -> Result:
-#     result = Result()
-#     try:
-#         stock = await Transaction.get_one(data.id)
-#         await Transaction.update(stock.id, content=data.content)
-#         logger.info(f"设置买入股票分析内容成功, 用户: {stock.user_id}, 股票: {stock.code} - {stock.name}, 内容: {data.content}")
-#     except Exception as e:
-#         logger.error(traceback.format_exc())
-#         result.success = False
-#         result.msg = str(e)
-#     return result
-
-
 async def queryTradeStockList(userId: int = None, page: int = 1) -> Result:
     result = Result()
     pageSize = 20
@@ -919,19 +545,6 @@ async def queryTradeStockList(userId: int = None, page: int = 1) -> Result:
         result.success = False
         result.msg = str(e)
     return result
-
-
-# async def getHoldAiText(rId: int) -> Result:
-#     result = Result()
-#     try:
-#         stock = await Transaction.get_one(rId)
-#         result.data = stock.content
-#         logger.info(f"get Hold Stock AI text {rId} - {stock.code} - {stock.name} Success ~")
-#     except Exception as e:
-#         logger.error(traceback.format_exc())
-#         result.success = False
-#         result.msg = str(e)
-#     return result
 
 
 async def deleteHoldStock(rId: int) -> Result:
@@ -988,86 +601,126 @@ async def getEtf() -> Result:
     return result
 
 
+async def getTradeData() -> Result:
+    result = Result()
+    try:
+        tools: Tools = await Tools.get_one("openDoor")
+        current_day = f"{tools.value[:4]}-{tools.value[4:6]}-{tools.value[6:]}"
+        if time.strftime("%H:%M:%S") < "09:35:00" and time.strftime("%H:%M:%S") > "09:00:00":  # 已分析但未买入
+            current_day = time.strftime("%Y-%m-%d")
+            status = [TradeType.TEMB, TradeType.TEMS]
+            today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
+        else:
+            status = [TradeType.RECD, TradeType.AIS]
+            today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).greater(create_time=current_day + " 08:00:00").all()
+        todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
+        holdList = await get_holding(user_id=DEFAULT_USER_ID, status="A")
+        for h in holdList:
+            detail: Detail = await Detail.query().equal(code=h['code']).order_by(Detail.day.desc()).first()
+            h['price'] = round(h['price'], 2)
+            h['profit'] = round((detail.current_price - h['price']) * h['shares'], 2)
+
+        capital: list[Capital] = await Capital.query().order_by(Capital.day.asc()).all()
+        day = []
+        ratio = []
+        hs = []
+        pre_value = capital[0].total
+        pre_value_hs = capital[0].campare
+        for r in capital:
+            ra = (r.total - pre_value) / pre_value * 100
+            hs_ra = (r.campare - pre_value_hs) / pre_value_hs * 100
+            day.append(r.day)
+            ratio.append(round(ra, 2))
+            hs.append(round(hs_ra, 2))
+            pre_value = r.total
+        result.data = {'todayList': todayList, 'holdList': holdList, 'day': day, 'ratio': ratio, 'hs': hs}
+        logger.info(f"query trade data success - {result.data}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
+    return result
+
+
 async def test(code: ToolsInfoList) -> Result:
     result = Result()
     try:
-        await Recommend.update(int(code.key), content=code.value)
         logger.info(f"{code}")
     except:
         logger.error(traceback.format_exc())
     return result
 
 
-def detail2List_bak(data: list) -> dict:
-    res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
-           'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-           'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
-    for d in data:
-        res['code'] = d['code']
-        res['day'].append(d['day'])
-        res['current_price'].append(d['current_price'])
-        res['last_price'].append(d['last_price'])
-        res['open_price'].append(d['open_price'])
-        res['max_price'].append(d['max_price'])
-        res['min_price'].append(d['min_price'])
-        res['volume'].append(d['volume'])
-        res['turnover_rate'].append(f"{d['turnover_rate']}%")
-        res['fund'].append(d['fund'])
-        res['ma_five'].append(d['ma_five'])
-        res['ma_ten'].append(d['ma_ten'])
-        res['ma_twenty'].append(d['ma_twenty'])
-        res['qrr'].append(d['qrr'])
-        res['diff'].append(round(d['diff'], 4))
-        res['dea'].append(round(d['dea'], 4))
-        res['k'].append(round(d['k'], 4))
-        res['d'].append(round(d['d'], 4))
-        res['j'].append(round(d['j'], 4))
-        res['shares'].append(round(d['shares'], 2))
-        res['premium'].append(round(d['premium'], 2))
-        res['boll_up'].append(d['boll_up'])
-        res['boll_low'].append(d['boll_low'])
-    return res
+# def detail2List_bak(data: list) -> dict:
+#     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
+#            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
+#            'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
+#     for d in data:
+#         res['code'] = d['code']
+#         res['day'].append(d['day'])
+#         res['current_price'].append(d['current_price'])
+#         res['last_price'].append(d['last_price'])
+#         res['open_price'].append(d['open_price'])
+#         res['max_price'].append(d['max_price'])
+#         res['min_price'].append(d['min_price'])
+#         res['volume'].append(d['volume'])
+#         res['turnover_rate'].append(f"{d['turnover_rate']}%")
+#         res['fund'].append(d['fund'])
+#         res['ma_five'].append(d['ma_five'])
+#         res['ma_ten'].append(d['ma_ten'])
+#         res['ma_twenty'].append(d['ma_twenty'])
+#         res['qrr'].append(d['qrr'])
+#         res['diff'].append(round(d['diff'], 4))
+#         res['dea'].append(round(d['dea'], 4))
+#         res['k'].append(round(d['k'], 4))
+#         res['d'].append(round(d['d'], 4))
+#         res['j'].append(round(d['j'], 4))
+#         res['shares'].append(round(d['shares'], 2))
+#         res['premium'].append(round(d['premium'], 2))
+#         res['boll_up'].append(d['boll_up'])
+#         res['boll_low'].append(d['boll_low'])
+#     return res
 
 
-def detail2List(data: list[Detail]) -> dict:
-    res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
-           'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-           'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
-    for d in data:
-        res['code'] = d.code
-        res['day'].append(d.day)
-        res['current_price'].append(d.current_price)
-        res['last_price'].append(d.last_price)
-        res['open_price'].append(d.open_price)
-        res['max_price'].append(d.max_price)
-        res['min_price'].append(d.min_price)
-        res['volume'].append(d.volume)
-        res['turnover_rate'].append(f"{d.turnover_rate}%")
-        res['fund'].append(d.fund)
-        res['ma_five'].append(d.ma_five)
-        res['ma_ten'].append(d.ma_ten)
-        res['ma_twenty'].append(d.ma_twenty)
-        res['qrr'].append(d.qrr)
-        res['diff'].append(round(d.emas - d.emal, 4))
-        res['dea'].append(round(d.dea, 4))
-        res['k'].append(round(d.kdjk, 4))
-        res['d'].append(round(d.kdjd, 4))
-        res['j'].append(round(d.kdjj, 4))
-        res['shares'].append(round(d.shares, 2))
-        res['premium'].append(round(d.premium, 2))
-        res['boll_up'].append(d.boll_up)
-        res['boll_low'].append(d.boll_low)
-    return res
+# def detail2List(data: list[Detail]) -> dict:
+#     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
+#            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
+#            'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
+#     for d in data:
+#         res['code'] = d.code
+#         res['day'].append(d.day)
+#         res['current_price'].append(d.current_price)
+#         res['last_price'].append(d.last_price)
+#         res['open_price'].append(d.open_price)
+#         res['max_price'].append(d.max_price)
+#         res['min_price'].append(d.min_price)
+#         res['volume'].append(d.volume)
+#         res['turnover_rate'].append(f"{d.turnover_rate}%")
+#         res['fund'].append(d.fund)
+#         res['ma_five'].append(d.ma_five)
+#         res['ma_ten'].append(d.ma_ten)
+#         res['ma_twenty'].append(d.ma_twenty)
+#         res['qrr'].append(d.qrr)
+#         res['diff'].append(round(d.emas - d.emal, 4))
+#         res['dea'].append(round(d.dea, 4))
+#         res['k'].append(round(d.kdjk, 4))
+#         res['d'].append(round(d.kdjd, 4))
+#         res['j'].append(round(d.kdjj, 4))
+#         res['shares'].append(round(d.shares, 2))
+#         res['premium'].append(round(d.premium, 2))
+#         res['boll_up'].append(d.boll_up)
+#         res['boll_low'].append(d.boll_low)
+#     return res
 
 
-def minute2List(data: list[StockMinuteDo]) -> dict:
-    res = {'code': data[0].code, 'time': [], 'price': [], 'price_avg': [], 'volume': []}
-    for d in data:
-        res['time'].append(d.time)
-        res['price'].append(d.price)
-        res['price_avg'].append(d.price_avg)
-        res['volume'].append(d.volume)
-    return res
+# def minute2List(data: list[StockMinuteDo]) -> dict:
+#     res = {'code': data[0].code, 'time': [], 'price': [], 'price_avg': [], 'volume': []}
+#     for d in data:
+#         res['time'].append(d.time)
+#         res['price'].append(d.price)
+#         res['price_avg'].append(d.price_avg)
+#         res['volume'].append(d.volume)
+#     return res
 
 
 async def queryByCodeForAI(code: str, limit: int = 22) -> Result:
@@ -1123,17 +776,6 @@ async def queryByCodeForAI(code: str, limit: int = 22) -> Result:
         logger.error(traceback.format_exc())
         result.success = False
         result.msg = str(e)
-    return result
-
-
-async def webSearch(q: str, df: str) -> Result:
-    result = Result()
-    try:
-        result.data = await searchWithDuckDuckGo(q, df=df, max_results=5)
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = f"Search Exception: {str(e)}"
     return result
 
 
@@ -1242,6 +884,8 @@ async def auto_analysize_etf():
     if not await isOpenStock():
         logger.info("非交易日，未开市，跳过...")
         return
+    # 先删除交易失败的数据
+    await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.FAIL).delete()
     tool: Tools = await Tools.get_one("openDoor")
     capital: Capital = await Capital.get_one(tool.value)
     available = capital.available
@@ -1381,6 +1025,11 @@ async def update_holding_capital():
         current_day = tool.value
         if current_day == time.strftime("%Y%m%d"):
             _ = await get_holding()
+
+            # 更新当天沪深300指数价格
+            res: dict = await getStockHqFromTencent('', [{"sh000300": "沪深300", "sh000300count": 5}])
+            stockDo: StockModelDo = res['data'][0]
+            await Capital.update(current_day, campare=stockDo.current_price)
     except:
         logger.error(traceback.format_exc())
 
@@ -1406,38 +1055,3 @@ async def calc_hold_capital() -> float:
     except:
         logger.error(traceback.format_exc())
         return 0
-
-
-# async def analysize_hold_etf(etfs: list):
-#     """分析已经持仓的 ETF，判断是否应该卖出"""
-#     logger.info("📡 开始分析持仓 ETF -")
-#     hold_etf = await get_holding(user_id=99, status="A")
-#     for hh in hold_etf:
-#         if hh['code'] in etfs:
-#             continue
-#         res = await analysize(code=hh['code'], userId=DEFAULT_USER_ID)
-#         if res.success:
-#             try:
-#                 logger.info(f"✅ 分析已持仓 ETF 成功 - {res.data}")
-#                 await write_analysize_result(res.data)
-#             except:
-#                 logger.error("❌ Error: 已持仓分析结果入库失败")
-#         else:
-#             logger.error(f"❌ Error: 分析持仓的 ETF 失败 - {hh}")
-#         await asyncio.sleep(60)
-
-
-# async def analysize_etf_morning():
-#     """早上开始分析 ETF"""
-#     new_etf_list = []
-#     try:
-#         logger.info("开始从新闻中提取分析ETF")
-#         new_etf_list = await auto_analysize_etf()
-#     except:
-#         logger.error(traceback.format_exc())
-
-#     try:
-#         logger.info("分析已持仓的ETF")
-#         await analysize_hold_etf(new_etf_list)
-#     except:
-#         logger.error(traceback.format_exc())

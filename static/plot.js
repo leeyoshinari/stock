@@ -437,12 +437,12 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
   option && myChart.setOption(option, true);
 };
 
-function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4h, y4l, y5, y5h, y5l, saleList) {
+function plot_trend(myChart, x, y1, y2) {
   option = {
     title: {
-      text: '每只股票买入5000元的收益',
+      text: 'vs. 沪深300指数',
       left: 'center',
-      top: 10,
+      top: 5,
       textStyle: {
         fontSize: 13,
         fontWeight: 'bold'
@@ -452,37 +452,38 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
       {
         left: '5%',
         right: '5%',
-        top: 160,
-        height: 350
+        top: 60,
+        height: 250
       }
     ],
     tooltip: {
       trigger: 'axis',
       axisPointer: {type: 'cross'},
       textStyle: {color: '#000'},
+      formatter: function (params) {
+        var res = params[0].axisValue + '<br/>';
+        for (var i = 0; i < params.length; i++) {
+          res += params[i].marker + params[i].seriesName + ': ' + params[i].value + '%<br/>';
+        }
+        return res;
+      }
     },
-    legend: [
-      {
-        data: ['第一天收盘价', '第一天最高价', '第一天最低价', '第二天收盘价', '第二天最高价', '第二天最低价', '第三天收盘价', '第三天最高价', '第三天最低价', '第四天收盘价', '第四天最高价', '第四天最低价', '第五天收盘价', '第五天最高价', '第五天最低价', '自动卖出价'],
-        x: 'center',
-        y: 40,
-        selected: { '第一天收盘价': false, '第一天最高价': false, '第一天最低价': false, '第二天收盘价': false, '第二天最高价': false, '第二天最低价': false, '第三天收盘价': false, '第三天最高价': false, '第三天最低价': false, '第四天收盘价': false, '第四天最高价': false, '第四天最低价': false, '第五天收盘价': false, '第五天最高价': false, '第五天最低价': false}
-      }
-    ],
+    legend: [{
+      data: ['我的', '沪深300指数'],
+      x: 'center', y: 25,
+    }],
     dataZoom: [{
-        type: 'inside',
-        xAxisIndex: [0],
-        start: 0,
-        end: 100
-      },
-      {
-        show: false,
-        xAxisIndex: [0],
-        type: 'slider',
-        start: 0,
-        end: 100
-      }
-    ],
+      type: 'inside',
+      xAxisIndex: [0],
+      start: 0,
+      end: 100
+    }, {
+      show: false,
+      xAxisIndex: [0],
+      type: 'slider',
+      start: 0,
+      end: 100
+    }],
     xAxis: [
       {
         gridIndex: 0,
@@ -504,139 +505,32 @@ function plot_trend(myChart, x, y1, y1h, y1l, y2, y2h, y2l, y3, y3h, y3l, y4, y4
         gridIndex: 0,
         name: '收益',
         type: 'value',
+        axisLine: { show: true },
+        axisTick: { show: true },
+        axisLabel: {
+          show: true,
+          formatter: '{value}%'
+        }
       }
     ],
     series: [
       {
-        name: '第一天收盘价',
+        name: '我的',
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
         showSymbol: false,
-        lineStyle: {width: 1},
+        lineStyle: { color: 'blue', opacity: 0.9, width: 1},
         data: y1
       },{
-        name: '第一天最高价',
+        name: '沪深300指数',
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
         showSymbol: false,
-        lineStyle: {width: 1},
-        data: y1h
-      },{
-        name: '第一天最低价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y1l
-      },{
-        name: '第二天收盘价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
+        lineStyle: { color: 'green', opacity: 0.9, width: 1},
         data: y2
-      },{
-        name: '第二天最高价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y2h
-      },{
-        name: '第二天最低价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y2l
-      },{
-        name: '第三天收盘价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y3
-      },{
-        name: '第三天最高价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y3h
-      },{
-        name: '第三天最低价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y3l
-      },{
-        name: '第四天收盘价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y4
-      },{
-        name: '第四天最高价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y4h
-      },{
-        name: '第四天最低价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y4l
-      },{
-        name: '第五天收盘价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y5
-      },{
-        name: '第五天最高价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y5h
-      },{
-        name: '第五天最低价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: y5l
-      },{
-        name: '自动卖出价',
-        type: 'line',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        showSymbol: false,
-        lineStyle: {width: 1},
-        data: saleList
-      }
-    ]
+      }]
   };
 
   myChart.clear();

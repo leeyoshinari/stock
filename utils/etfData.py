@@ -75,10 +75,9 @@ async def getEtfDetailFromDongCai(code: str):
 
 
 async def getHoldStockOfEtfFromTencent(host: str, code: str) -> list[dict]:
+    """获取ETF的重仓前10的股票"""
     result = []
     try:
-        if code == '159934':      # 黄金ETF过滤掉
-            return []
         stockCode = f"{getStockRegion(code)}{code}"
         if host and host.startswith('http'):
             param_data = {"url": f"https://zxg.txfund.com/ifzqgtimg/appstock/fund/baseInfo/asset?code={stockCode}&_callback=jQuery1124014406183612592238_{int(time.time() * 1000)}&_={int(time.time() * 1000)}", "method": "GET"}

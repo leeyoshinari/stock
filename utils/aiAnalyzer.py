@@ -9,7 +9,7 @@ import traceback
 from datetime import datetime, timedelta
 from typing import Any, Callable
 from functools import partial
-from utils.ai_model import chat
+from utils.AI import chat
 from utils.webSearch import searchWithDuckDuckGo
 from settings import read_prompt
 from utils.akshare import getGlobalShortInfoFromSina, getGlobalShortInfoFromThs, getStockResearchReport, getStockFinanceReportFromSina, getShortInfoMorning, getNewsFromDongCai

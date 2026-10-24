@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
-import json
 from typing import Optional
 from pydantic import BaseModel
 
@@ -91,45 +90,6 @@ class StockDataList(BaseModel):
                    boll_up=obj.boll_up, boll_low=obj.boll_low)
 
 
-class RecommendStockDataList(BaseModel):
-    id: int = None
-    code: str = None
-    name: str = None
-    price: float = None
-    source: int = None
-    last_one_price: Optional[float] = None
-    last_one_high: Optional[float] = None
-    last_one_low: Optional[float] = None
-    last_two_price: Optional[float] = None
-    last_two_high: Optional[float] = None
-    last_two_low: Optional[float] = None
-    last_three_price: Optional[float] = None
-    last_three_high: Optional[float] = None
-    last_three_low: Optional[float] = None
-    last_four_price: Optional[float] = None
-    last_four_high: Optional[float] = None
-    last_four_low: Optional[float] = None
-    last_five_price: Optional[float] = None
-    last_five_high: Optional[float] = None
-    last_five_low: Optional[float] = None
-    content: Optional[str] = None
-    sale_price: Optional[float] = None
-    sale_time: Optional[str] = None
-    create_time: str = None
-
-    class Config:
-        from_attributes = True
-
-    @classmethod
-    def from_orm_format(cls, obj):
-        c = obj.create_time.strftime("%Y-%m-%d")
-        s = obj.sale_time.strftime("%Y-%m-%d") if obj.sale_time else None
-        return cls(id=obj.id, code=obj.code, name=obj.name, price=obj.price, last_one_price=obj.last_one_price, content=obj.content, sale_price=obj.sale_price, sale_time=s,
-                   last_one_high=obj.last_one_high, last_one_low=obj.last_one_low, last_two_price=obj.last_two_price, last_two_high=obj.last_two_high, source=obj.source,
-                   last_two_low=obj.last_two_low, last_three_price=obj.last_three_price, last_three_high=obj.last_three_high, last_three_low=obj.last_three_low, last_four_price=obj.last_four_price,
-                   last_four_high=obj.last_four_high, last_four_low=obj.last_four_low, last_five_price=obj.last_five_price, last_five_high=obj.last_five_high, last_five_low=obj.last_five_low, create_time=c)
-
-
 class StockInfoList(BaseModel):
     code: str
     name: str
@@ -201,6 +161,7 @@ class TradeStockList(BaseModel):
     fee: float = None
     flag: int = None
     user_id: int = None
+    content: str = None
     create_time: str = None
     update_time: str = None
 
@@ -212,7 +173,7 @@ class TradeStockList(BaseModel):
         c = obj.create_time.strftime("%Y-%m-%d")
         u = obj.update_time.strftime("%Y-%m-%d")
         return cls(id=obj.id, code=obj.code, name=obj.name, price=round(obj.price, 2), shares=obj.shares, status=obj.status.name,
-                   fee=obj.fee, user_id=obj.user_id, create_time=c, update_time=u, flag=obj.flag)
+                   fee=obj.fee, user_id=obj.user_id, create_time=c, update_time=u, flag=obj.flag, content=obj.content)
 
 
 class EtfInfoList(BaseModel):
