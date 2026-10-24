@@ -176,8 +176,8 @@ class StockController(Controller):
         return result
 
     @post('/test')
-    async def test(self, request: Request, data: model.ToolsInfoList) -> Result:
-        result = await views.test(data)
+    async def test(self, request: Request) -> Result:
+        result = await views.auto_select_email()
         return result
 
 

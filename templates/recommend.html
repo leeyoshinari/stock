@@ -57,12 +57,19 @@
             <div id="hold-list"></div>
         </div>
         <div class="stock-chart"><div id="figure"></div></div>
-        <div class="stock-data"><div id="data-tips"></div></div>
+        <div class="stock-data"><div id="data-tips">
+            <div id="stock-info" style="font-size:larger;font-weight:bold;"></div>
+            <div style="display:block;"><span style="font-weight:bold;">评级: </span><span id="stock-rank" style="color:red;"></span></div>
+            <div style="display:block;"><span style="font-weight:bold;">核心观点: </span><span id="stock-core-text"></span></div>
+            <div style="display:block;"><span style="font-weight:bold;">详细分析: </span><span id="stock-detail-text"></span></div>
+            <div style="display:block;"><span style="font-weight:bold;">风险点: </span><span id="stock-risk"></span></div>
+            <div style="display:block;"><span style="font-weight:bold;">点位: </span><span id="stock-position"></span></div>
+        </div></div>
         <div class="modal_cover"><div class="modal_gif"></div></div>
     </div>
 </body>
 <script src="{{ prefix }}/static/common.js"></script>
-<script src="{{ prefix }}/static/recommend.js"></script>
 <script src="{{ prefix }}/static/echarts.min.js"></script>
 <script src="{{ prefix }}/static/plot.js"></script>
+<script src="{{ prefix }}/static/recommend.js"></script>
 </html>

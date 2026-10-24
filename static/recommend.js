@@ -28,9 +28,9 @@ function getTradeData() {
             let today = '<div style="font-weight:bold;background-color:inherit !important;"><div>名称</div><div>代码</div><div>交易方向</div><div>价格</div><div>股数</div><div>分析</div></div>';
             let hold = '<div style="font-weight:bold;background-color:inherit !important;"><div>名称</div><div>代码</div><div>建仓时间</div><div>成本</div><div>股数</div><div>持仓金额</div><div>盈利</div></div>';
             data.data.todayList.forEach(item => {
-                const temp = item.status.startsWith("TEM") ? "(未成交)" : "";
+                const temp = item.status.startsWith("TEM") ? "(待成交)" : "";
                 const tempPrice = item.status.startsWith("TEM") ? "(预估)" : "";
-                today += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${TradeStatus[item.status] + temp}</div><div>${item.price}${tempPrice}</div><div>${item.shares}</div><div>分析</div></div>`;
+                today += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${TradeStatus[item.status] + temp}</div><div>${item.price}${tempPrice}</div><div>${item.shares}</div><div onclick="show_concept('${item.code}');" style="cursor:pointer;">点我</div><div id="ai-${item.code}" style="display:none;">${item.content}</div></div>`;
             });
             data.data.holdList.forEach(item => {
                 hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${item.create_time}</div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
@@ -46,6 +46,18 @@ function getTradeData() {
             document.getElementById("hold-list").innerHTML = hold;
         })
         .finally(() => {close_modal_cover();})
+}
+
+function show_concept(code) {
+    let codeEle = document.getElementById('ai-' + code);
+    const data = JSON.parse(codeEle.innerText);
+    document.getElementById("stock-info").innerText = `${code} - ${data.name}`;
+    document.getElementById("stock-rank").innerText = data.rating;
+    document.getElementById("stock-core-text").innerText = data.action_plan.operation_reason.replace('\\n', '\n');
+    document.getElementById("stock-detail-text").innerText = data.detailed_analysis.replace('\\n', '\n');
+    document.getElementById("stock-risk").innerText = data.risk_warning.replace('\\n', '\n');
+    document.getElementById("stock-position").innerText = data.action_plan.stop_loss_profit;
+    document.getElementsByClassName("stock-data")[0].style.display = "flex";
 }
 
 getTradeData();

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, 'Microsoft YaHei', sans-serif;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 20px 20px 10px 20px;font-weight: bold;">今日筛选的数据：</td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 0 20px 20px 20px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size: 14px;">
+                                <tr style="background-color: #f9f9f9;">
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">名称</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">代码</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">交易方向</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">价格</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">股数</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">理由</th>
+                                </tr>
+                                today_filter_stock
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 20px 20px 10px 20px;font-weight: bold;">已持仓数据：</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 20px 20px 20px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size: 14px;">
+                                <!-- 表头 -->
+                                <tr style="background-color: #f9f9f9;">
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">名称</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">代码</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">建仓时间</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">持仓成本</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">持仓股数</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">盈利</th>
+                                </tr>
+                                has_hold_stock
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

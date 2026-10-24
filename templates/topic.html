@@ -1,116 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Stock</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <link rel="icon" type="image/x-icon" href="{{ prefix }}/static/favicon.svg">
-    <link rel="stylesheet" href="{{ prefix }}/static/index.css">
-    <script>
-        const prefix = "{{ prefix }}";
-    </script>
-    <style>
-        .list>div > :last-child {overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-filter">
-                <div>
-                    <button id="hot-topic" onclick="getCurrentTopic();">热点题材</button>
-                </div>
-                <div>
-                    <button id="pre-page">上一页</button>
-                </div>
-                <div>
-                    <button id="next-page">下一页</button>
-                </div>
-            </div>
-        </div>
-        <div class="stock-list">
-            <div class="item-header">
-                <div style="flex:none;width:20%;">日期</div>
-                <div style="flex:none;width:80%;">热门题材</div>
-            </div>
-            <div class="list"></div>
-        </div>
-        <div class="stock-data"><div id="data-tips"></div></div>
-        <div class="modal_cover"><div class="modal_gif"></div></div>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, 'Microsoft YaHei', sans-serif;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 20px 20px 10px 20px;font-weight: bold;">今日筛选的数据：</td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 0 20px 20px 20px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size: 14px;">
+                                <tr style="background-color: #f9f9f9;">
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">名称</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">代码</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">交易方向</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">价格</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">股数</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">理由</th>
+                                </tr>
+                                <tr><td style="border: 1px solid #e0e0e0; padding: 10px;">沪深300ETF华泰柏瑞</td><td style="border: 1px solid #e0e0e0; padding: 10px;">510300</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">RECD(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">4.07(预估)</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">1900</td><td style="border: 1px solid #e0e0e0; padding: 10px;">贵州茅台</td></tr><tr><td style="border: 1px solid #e0e0e0; padding: 10px;">军工ETF国泰</td><td style="border: 1px solid #e0e0e0; padding: 10px;">512660</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">RECD(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">1.02(预估)</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">7700</td><td style="border: 1px solid #e0e0e0; padding: 10px;">贵州茅台</td></tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 20px 20px 10px 20px;font-weight: bold;">已持仓数据：</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 20px 20px 20px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size: 14px;">
+                                <!-- 表头 -->
+                                <tr style="background-color: #f9f9f9;">
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">名称</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">代码</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">建仓时间</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">持仓成本</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">持仓股数</th>
+                                    <th style="border: 1px solid #e0e0e0; padding: 10px; text-align: left; color: #555555; font-weight: bold;">盈利</th>
+                                </tr>
+                                <tr><td style="border: 1px solid #e0e0e0; padding: 10px;">沪深300ETF华泰柏瑞</td><td style="border: 1px solid #e0e0e0; padding: 10px;">510300</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">2026-10-23</td><td style="border: 1px solid #e0e0e0; padding: 10px;">4.07</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">1900</td><td style="border: 1px solid #e0e0e0; padding: 10px;">205.2</td></tr><tr><td style="border: 1px solid #e0e0e0; padding: 10px;">军工ETF国泰</td><td style="border: 1px solid #e0e0e0; padding: 10px;">512660</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">2026-10-23</td><td style="border: 1px solid #e0e0e0; padding: 10px;">1.03</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">7700</td><td style="border: 1px solid #e0e0e0; padding: 10px;">238.7</td></tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
 </body>
-<script>
-    const pageSize = 20;
-    let page = 1;
-    const originalFetch = window.fetch;
-    window.fetch = function(url, options = {}) {
-    const defaultHeaders = {'referered': localStorage.getItem("pwd")};
-    const headers = {...defaultHeaders,...(options.headers || {})};
-    return originalFetch(url, {...options,headers});
-    };
-
-    document.getElementById("pre-page").addEventListener("click", () => {
-        page -= 1;
-        if (page <= 1) {
-            document.getElementById("pre-page").disabled = 'true';
-            document.getElementById("next-page").disabled = '';
-        }
-        getStockList();
-    })
-
-    document.getElementById("next-page").addEventListener("click", () => {
-        page += 1;
-        if (page > 1) {document.getElementById("pre-page").disabled = '';}
-        getStockList();
-    })
-
-    function getStockList() {
-        let url = `${prefix}/topic/list?pageSize=20&page=${page}`;
-        fetch(url)
-            .then(res => res.json())
-            .then(data => {
-                let s = ""
-                data.data.forEach(item => {
-                    s += `<div id="${item.key}" class="item-list"><div style="flex:none;width:20%;">${item.key}</div><div id="topic-${item.key}" style="flex:none;width:80%;" onclick="show_concept('${item.key}')">${item.value}</div></div>`;
-                })
-                document.getElementsByClassName("list")[0].innerHTML = s;
-                if (page === parseInt((data.total + pageSize -1) / pageSize)) {
-                    document.getElementById("next-page").disabled = 'true';
-                }
-            })
-    }
-
-    function getCurrentTopic() {
-        show_modal_cover();
-        let url = `${prefix}/topic/get`;
-        fetch(url)
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById("data-tips").innerText = data.data;
-                document.getElementsByClassName("stock-data")[0].style.display = "flex";
-            })
-            .finally(() => {close_modal_cover();})
-    }
-
-    function show_concept(code) {
-        let url = `${prefix}/topic/file?code=${code}`;
-        fetch(url)
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById("data-tips").innerText = data.data;
-                document.getElementsByClassName("stock-data")[0].style.display = "flex";
-            })
-    }
-
-    document.getElementById("pre-page").disabled = 'true';
-    getStockList();
-
-    const overlay_data = document.querySelector('.stock-data');
-    overlay_data.addEventListener('click', function(event) {
-        if (event.target === overlay_data) {overlay_data.style.display = 'none';}
-    });
-
-    function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}
-    function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'none';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'none';}
-
-</script>
 </html>

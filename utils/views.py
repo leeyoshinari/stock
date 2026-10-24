@@ -13,6 +13,7 @@ from utils.model import StockInfoList, ToolsInfoList, SetStockParam
 from utils.model import EtfInfoList, TradeStockList, SetStockHold
 from utils.selectStock import getStockZhuLiFundFromTencent, isOpenStock
 from utils.results import Result
+from utils.send_email import sendEmail
 from utils.etfData import pre_filter_etf
 from utils.scheduler import scheduler, get_schedule_time
 from utils.aiAnalyzer import AsyncETFAnalyzer, analyze_etf_from_news, analyze_buy_etf
@@ -21,7 +22,8 @@ from utils.queryStockHq import getStockHqFromTencent, getStockHq
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
 from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital
-from settings import DEFAULT_USER_ID
+from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE
+import aiofiles
 
 
 logger = logging.getLogger(__name__)
@@ -604,21 +606,7 @@ async def getEtf() -> Result:
 async def getTradeData() -> Result:
     result = Result()
     try:
-        tools: Tools = await Tools.get_one("openDoor")
-        current_day = f"{tools.value[:4]}-{tools.value[4:6]}-{tools.value[6:]}"
-        if time.strftime("%H:%M:%S") < "09:35:00" and time.strftime("%H:%M:%S") > "09:00:00":  # 已分析但未买入
-            current_day = time.strftime("%Y-%m-%d")
-            status = [TradeType.TEMB, TradeType.TEMS]
-            today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
-        else:
-            status = [TradeType.RECD, TradeType.AIS]
-            today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).greater(create_time=current_day + " 08:00:00").all()
-        todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
-        holdList = await get_holding(user_id=DEFAULT_USER_ID, status="A")
-        for h in holdList:
-            detail: Detail = await Detail.query().equal(code=h['code']).order_by(Detail.day.desc()).first()
-            h['price'] = round(h['price'], 2)
-            h['profit'] = round((detail.current_price - h['price']) * h['shares'], 2)
+        res = await get_today_hold()
 
         capital: list[Capital] = await Capital.query().order_by(Capital.day.asc()).all()
         day = []
@@ -633,13 +621,32 @@ async def getTradeData() -> Result:
             ratio.append(round(ra, 2))
             hs.append(round(hs_ra, 2))
             pre_value = r.total
-        result.data = {'todayList': todayList, 'holdList': holdList, 'day': day, 'ratio': ratio, 'hs': hs}
-        logger.info(f"query trade data success - {result.data}")
+        result.data = {'todayList': res['todayList'], 'holdList': res['holdList'], 'day': day, 'ratio': ratio, 'hs': hs}
+        logger.info("query trade data success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
         result.msg = str(e)
     return result
+
+
+async def get_today_hold() -> dict:
+    tools: Tools = await Tools.get_one("openDoor")
+    current_day = f"{tools.value[:4]}-{tools.value[4:6]}-{tools.value[6:]}"
+    if time.strftime("%H:%M:%S") < "09:35:00" and time.strftime("%H:%M:%S") > "09:00:00":  # 已分析但未买入
+        current_day = time.strftime("%Y-%m-%d")
+        status = [TradeType.TEMB, TradeType.TEMS]
+        today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
+    else:
+        status = [TradeType.RECD, TradeType.AIS]
+        today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).greater(create_time=current_day + " 08:00:00").all()
+    todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
+    holdList = await get_holding(user_id=DEFAULT_USER_ID, status="A")
+    for h in holdList:
+        detail: Detail = await Detail.query().equal(code=h['code']).order_by(Detail.day.desc()).first()
+        h['price'] = round(h['price'], 2)
+        h['profit'] = round((detail.current_price - h['price']) * h['shares'], 2)
+    return {'todayList': todayList, 'holdList': holdList}
 
 
 async def test(code: ToolsInfoList) -> Result:
@@ -1014,6 +1021,9 @@ async def auto_trade_etf():
         # 卖出后更新可用金额
         hold_fund = await calc_hold_capital()
         await Capital.update(tool.value, total=round(available + hold_fund, 2), available=round(available, 2), hold=round(hold_fund, 2))
+
+        # 获取持仓数据和今日数据，用于发送邮件
+        await auto_select_email()
     except:
         logger.error(traceback.format_exc())
 
@@ -1055,3 +1065,25 @@ async def calc_hold_capital() -> float:
     except:
         logger.error(traceback.format_exc())
         return 0
+
+
+async def auto_select_email():
+    try:
+        res = await get_today_hold()
+        today_str = ''
+        hold_str = ''
+        for r in res['todayList']:
+            today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['status']}(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">贵州茅台</td></tr>'''
+        for r in res['holdList']:
+            hold_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['profit']}</td></tr>'''
+        async with aiofiles.open(EMAIL_TEMPLATE, 'r', encoding='utf-8') as f:
+            template = await f.read()
+        template = template.replace("today_filter_stock", today_str).replace("has_hold_stock", hold_str)
+        # sendEmail("今日数据", template)
+        logger.info(template)
+    except:
+        logger.error(traceback.format_exc())

@@ -61,6 +61,7 @@ HTTP_HOST_NETLIFY = get_config("HTTPHostNetlify")
 ACCESS_KEY = get_config("accessKey")
 BACKUP_PATH = get_config("backupPath")
 LONGBRIDGE_URL = get_config("longbridgeUrl")
+EMAIL_TEMPLATE = os.path.join(PROMPT_PATH, "email.txt")
 
 
 def checkout(pwd: str) -> bool:
