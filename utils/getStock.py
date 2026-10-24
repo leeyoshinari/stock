@@ -27,7 +27,7 @@ from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFr
 from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina, getStockBanKuaiFromDOngCai
 from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent
 from utils.etfData import getEtfShareFromSH, getEtfShareFromSZ
-from utils.database import Stock, Detail, Tools, Recommend, ETF, Transaction, TradeType
+from utils.database import Stock, Detail, Tools, Capital, ETF, Transaction, TradeType
 
 
 logger = logging.getLogger(__name__)
@@ -469,6 +469,11 @@ async def checkTradeDay():
                             await Tools.update("openDoor", value=current_day)
                         except NoResultFound:
                             await Tools.create(key="openDoor", value=current_day)
+                        try:
+                            _ = await Capital.get_one(current_day)
+                        except NoResultFound:
+                            capital: Capital = await Capital.query().order_by(Capital.day.desc()).first()
+                            await Capital.create(day=current_day, total=capital.total, available=capital.available, hold=capital.hold)
                         logger.info(f"{current_day} 今天开市")
                         break
                     else:

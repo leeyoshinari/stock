@@ -43,7 +43,6 @@ class AsyncETFAnalyzer:
     def __init__(self, input_data: dict):
         self.today: str = input_data.get("toDay", datetime.now().strftime("%Y-%m-%d"))
         self.type: str = input_data.get("type", "stock")    # 类型，stock-股票，etf-ETF
-        self.totalFund: float = input_data.get("totalFund", 100000)     # 总资产
         self.availableFund: float = input_data.get("availableFund", 0)  # 可用资产
         self.name: str = input_data.get("name", "")     # 股票名称
         self.code: str = input_data.get("code", "")     # 股票code
@@ -335,7 +334,7 @@ class AsyncETFAnalyzer:
 }}"""
         user_message = f"""用户输入的数据是：
 【标的信息】: {self.name} ({self.code}), 类型: {self.type}, 行业: {self.industry}
-【账户总资产】: {self.totalFund}元 | 当前可用资金: {self.availableFund}元
+【账户可用资金】: {self.availableFund}元
 【当前持仓】: {hold_info}
 {news_result_prompt if self.news_reason else ""}
 【各维度分析结果】: {dim_results_str}"""

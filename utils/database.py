@@ -917,8 +917,7 @@ class ETF(Base, CRUDBase):
 class Capital(Base, CRUDBase):
     __tablename__ = 'capital'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    day = Column(String(10), nullable=False, comment="日期")
+    day = Column(String(8), primary_key=True, nullable=False, comment="日期")
     total = Column(Float, nullable=False, comment="总金额")
     available = Column(Float, nullable=False, comment="可用金额")
     hold = Column(Float, nullable=False, comment="持仓金额")

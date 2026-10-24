@@ -65,6 +65,13 @@ def calc_kdj(price: float, high_price: list, low_price: list, kdjk: float, kdjd:
 
 
 def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shares: int = 0, fee: float = 0.0) -> dict:
+    """计算持仓\n
+    :params status: 方向，买入 or 卖出
+    :params price: 本次交易的价格
+    :params number: 本次交易的股数
+    :params cost: 当前持仓成本
+    :params shares: 当前持仓股数
+    :params fee: 本次交易费用"""
     result = {}
     try:
         profit = 0.0
@@ -1147,11 +1154,10 @@ async def analysizeEtfFromNews() -> Result:
     return result
 
 
-async def analysize(code: str, userId: int, totalFund: float = 100000, availableFund: float = 100000, newsRes: str = None, isAuto: bool = False) -> Result:
+async def analysize(code: str, userId: int, availableFund: float = 100000, newsRes: str = None, isAuto: bool = False) -> Result:
     """分析标的，判断怎么操作 \n
     :params code: code
     :params userId: 用户Id
-    :params totalFund: 用户总金额
     :params availableFund: 用户可用金额
     :params newsRes: 从新闻资讯中分析结果
     :params isAuto: 是否只程序自动调用
@@ -1183,7 +1189,6 @@ async def analysize(code: str, userId: int, totalFund: float = 100000, available
             "name": stock.name,
             "code": stock.code,
             "toDay": f"{open_time[:4]}-{open_time[4:6]}-{open_time[6:]}",
-            "totalFund": totalFund,
             "availableFund": availableFund,
             "newsRes": newsRes,
             "userId": userId,
@@ -1237,8 +1242,9 @@ async def auto_analysize_etf():
     if not await isOpenStock():
         logger.info("非交易日，未开市，跳过...")
         return
-    capital_res = await calc_capital()
-    available = capital_res['available']
+    tool: Tools = await Tools.get_one("openDoor")
+    capital: Capital = await Capital.get_one(tool.value)
+    available = capital.available
     logger.info("🚀 开始获取新闻，分析筛选ETF")
     etfData = []
     result = await analysizeEtfFromNews()
@@ -1260,7 +1266,7 @@ async def auto_analysize_etf():
         news_etf_data = [etf for etf in etfData if etf['code'] == code]
         news_etf_result = news_etf_data[0]['reason'] if news_etf_data else None
         logger.info(f"📡 开始分析 ETF - {r}")
-        res = await analysize(code=code, userId=DEFAULT_USER_ID, totalFund=capital_res['total'], availableFund=available, newsRes=news_etf_result, isAuto=True)
+        res = await analysize(code=code, userId=DEFAULT_USER_ID, availableFund=available, newsRes=news_etf_result, isAuto=True)
         if res.success:
             try:
                 if res.data['action_plan']['operation'] == "不操作":
@@ -1275,7 +1281,7 @@ async def auto_analysize_etf():
                 logger.error(f"❌ Error: 分析结果入库失败 - {r} - {traceback.format_exc()}")
         else:
             logger.error(f"❌ Error: 分析 ETF 失败 - {r} - {res.msg}")
-    if time.strftime("%H:%M:%S") > "09:31:00":  # 如果已经开盘，则立即执行
+    if time.strftime("%H:%M:%S") > "09:31:30":  # 如果已经开盘，则立即执行
         scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10))
     else:   # 如果还未开盘，则设置定时执行
         scheduler.add_job(auto_trade_etf, 'date', run_date=get_schedule_time(9, 31, 30), misfire_grace_time=10)
@@ -1285,19 +1291,26 @@ async def auto_trade_etf():
     """开盘后自动先卖出、再买入ETF
     :params status: "B"-买入, "S"=卖出 """
     try:
+        tool: Tools = await Tools.get_one("openDoor")
         current_day = time.strftime("%Y-%m-%d")
+        capital: Capital = await Capital.get_one(tool.value)
+        available = capital.available
         # 先卖出
         rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMS).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
         for r in rows:
+            current_hold = await get_holding(user_id=DEFAULT_USER_ID, code=r.code, status="A")
+            real_shares = min(current_hold['shares'], r.shares)
             res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
             stockDo: StockModelDo = res_stock['data'][0]
-            fee = max((stockDo.current_price * r.shares) * etf_fee_ratio, 5)
+            fee = max((stockDo.current_price * real_shares) * etf_fee_ratio, 5)
             # TODO: 真实的操作
-            await Transaction.update(r.id, price=stockDo.current_price, fee=round(fee, 2), status=TradeType.AIS)  # 更新真实价格和佣金
-            logger.info(f"自动卖出 {r.code} - {r.name}, price: {stockDo.current_price}, shares: {r.shares}, fee: {fee}")
+            await Transaction.update(r.id, price=stockDo.current_price, shares=real_shares, fee=round(fee, 2), status=TradeType.AIS)  # 更新真实价格和佣金
+            available = available + (stockDo.current_price * real_shares - fee)
+            logger.info(f"自动卖出 {r.code} - {r.name}, price: {stockDo.current_price}, shares: {real_shares}, fee: {fee}")
             await asyncio.sleep(1)
-        capital_res = await calc_capital()
-        available = capital_res['available']
+
+        # 卖出后更新可用金额
+        await Capital.update(tool.value, available=round(available, 2))
         # 再买入
         buy_amount = 0.0
         price_dict = {}
@@ -1331,42 +1344,49 @@ async def auto_trade_etf():
                     await Transaction.query().equal(code=r['code'], status=TradeType.TEMB, user_id=DEFAULT_USER_ID).greater(create_time=current_day + ' 08:30:00').update(shares=shares)
                 else:
                     await Transaction.query().equal(code=r['code'], status=TradeType.TEMB, user_id=DEFAULT_USER_ID).greater(create_time=current_day + ' 08:30:00').update(status=TradeType.FAIL)
+                    logger.warning(f"由于可用金额不足, 分析后决策不操作 - {r['code']}")
 
         # 开始真实交易
         rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
         for r in rows:
             res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
             stockDo: StockModelDo = res_stock['data'][0]
-            curr_price = price_dict[r.code]
-            amount = curr_price * r.shares   # 真实买入金额
+            curr_price = stockDo.current_price
+            real_shares = r.shares
+            amount = curr_price * real_shares   # 真实买入金额
             fee = max(amount * etf_fee_ratio, 5)
+            available = available - (amount + fee)
+            if available < 0:
+                delta_shares = (int((-1 * available) / (curr_price * 100)) + 1) * 100
+                real_shares = real_shares - delta_shares
+                amount = curr_price * real_shares  # 真实买入金额
+                fee = max(amount * etf_fee_ratio, 5)
+                available = available - (amount + fee)
             # TODO: 真实的操作
-            await Transaction.update(r.id, price=curr_price, fee=round(fee, 2), status=TradeType.RECD)  # 更新真实价格和佣金
-            logger.info(f"自动买入 {r.code} - {r.name}, price: {curr_price}, shares: {r.shares}, fee: {fee}")
+            await Transaction.update(r.id, price=curr_price, shares=real_shares, fee=round(fee, 2), status=TradeType.RECD)  # 更新真实价格和佣金
+            logger.info(f"自动买入 {r.code} - {r.name}, price: {curr_price}, shares: {real_shares}, fee: {fee}")
             await asyncio.sleep(1)
+
+        # 卖出后更新可用金额
+        hold_fund = await calc_hold_capital()
+        await Capital.update(tool.value, total=round(available + hold_fund, 2), available=round(available, 2), hold=round(hold_fund, 2))
     except:
         logger.error(traceback.format_exc())
 
 
 async def update_holding_capital():
-    """更新持仓数据和资金"""
+    """处理交易记录，更新清仓数据"""
     try:
         tool: Tools = await Tools.get_one("openDoor")
         current_day = tool.value
         if current_day == time.strftime("%Y%m%d"):
             _ = await get_holding()
-            if time.strftime("%H:%M:%S") > "15:50:00":
-                res: dict = await calc_capital()
-                await Capital.query().equal(day=time.strftime("%Y-%m-%d")).delete()
-                await Capital.create(day=res['day'], total=res['total'], available=res['available'], hold=res['hold'])
-                logger.info(f"update capital success - {res}")
     except:
         logger.error(traceback.format_exc())
 
 
-async def calc_capital() -> dict:
-    """获取 总金额 和 持仓金额"""
-    result = {}
+async def calc_hold_capital() -> float:
+    """获取 持仓金额"""
     try:
         # 正持仓的数据
         is_stop = time.strftime("%H:%M:%S") < "15:50:00" and time.strftime("%H:%M:%S") > "09:30:00"
@@ -1381,19 +1401,11 @@ async def calc_capital() -> dict:
                 stockDo: Detail = await Detail.get_one((r['code'], tool.value))
             hold_fund += stockDo.current_price * r['shares']
 
-        current_day = time.strftime("%Y-%m-%d")
-        capital: list[Capital] = await Capital.query().order_by(Capital.id.desc()).limit(1).all()
-        available = capital[0].available    # 可用金额
-
-        # 已清仓的数据，今天清仓数据增加可用金额
-        rows2: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=1, status=TradeType.AUTO).greater(update_time=current_day + ' 09:30:00').all()
-        for r in rows2:
-            available += r.fee
-        result = {'day': current_day, 'total': round(hold_fund + available, 2), 'hold': round(hold_fund, 2), 'available': round(available, 2)}
-        logger.info(f"current capital is {result}")
+        logger.info(f"current hold capital is {hold_fund}")
+        return hold_fund
     except:
         logger.error(traceback.format_exc())
-    return result
+        return 0
 
 
 # async def analysize_hold_etf(etfs: list):

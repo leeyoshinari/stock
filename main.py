@@ -328,12 +328,11 @@ async def lifespan(app: Litestar):
         scheduler.add_job(getStock.updateEtfShares, 'cron', hour=8, minute=30, second=20, misfire_grace_time=10)    # 更新前一天的ETF份额
         scheduler.add_job(views.auto_analysize_etf, 'cron', hour=8, minute=58, second=0, misfire_grace_time=10)     # 开始分析 ETF
         scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)      # 检查今天是否开市
-        scheduler.add_job(views.update_holding_capital, 'cron', hour=11, minute=30, second=20, misfire_grace_time=10)          # 中午更新持仓数据和资金
         scheduler.add_job(getStock.setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)     # 中午更新股票信息
         scheduler.add_job(getStock.setAllSZStock, 'cron', hour=12, minute=0, second=20, misfire_grace_time=10)                 # 中午更新股票信息
         scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新股票数据
         scheduler.add_job(getStock.updateStockFund, 'cron', hour=15, minute=50, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
-        scheduler.add_job(views.update_holding_capital, 'cron', hour=16, minute=0, second=20, misfire_grace_time=10)           # 收盘后更新持仓数据和资金
+        scheduler.add_job(views.update_holding_capital, 'cron', hour='10,11,14,15,16', minute='1,31', second=20, misfire_grace_time=10)           # 处理交易记录
         scheduler.add_job(zip_file, 'cron', hour=17, minute=0, second=0, args=[[db_path], zip_path], misfire_grace_time=10)    # 备份数据库
         scheduler.add_job(getStock.clearStockData, 'cron', day_of_week='sat', hour=0, minute=0, second=20, misfire_grace_time=10)       # 删除数据
         scheduler.add_job(getStock.updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=20, second=0, misfire_grace_time=10)   # 更新股票行业、概念等数据
