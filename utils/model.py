@@ -161,7 +161,7 @@ class TradeStockList(BaseModel):
     fee: float = None
     flag: int = None
     user_id: int = None
-    content: str = None
+    content: Optional[str] = None
     create_time: str = None
     update_time: str = None
 

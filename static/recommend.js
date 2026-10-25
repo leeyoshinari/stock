@@ -36,7 +36,7 @@ function getTradeData() {
                 hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${item.create_time}</div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
             });
             let figure = document.getElementById("capital-figure");
-            figure.style.width = parseInt(document.body.clientWidth * 0.5) + 'px';
+            figure.style.width = findMin(document.body.clientWidth, 820) + 'px';
             figure.style.height = '350px';
             figure.removeAttribute("_echarts_instance_")
             figure.innerHTML = '';
