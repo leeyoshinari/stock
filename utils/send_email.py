@@ -20,9 +20,9 @@ def sendEmail(subject: str, msg: str, flag: str = None):
         receiver = RECEIVER_EMAIL
     else:
         receiver = SENDER_EMAIL
-    sender_name = 'Recommend Stocks'
+    sender_name = 'Auto'
     sender_email = SENDER_EMAIL
-    receiver_name = 'BuyBuy'
+    receiver_name = 'BuyBuyBuy'
     receiver_email = receiver.split(',')
     host = 'smtp.qq.com'
 

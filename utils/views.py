@@ -1069,13 +1069,23 @@ async def calc_hold_capital() -> float:
 
 async def auto_select_email():
     try:
+        tradeStatus = {"TEMB": "买入", "TEMS": "卖出", "RECD": "买入", "AIS": "卖出"}
         res = await get_today_hold()
         today_str = ''
         hold_str = ''
         for r in res['todayList']:
+            content = json.loads(r['content'])
             today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['status']}(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">贵州茅台</td></tr>'''
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;"><details style="color: #0052d9; cursor: pointer;">
+                <summary style="outline: none; font-weight: bold; color: #0052d9; cursor: pointer;">点我</summary>
+                <div style="position: absolute; top: 28px; left: 50%; margin-left: -210px; z-index: 999; width: 318px; height: 66%; overflow-y: auto; background-color: #ffffff; border: 1px solid #cccccc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 15px; border-radius: 6px; line-height: 1.6;">
+                    <p style="margin: 0 0 10px 0;"><strong>评级: </strong>{content['rating']}</p>
+                    <p style="margin: 0 0 10px 0;"><strong>核心观点: </strong>{content['action_plan']['operation_reason'].replace('\\n', '\n')}</p>
+                    <p style="margin: 0 0 10px 0;"><strong>详细分析: </strong>{content['detailed_analysis'].replace('\\n', '\n')}</p>
+                    <p style="margin: 0 0 10px 0;"><strong>风险点: </strong>{content['risk_warning'].replace('\\n', '\n')}</p>
+                    <p style="margin: 0 0 10px 0;"><strong>点位: </strong>{content['action_plan']['stop_loss_profit']}</p>
+                </div></details></td></tr>'''
         for r in res['holdList']:
             hold_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}</td>
@@ -1083,7 +1093,7 @@ async def auto_select_email():
         async with aiofiles.open(EMAIL_TEMPLATE, 'r', encoding='utf-8') as f:
             template = await f.read()
         template = template.replace("today_filter_stock", today_str).replace("has_hold_stock", hold_str)
-        # sendEmail("今日数据", template)
-        logger.info(template)
+        sendEmail("今日数据", template)
+        logger.info("send email success ~")
     except:
         logger.error(traceback.format_exc())

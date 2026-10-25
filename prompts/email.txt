@@ -10,7 +10,7 @@
             <td align="center">
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                     <tr>
-                        <td style="padding: 20px 20px 10px 20px;font-weight: bold;">今日筛选的数据：</td>
+                        <td style="padding: 20px 20px 10px 20px;font-weight: bold;">今日待交易的数据：</td>
                     </tr>
 
                     <tr>
@@ -30,7 +30,7 @@
                     </tr>
 
                     <tr>
-                        <td style="padding: 20px 20px 10px 20px;font-weight: bold;">已持仓数据：</td>
+                        <td style="padding: 20px 20px 10px 20px;font-weight: bold;">当前已持仓的数据：</td>
                     </tr>
                     <tr>
                         <td style="padding: 0 20px 20px 20px;">
