@@ -56,7 +56,7 @@ class StockController(Controller):
         return result
 
     @get('/get', summary="查询股票k-line等技术指标数据")
-    async def create_file(self, request: Request, code: str, userId: str = None) -> Result:
+    async def create_file(self, request: Request, code: str, userId: int = None) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.queryByCode(code, userId)
@@ -177,7 +177,7 @@ class StockController(Controller):
 
     @post('/test')
     async def test(self, request: Request) -> Result:
-        result = await views.auto_select_email()
+        result = await views.get_today_hold()
         return result
 
 
@@ -224,7 +224,7 @@ async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
     if RUN_ENV != 'dev':
         scheduler.add_job(getStock.updateEtfShares, 'cron', hour=8, minute=30, second=20, misfire_grace_time=10)    # 更新前一天的ETF份额
-        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=8, minute=58, second=0, misfire_grace_time=10)     # 开始分析 ETF
+        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=8, minute=50, second=0, misfire_grace_time=10)     # 开始分析 ETF
         # scheduler.add_job(views.auto_trade_etf, 'cron', hour=9, minute=35, second=0, misfire_grace_time=10)
         scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)      # 检查今天是否开市
         scheduler.add_job(getStock.setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)     # 中午更新股票信息

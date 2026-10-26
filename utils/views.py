@@ -1035,7 +1035,7 @@ async def update_holding_capital():
             res: dict = await getStockHqFromTencent('', [{"sh000300": "沪深300", "sh000300count": 5}])
             stockDo: StockModelDo = res['data'][0]
             capital: Capital = await Capital.get_one(current_day)
-            await Capital.update(current_day, total=round(capital.available + hold_fund, 2), campare=stockDo.current_price)
+            await Capital.update(current_day, total=round(capital.available + hold_fund, 2), hold=round(hold_fund, 2), campare=stockDo.current_price)
     except:
         logger.error(traceback.format_exc())
 
