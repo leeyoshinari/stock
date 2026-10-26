@@ -232,7 +232,7 @@ async def lifespan(app: Litestar):
         scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新股票数据
         scheduler.add_job(getStock.updateStockFund, 'cron', hour=15, minute=50, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
         scheduler.add_job(getStock.updateEtfDetail, 'cron', hour='9,10,11,13,14', minute=45, second=20, misfire_grace_time=10)            # 更新ETF数据
-        scheduler.add_job(views.update_holding_capital, 'cron', hour='10,11,14,15,16', minute='1,31', second=20, misfire_grace_time=10)   # 处理交易记录
+        scheduler.add_job(views.update_holding_capital, 'cron', hour='10,11,13,14,15,16', minute='1,31', second=20, misfire_grace_time=10)   # 处理交易记录
         scheduler.add_job(zip_file, 'cron', hour=17, minute=0, second=0, args=[[db_path], zip_path], misfire_grace_time=10)             # 备份数据库
         scheduler.add_job(getStock.clearStockData, 'cron', day_of_week='sat', hour=0, minute=0, second=20, misfire_grace_time=10)       # 删除数据
         scheduler.add_job(getStock.updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=20, second=0, misfire_grace_time=10)   # 更新股票行业、概念等数据

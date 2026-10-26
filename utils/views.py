@@ -1009,8 +1009,9 @@ async def auto_trade_etf():
             await asyncio.sleep(1)
 
         # 卖出后更新可用金额
-        hold_fund = await calc_hold_capital()
-        await Capital.update(tool.value, total=round(available + hold_fund, 2), available=round(available, 2), hold=round(hold_fund, 2))
+        await Capital.update(tool.value, available=round(available, 2))
+        # hold_fund = await calc_hold_capital()
+        await update_holding_capital()
 
         # 获取持仓数据和今日数据，用于发送邮件
         await auto_select_email()
@@ -1025,36 +1026,41 @@ async def update_holding_capital():
         current_day = tool.value
         if current_day == time.strftime("%Y%m%d"):
             _ = await get_holding()
+            res = await get_today_hold()
+            hold_fund = 0
+            for r in res['holdList']:
+                hold_fund += r["price"] * r['shares']
 
             # 更新当天沪深300指数价格
             res: dict = await getStockHqFromTencent('', [{"sh000300": "沪深300", "sh000300count": 5}])
             stockDo: StockModelDo = res['data'][0]
-            await Capital.update(current_day, campare=stockDo.current_price)
+            capital: Capital = await Capital.get_one(current_day)
+            await Capital.update(current_day, total=round(capital.available + hold_fund, 2), campare=stockDo.current_price)
     except:
         logger.error(traceback.format_exc())
 
 
-async def calc_hold_capital() -> float:
-    """获取 持仓金额"""
-    try:
-        # 正持仓的数据
-        is_stop = time.strftime("%H:%M:%S") < "15:50:00" and time.strftime("%H:%M:%S") > "09:30:00"
-        tool: Tools = await Tools.get_one("openDoor")
-        hold_fund = 0   # 当天持仓总金额
-        rows1: list[dict] = await get_holding(user_id=DEFAULT_USER_ID)
-        for r in rows1:
-            if is_stop:
-                res_stock: dict = await getStockHq('', [{r['code']: r['name'], f"{r['code']}count": 5}])
-                stockDo: StockModelDo = res_stock['data'][0]
-            else:
-                stockDo: Detail = await Detail.get_one((r['code'], tool.value))
-            hold_fund += stockDo.current_price * r['shares']
+# async def calc_hold_capital() -> float:
+#     """获取 持仓金额"""
+#     try:
+#         # 正持仓的数据
+#         is_stop = time.strftime("%H:%M:%S") < "15:50:00" and time.strftime("%H:%M:%S") > "09:30:00"
+#         tool: Tools = await Tools.get_one("openDoor")
+#         hold_fund = 0   # 当天持仓总金额
+#         rows1: list[dict] = await get_holding(user_id=DEFAULT_USER_ID)
+#         for r in rows1:
+#             if is_stop:
+#                 res_stock: dict = await getStockHq('', [{r['code']: r['name'], f"{r['code']}count": 5}])
+#                 stockDo: StockModelDo = res_stock['data'][0]
+#             else:
+#                 stockDo: Detail = await Detail.get_one((r['code'], tool.value))
+#             hold_fund += stockDo.current_price * r['shares']
 
-        logger.info(f"current hold capital is {hold_fund}")
-        return hold_fund
-    except:
-        logger.error(traceback.format_exc())
-        return 0
+#         logger.info(f"current hold capital is {hold_fund}")
+#         return hold_fund
+#     except:
+#         logger.error(traceback.format_exc())
+#         return 0
 
 
 async def auto_select_email():
