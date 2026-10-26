@@ -134,7 +134,7 @@ async def queryGeminiVercel(systemPrompt: str, userMessage: str) -> str:
 
 
 ai_method_list = [queryChatGPTLocal, queryGeminiCloud, queryGeminiVercel, queryChatGPTCloud]
-ai_dispatcher = AsyncRoundRobinDispatcher(methods=ai_method_list, max_retries=5, timeout=120, cooldown=180, name="AIDispatcher")
+ai_dispatcher = AsyncRoundRobinDispatcher(methods=ai_method_list, max_retries=3, timeout=99, cooldown=600, name="AIDispatcher")
 
 
 async def chat(*args, **kwargs):
