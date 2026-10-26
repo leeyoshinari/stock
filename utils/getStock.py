@@ -317,6 +317,22 @@ async def updateStockDetail():
             logger.error(traceback.format_exc())
 
 
+async def updateEtfDetail():
+    tool: Tools = await Tools.get_one("openDoor")
+    current_day = tool.value
+    if current_day == time.strftime("%Y%m%d"):
+        try:
+            etfList = []
+            etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
+            for s in etfInfo:
+                etfList.append({s.code: s.name, f'{s.code}count': 1})
+            index = int(len(etfList) / 2)
+            _ = await asyncio.gather(*[getEtfFrom(d) for d in [etfList[:index], etfList[index:]]], return_exceptions=True)
+            logger.info(f"总共 {len(etfList)} 个 ETF ...")
+        except:
+            logger.error(traceback.format_exc())
+
+
 async def checkTradeDay():
     """ 检查今天是否开市 """
     while True:
