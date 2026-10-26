@@ -1029,7 +1029,7 @@ async def update_holding_capital():
             res = await get_today_hold()
             hold_fund = 0
             for r in res['holdList']:
-                hold_fund += r["price"] * r['shares']
+                hold_fund += r["price"] * r['shares'] + r['profit']
 
             # 更新当天沪深300指数价格
             res: dict = await getStockHqFromTencent('', [{"sh000300": "沪深300", "sh000300count": 5}])
