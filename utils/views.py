@@ -94,55 +94,48 @@ def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shar
     return result
 
 
-async def get_holding(user_id: int = None, code: str = None, status: str = None) -> list[dict]:
+async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
+    '''获取持仓的数据，更新已清仓的数据
+
+    :params user_id: 用户id, 默认用户 99, DEFAULT_USER_ID
+    :params code: 股票代码
     '''
-    status: 默认所有, "M" - 手动操作, "A" - 自动操作
-    '''
-    async def get_holding_call(user_id: int, code: str, status: str):
-        result = []
-        try:
-            filter = [TradeType.BUY, TradeType.SELL]
-            trade_type = TradeType.MAN
-            if status == "A":
-                filter = [TradeType.RECD, TradeType.AIS]
-                trade_type = TradeType.AUTO
-            if user_id is not None and code:
-                rows = await Transaction.query().equal(code=code, user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-            elif user_id is not None and not code:
-                rows = await Transaction.query().equal(user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-            elif code and user_id is None:
-                rows = await Transaction.query().equal(code=code, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
+    result = []
+    try:
+        filter = [TradeType.BUY, TradeType.SELL]
+        trade_type = TradeType.MAN
+        if user_id == DEFAULT_USER_ID:
+            filter = [TradeType.RECD, TradeType.AIS]
+            trade_type = TradeType.AUTO
+        if user_id is not None and code:
+            rows = await Transaction.query().equal(code=code, user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
+        elif user_id is not None and not code:
+            rows = await Transaction.query().equal(user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
+        elif code and user_id is None:
+            rows = await Transaction.query().equal(code=code, flag=0).select("user_id", "code").distinct().all()
+        else:
+            rows = await Transaction.query().equal(flag=0).select("user_id", "code").distinct().all()
+
+        for r in rows:
+            stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).order_by(Transaction.create_time.asc()).all()
+            res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
+            for s in stock:
+                res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
+            if res['shares'] == 0:
+                await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=trade_type,
+                                         fee=round(res['profit'], 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
+                # for s in stock:
+                #    await Transaction.update(s.id, flag=1)
+                await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).update(flag=1)
+                logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
             else:
-                rows = await Transaction.query().equal(flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-
-            for r in rows:
-                stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).order_by(Transaction.create_time.asc()).all()
-                res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
-                for s in stock:
-                    res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
-                if res['shares'] == 0:
-                    await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=trade_type,
-                                             fee=round(res['profit'], 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
-                    # for s in stock:
-                    #    await Transaction.update(s.id, flag=1)
-                    await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).update(flag=1)
-                    logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
-                else:
-                    info = {'name': stock[-1].name, 'code': stock[-1].code, 'create_time': stock[0].create_time.strftime("%Y-%m-%d"),
-                            'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': res['profit'], 'status': trade_type}
-                    result.append(info)
-                    logger.info(f"{stock[-1].code} - {stock[-1].name} - {res}")
-        except:
-            logger.error(traceback.format_exc())
-        return result
-
-    if status:
-        return await get_holding_call(user_id, code, status)
-    elif user_id:
-        s = "A" if user_id == 99 else "M"
-        return await get_holding_call(user_id, code, s)
-    else:
-        return await get_holding_call(user_id, code, "M") + await get_holding_call(user_id, code, "A")    # 手动操作和自动操作
+                info = {'name': stock[-1].name, 'code': stock[-1].code, 'create_time': stock[0].create_time.strftime("%Y-%m-%d"),
+                        'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': res['profit'], 'status': trade_type}
+                result.append(info)
+                logger.info(f"{stock[-1].code} - {stock[-1].name} - {res}")
+    except:
+        logger.error(traceback.format_exc())
+    return result
 
 
 async def queryByCode(code: str, userId: int = None) -> Result:
@@ -203,7 +196,7 @@ async def queryByCode(code: str, userId: int = None) -> Result:
         for r in trans:
             if r.status in [TradeType.BUY, TradeType.SELL, TradeType.RECD, TradeType.AIS]:
                 coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
-        profit_res = await get_holding(user_id=userId, code=code, status="M")
+        profit_res = await get_holding(user_id=userId, code=code)
         if x[-1] != day:
             logger.info(f"No real data, start query read data - code: {code}")
             stockDo: dict = await calc_stock_real_data(code)
@@ -641,7 +634,7 @@ async def get_today_hold() -> dict:
         status = [TradeType.RECD, TradeType.AIS]
         today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).greater(create_time=current_day + " 08:00:00").all()
     todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
-    holdList = await get_holding(user_id=DEFAULT_USER_ID, status="A")
+    holdList = await get_holding(user_id=DEFAULT_USER_ID)
     for h in holdList:
         detail: Detail = await Detail.query().equal(code=h['code']).order_by(Detail.day.desc()).first()
         h['price'] = round(h['price'], 2)
@@ -888,9 +881,6 @@ async def auto_analysize_etf():
     if today.weekday() >= 5:
         logger.info("周末未开市，跳过...")
         return
-    if not await isOpenStock():
-        logger.info("非交易日，未开市，跳过...")
-        return
     # 先删除交易失败的数据
     await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.FAIL).delete()
     tool: Tools = await Tools.get_one("openDoor")
@@ -949,7 +939,7 @@ async def auto_trade_etf():
         # 先卖出
         rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMS).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
         for r in rows:
-            current_hold = await get_holding(user_id=DEFAULT_USER_ID, code=r.code, status="A")
+            current_hold = await get_holding(user_id=DEFAULT_USER_ID, code=r.code)
             real_shares = min(current_hold['shares'], r.shares)
             res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
             stockDo: StockModelDo = res_stock['data'][0]
@@ -1051,7 +1041,7 @@ async def calc_hold_capital() -> float:
         is_stop = time.strftime("%H:%M:%S") < "15:50:00" and time.strftime("%H:%M:%S") > "09:30:00"
         tool: Tools = await Tools.get_one("openDoor")
         hold_fund = 0   # 当天持仓总金额
-        rows1: list[dict] = await get_holding(user_id=DEFAULT_USER_ID, status="A")
+        rows1: list[dict] = await get_holding(user_id=DEFAULT_USER_ID)
         for r in rows1:
             if is_stop:
                 res_stock: dict = await getStockHq('', [{r['code']: r['name'], f"{r['code']}count": 5}])
