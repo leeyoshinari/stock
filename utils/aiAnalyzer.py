@@ -406,9 +406,15 @@ async def analyze_etf_from_news(etfList: list[dict], lastDay: str) -> list[dict]
 【ETF列表】
 {etfList}"""
         res = await chat(system_prompt, user_message)
-        return json.loads(res)
+        try:
+            return json.loads(res)
+        except:
+            logger.error(res)
+            logger.error(traceback.format_exc)
+            return []
     except:
         logger.error(traceback.format_exc())
+        return []
 
 
 async def analyze_buy_etf(availablesFund: float, etfList: list[dict]) -> list[dict]:
