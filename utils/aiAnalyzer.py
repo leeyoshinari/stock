@@ -261,8 +261,10 @@ class AsyncETFAnalyzer:
 
         # 1. 执行 Fallback 数据获取
         context = f"{self.name}({self.code}) {self.industry}"
-        raw_data = await self._fetch_data(config["api_chain"], context, dim_name, config.get("aggregate", False))
-
+        if config["api_chain"]:
+            raw_data = await self._fetch_data(config["api_chain"], context, dim_name, config.get("aggregate", False))
+        else:
+            raw_data = ''
         # 2. 追加技术面 K 线数据（如果是技术面维度）
         if dim_name == "技术面与资金流向" and self.kLine:
             raw_data += f"\n{etf_k_line_comment if self.type == "etf" else stock_k_line_comment}\n{self.kLine}"
@@ -348,7 +350,7 @@ class AsyncETFAnalyzer:
         configs = self._get_dimension_configs()
 
         logger.info(f"📡 正在并发执行 {len(configs)} 个维度的 [API降级获取 + 定制化分析] ...")
-        dimension_results = await asyncio.gather(*[self._analyze_single_dimension(cfg) for cfg in configs if len(cfg['api_chain']) > 0])
+        dimension_results = await asyncio.gather(*[self._analyze_single_dimension(cfg) for cfg in configs])
 
         logger.info("✅ 维度分析完成，正在进行最终汇总决策 (Reduce)...")
         final_result = await self._final_decision(dimension_results)
