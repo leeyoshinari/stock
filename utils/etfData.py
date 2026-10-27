@@ -255,11 +255,11 @@ def pre_filter_etf(records: list[dict]) -> tuple[bool, str]:
 
     # 份额显著流入（左侧建仓或右侧主升，必须分析）
     sum_delta_3 = sum(r['shares_delta'] for r in recent_3)
-    if latest['shares_delta'] > 1 or sum_delta_3 > 2:
+    if latest['shares_delta'] > 2 or sum_delta_3 > 3:
         return True, "白名单: 份额显著流入"
 
     # 真爆量（放量 且 份额必须增加，排除场内对倒）
-    if latest['qrr'] > 1.5 and latest['shares_delta'] > 0.6:
+    if latest['qrr'] > 1.5 and latest['shares_delta'] > 1:
         return True, "白名单: 真爆量(放量且份额增加)"
 
     # 处于20日线变盘临界点（误差1%以内）

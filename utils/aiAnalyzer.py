@@ -55,7 +55,7 @@ class AsyncETFAnalyzer:
         self.kLine: str = input_data.get("k_line", "")      # K线等技术数据
         self.hold: dict = input_data.get("hold", {})    # 当前持仓数据
         self.has_position: bool = bool(self.hold and self.hold.get("shares", 0) > 0)
-        logger.info(f"input_data is - {json.dumps(input_data, ensure_ascii=False)}")
+        logger.debug(f"input_data is - {json.dumps(input_data, ensure_ascii=False)}")
 
     async def _fetch_data(self, api_chain: list[Callable], context: str, dimension: str, aggregate: bool = False) -> str:
         """
@@ -346,10 +346,10 @@ class AsyncETFAnalyzer:
 
     async def analyze(self) -> dict[str, Any]:
         """执行完整的 Map-Reduce 分析流程"""
-        logger.info(f"🚀 开始 Map-Reduce 分析: {self.name} ({self.code}) | 类型: {self.type}")
+        logger.info(f"🚀 开始分析: {self.name} ({self.code}) | 类型: {self.type}")
         configs = self._get_dimension_configs()
 
-        logger.info(f"📡 正在并发执行 {len(configs)} 个维度的 [API降级获取 + 定制化分析] ...")
+        logger.info(f"📡 正在并发执行 {len(configs)} 个维度的数据 ...")
         dimension_results = await asyncio.gather(*[self._analyze_single_dimension(cfg) for cfg in configs])
 
         logger.info("✅ 维度分析完成，正在进行最终汇总决策 (Reduce)...")
