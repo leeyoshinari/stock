@@ -475,6 +475,10 @@ operation_reason 绝不能只写“资金不足”。必须写明 “对比逻�
 }]"""
         user_message = f"""用户输入的数据是：当前可用金额 {availablesFund}元。AI分析的交易决策结果如下：{json.dumps(etfList, ensure_ascii=False)}"""
         res = await chat(system_prompt, user_message)
-        return json(res)
+        try:
+            return json.loads(res)
+        except:
+            logger.error(res)
+            logger.error(traceback.format_exc())
     except:
         logger.error(traceback.format_exc())

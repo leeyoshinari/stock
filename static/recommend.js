@@ -35,6 +35,10 @@ function getTradeData() {
             data.data.holdList.forEach(item => {
                 hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${item.create_time}</div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
             });
+            document.getElementById("curr-day").innerText = data.data.currentDay;
+            document.getElementById("curr-total").innerText = data.data.total;
+            document.getElementById("curr-av").innerText = data.data.available;
+            document.getElementById("curr-hold").innerText = data.data.hold;
             let figure = document.getElementById("capital-figure");
             figure.style.width = findMin(document.body.clientWidth, 820) + 'px';
             figure.style.height = '350px';

@@ -117,24 +117,27 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
             rows = await Transaction.query().equal(flag=0).select("user_id", "code").distinct().all()
 
         for r in rows:
-            stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).order_by(Transaction.create_time.asc()).all()
-            res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
-            for s in stock:
-                res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
-            if res['shares'] == 0:
-                await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=trade_type,
-                                         fee=round(res['profit'], 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
-                # for s in stock:
-                #    await Transaction.update(s.id, flag=1)
-                await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).update(flag=1)
-                logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
-            else:
-                info = {'name': stock[-1].name, 'code': stock[-1].code, 'create_time': stock[0].create_time.strftime("%Y-%m-%d"),
-                        'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': res['profit'], 'status': trade_type}
-                result.append(info)
-                logger.info(f"{stock[-1].code} - {stock[-1].name} - {res}")
+            try:
+                stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).order_by(Transaction.create_time.asc()).all()
+                res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
+                for s in stock:
+                    res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
+                if res['shares'] == 0:
+                    await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=trade_type,
+                                             fee=round(res['profit'], 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
+                    # for s in stock:
+                    #    await Transaction.update(s.id, flag=1)
+                    await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).update(flag=1)
+                    logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
+                else:
+                    info = {'name': stock[-1].name, 'code': stock[-1].code, 'create_time': stock[0].create_time.strftime("%Y-%m-%d"),
+                            'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': res['profit'], 'status': trade_type}
+                    result.append(info)
+                    logger.info(f"{stock[-1].code} - {stock[-1].name} - {res}")
+            except:
+                logger.error(f"{r} - {traceback.format_exc()}")
     except:
-        logger.error(traceback.format_exc())
+        logger.error(f"{user_id} - {code} - {traceback.format_exc()}")
     return result
 
 
@@ -613,8 +616,8 @@ async def getTradeData() -> Result:
             day.append(r.day)
             ratio.append(round(ra, 2))
             hs.append(round(hs_ra, 2))
-            pre_value = r.total
-        result.data = {'todayList': res['todayList'], 'holdList': res['holdList'], 'day': day, 'ratio': ratio, 'hs': hs}
+        result.data = {'todayList': res['todayList'], 'holdList': res['holdList'], 'day': day, 'ratio': ratio, 'hs': hs,
+                       'currentDay': capital[-1].day, 'total': capital[-1].total, 'available': capital[-1].available, 'hold': capital[-1].hold}
         logger.info("query trade data success ~")
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -927,6 +930,9 @@ async def auto_analysize_etf():
     else:   # 如果还未开盘，则设置定时执行
         scheduler.add_job(auto_trade_etf, 'date', run_date=get_schedule_time(9, 31, 30), misfire_grace_time=10)
 
+    # 获取持仓数据和今日数据，用于发送邮件
+    await auto_select_email()
+
 
 async def auto_trade_etf():
     """开盘后自动先卖出、再买入ETF
@@ -1012,9 +1018,6 @@ async def auto_trade_etf():
         await Capital.update(tool.value, available=round(available, 2))
         # hold_fund = await calc_hold_capital()
         await update_holding_capital()
-
-        # 获取持仓数据和今日数据，用于发送邮件
-        await auto_select_email()
     except:
         logger.error(traceback.format_exc())
 
