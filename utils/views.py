@@ -22,7 +22,7 @@ from utils.queryStockHq import getStockHqFromTencent, getStockHq
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
 from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital
-from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE
+from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST
 import aiofiles
 
 
@@ -587,7 +587,7 @@ async def getEtf() -> Result:
     try:
         exclude = ['513500', '159941', '159501', '159659']    # 排除 标普500ETF、纳指100ETF
         index = []
-        etfInfo: list[ETF] = await ETF.query().equal(running=1).notin(code=exclude).all()
+        etfInfo: list[ETF] = await ETF.query().equal(running=1).notin(code=exclude).order_by(ETF.capital.desc()).all()
         for r in etfInfo:
             index.append({"名称": r.name, "代码": r.code, "跟踪指数": r.industry})
         result.data = index
@@ -907,6 +907,8 @@ async def auto_analysize_etf():
     etf_res = await getEtf()
     for r in etf_res.data:
         code = r["代码"]
+        if code in EXCLUSIVE_ETF_LIST:
+            continue
         news_etf_data = [etf for etf in etfData if etf['code'] == code]
         news_etf_result = news_etf_data[0]['reason'] if news_etf_data else None
         logger.info(f"📡 开始分析 ETF - {r}")

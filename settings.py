@@ -88,3 +88,4 @@ def read_prompt(fileName: str) -> str:
 
 # 通用判断是否买入的提示词
 # ANALYSIZE_PROMPT = read_prompt(os.path.join(PROMPT_PATH, 'buy-common.md'))
+EXCLUSIVE_ETF_LIST = ['510310', '159352', '159949', '562500']

@@ -710,6 +710,13 @@ async def updateEtfShares():
                 logger.info(f"day: {d}, code: {k}, shares: {v}")
         else:
             logger.info(f"No need update ETF shares, because {time.strftime("%Y-%m-%d")} - {pre_day} ≠ 1")
+
+        # 更新ETF份额
+        etfs: list[ETF] = await ETF.query().equal(running=1).all()
+        for r in etfs:
+            detail: Detail = await Detail.get_one((r.code, d))
+            await ETF.update(r.code, capital=round(detail.current_price * detail.shares, 2))
+            logger.info(f"update ETF shares success, {r.code} - {r.name} - {r.capital}")
     except:
         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '更新 ETF 份额异常')
         logger.error(traceback.format_exc())
