@@ -102,19 +102,17 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
     '''
     result = []
     try:
-        filter = [TradeType.BUY, TradeType.SELL]
-        trade_type = TradeType.MAN
-        if user_id == DEFAULT_USER_ID:
-            filter = [TradeType.RECD, TradeType.AIS]
-            trade_type = TradeType.AUTO
+        filter = [TradeType.RECD, TradeType.AIS] if user_id == DEFAULT_USER_ID else [TradeType.BUY, TradeType.SELL]
         if user_id is not None and code:
             rows = await Transaction.query().equal(code=code, user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
         elif user_id is not None and not code:
             rows = await Transaction.query().equal(user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
         elif code and user_id is None:
-            rows = await Transaction.query().equal(code=code, flag=0).select("user_id", "code").distinct().all()
+            filter = [TradeType.BUY, TradeType.SELL, TradeType.RECD, TradeType.AIS]
+            rows = await Transaction.query().equal(code=code, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
         else:
-            rows = await Transaction.query().equal(flag=0).select("user_id", "code").distinct().all()
+            filter = [TradeType.BUY, TradeType.SELL, TradeType.RECD, TradeType.AIS]
+            rows = await Transaction.query().equal(flag=0).isin(status=filter).select("user_id", "code").distinct().all()
 
         for r in rows:
             try:
@@ -124,11 +122,12 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
                     if s.status == TradeType.FAIL:
                         continue
                     res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
+                trade_type = TradeType.AUTO if r[0] == DEFAULT_USER_ID else TradeType.MAN
                 if res['shares'] == 0:
                     await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=trade_type,
                                              fee=round(res['profit'], 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
-                    # for s in stock:
-                    #    await Transaction.update(s.id, flag=1)
+
+                    filter = [TradeType.RECD, TradeType.AIS] if r[0] == DEFAULT_USER_ID else [TradeType.BUY, TradeType.SELL]
                     await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).update(flag=1)
                     logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
                 else:
