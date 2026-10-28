@@ -10,9 +10,10 @@ from datetime import datetime, timedelta
 from typing import Any, Callable
 from functools import partial
 from utils.AI import chat
+from utils.webSearch import getNews, searchWithSerper
 from settings import read_prompt
 from utils.akshare import getGlobalShortInfoFromSina, getGlobalShortInfoFromThs, getStockResearchReport, getStockFinanceReportFromSina, getShortInfoMorning, getNewsFromDongCai
-from utils.longbridge import getNewsDetail, getStockNews, getStockReport, getStockCalcIndex, getStockCapital, getStockValuation, getStockFinancialStatement, getStockFinancialAnalysis
+from utils.longbridge import getStockNews, getStockReport, getStockCalcIndex, getStockCapital, getStockValuation, getStockFinancialStatement, getStockFinancialAnalysis
 
 
 logger = logging.getLogger(__name__)
@@ -85,9 +86,9 @@ class AsyncETFAnalyzer:
                 return "\n\n".join(valid_parts)
 
         # ===== 所有 API 均失败，触发 AI 动态搜索兜底 =====
-        logger.info(f"[{dimension}] API 数据均缺失，触发 AI 动态搜索兜底...")
+        logger.info(f"[{dimension}] API 数据均缺失, 触发 serper 搜索兜底 - {context}")
         # keyword = await generate_search_keyword(context, dimension)
-        web_data = await search_and_extract(context)
+        web_data = await searchWithSerper(context, df='d')
         return web_data if web_data else "数据缺失"
 
     def _is_valid_data(self, res) -> bool:
@@ -118,10 +119,8 @@ class AsyncETFAnalyzer:
                     "name": "金融财经新闻",
                     "aggregate": False,
                     "api_chain": [
-                        partial(getNewsDetail, f"{self.industry} 产业政策 监管", self.today),
-                        # partial(getNewsDetail, f"{self.industry} 行业景气度 营收", logger),
-                        partial(getNewsDetail, f"{self.industry} 行业", self.today),
-                        partial(getNewsFromDongCai, self.concept, self.today)
+                        partial(getNews, f"{self.industry}产业 政策 监管", self.today),
+                        partial(getNews, f"{self.industry}行业", self.today),
                     ],
                     "prompt": "你是一位资深的宏观策略与产业政策分析师，擅长从政策文本、行业新闻和宏观数据中剥离噪音，精准判断行业中观景气度与政策底/市场底。\n你的任务：基于用户提供的行业政策与新闻数据，评估该行业近期的政策导向、供需格局及整体景气度，最终判定该行业对 ETF 的宏观基本面是构成实质性利好、利空还是中性，并重点提示潜在的监管或产业风险。",
                     "rule": """【分析框架与约束条件】（请在思考时严格遵循，并在输出中体现）：
@@ -153,10 +152,9 @@ class AsyncETFAnalyzer:
                     "name": "宏观政策与监管环境",
                     "aggregate": False,
                     "api_chain": [
-                        partial(getNewsDetail, f"{self.industry}产业政策监管", self.today),
+                        partial(getNews, f"{self.industry}产业 政策 监管", self.today),
                         partial(getStockNews, self.code, self.today),
-                        # partial(searchWithDuckDuckGo, f"{self.industry} 产业链 上游 原材料 价格", logger),
-                        partial(getNewsFromDongCai, f"{self.industry} 美股 海外", self.today)
+                        partial(getNews, f"{self.industry} 美股 海外", self.today)
                     ],
                     "prompt": "你是一位资深股票基本面与宏观行业分析师，擅长从宏观政策、产业链结构及全球宏观视角，对行业及特定标的进行深度、客观、数据驱动的基本面分析。请基于用户输入的数据，对指定标的及其所属行业进行严谨的基本面分析。",
                     "rule": """【分析框架】（请在 analysis 中综合涵盖以下相关维度，若数据缺失请明确说明“原始数据未提供相关信息”，严禁臆测）：

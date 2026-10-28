@@ -22,7 +22,7 @@ async def get_detail(n):
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}
     # html_resp = await http.get(n["url"], headers=headers)
     cmd = f"longbridge news detail {n['id']}"
-    html_resp = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=headers)
+    html_resp = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=headers)
     content = n.get('excerpt')
     if html_resp.status_code == 200:
         # content = html_resp.text.split("---")[1].split("##")[0]
@@ -43,7 +43,7 @@ async def getNewsDetail(keyword: str, lastDay: str) -> str:
     try:
         # 搜索新闻列表
         cmd = f'longbridge news search "{keyword}" --format json'
-        result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
+        result = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=h)
         logger.debug(f"Run cmd: {cmd} result is {result.text}")
         news_list = json.loads(result.text)
         if not isinstance(news_list, list) or not news_list:
@@ -80,7 +80,7 @@ async def getStockNews(code: str, lastDay: str) -> str:
     try:
         # 搜索新闻列表
         cmd = f'longbridge news {code}.{getStockRegion(code).upper()} --format json'
-        result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
+        result = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=h)
         logger.debug(f"Run cmd: {cmd} result is {result.text}")
         news_list = json.loads(result.text)
         if not isinstance(news_list, list) or not news_list:
@@ -112,7 +112,7 @@ async def getStockReport(code: str) -> str:
     await asyncio.sleep(random.random() * 1.5 + 0.5)
     try:
         cmd = f'longbridge financial-report {code}.{getStockRegion(code).upper()}'
-        result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
+        result = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=h)
         logger.info(f"Run cmd: {cmd} result is {result.text}")
         return "以下是股票的营收、EPS、ROE等关键摘要数据:\n" + result.text
     except Exception as e:
@@ -125,7 +125,7 @@ async def getStockFinancialStatement(code: str) -> str:
     await asyncio.sleep(random.random() * 1.5 + 0.5)
     try:
         cmd = f'longbridge financial-statement {code}.{getStockRegion(code).upper()}'
-        result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
+        result = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=h)
         logger.info(f"Run cmd: {cmd} result is {result.text}")
         return "以下是股票的财务报表（利润表/资产负债表/现金流）及同比数据:\n" + result.text
     except Exception as e:
@@ -138,7 +138,7 @@ async def getStockCalcIndex(code: str) -> str:
     await asyncio.sleep(random.random() * 1.5 + 0.5)
     try:
         cmd = f'longbridge calc-index {code}.{getStockRegion(code).upper()}'
-        result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
+        result = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=h)
         logger.info(f"Run cmd: {cmd} result is {result.text}")
         return "以下是股票的PE, PB, 换手率, 股息率等数据:\n" + result.text
     except Exception as e:
@@ -151,7 +151,7 @@ async def getStockCapital(code: str) -> str:
     await asyncio.sleep(random.random() * 1.5 + 0.5)
     try:
         cmd = f'longbridge capital {code}.{getStockRegion(code).upper()}'
-        result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
+        result = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=h)
         logger.info(f"Run cmd: {cmd} result is {result.text}")
         return "以下是股票的主力资金流向数据:\n" + result.text
     except Exception as e:
@@ -164,7 +164,7 @@ async def getStockValuation(code: str) -> str:
     await asyncio.sleep(random.random() * 1.5 + 0.5)
     try:
         cmd = f'longbridge valuation {code}.{getStockRegion(code).upper()}'
-        result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
+        result = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=h)
         logger.info(f"Run cmd: {cmd} result is {result.text}")
         return "以下是股票的PE, PB, PS, 股息率及同行比较数据:\n" + result.text
     except Exception as e:
@@ -177,7 +177,7 @@ async def getStockFinancialAnalysis(code: str) -> str:
     await asyncio.sleep(random.random() * 1.5 + 0.5)
     try:
         cmd = f'python3 ~/.openclaw/skills/longbridge-earnings/scripts/collect.py {code}.{getStockRegion(code).upper()}'
-        result = await http.get(f"{LONGBRIDGE_URL}?cmd={quote(cmd)}", headers=h)
+        result = await http.get(f"{LONGBRIDGE_URL}/rumMyCmd?cmd={quote(cmd)}", headers=h)
         logger.info(f"Run cmd: {cmd} result is {result.text}")
         return "以下是财报分析数据:\n" + result.text
     except Exception as e:

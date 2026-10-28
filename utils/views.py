@@ -892,19 +892,19 @@ async def auto_analysize_etf():
     available = capital.available
     logger.info("🚀 开始获取新闻，分析筛选ETF")
     etfData = []
-    result = await analysizeEtfFromNews()
-    if result.success:
-        # 兼容AI不同的返回格式
-        if isinstance(result.data, dict):
-            if 'result' in result.data:
-                etfData = result.data['result'] if isinstance(result.data['result'], list) else [result.data['result']]
-            else:
-                etfData = [result.data]
-        else:
-            etfData = result.data
-        logger.info(f"✅ 从财经新闻中筛选出 ETF 成功 - {result}")
-    else:
-        logger.error(f"❌ Error: 从财经新闻中筛选出 ETF 失败 - {result}")
+    # result = await analysizeEtfFromNews()
+    # if result.success:
+    #     # 兼容AI不同的返回格式
+    #     if isinstance(result.data, dict):
+    #         if 'result' in result.data:
+    #             etfData = result.data['result'] if isinstance(result.data['result'], list) else [result.data['result']]
+    #         else:
+    #             etfData = [result.data]
+    #     else:
+    #         etfData = result.data
+    #     logger.info(f"✅ 从财经新闻中筛选出 ETF 成功 - {result}")
+    # else:
+    #     logger.error(f"❌ Error: 从财经新闻中筛选出 ETF 失败 - {result}")
     etf_res = await getEtf()
     for r in etf_res.data:
         code = r["代码"]

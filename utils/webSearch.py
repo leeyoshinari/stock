@@ -7,34 +7,39 @@ import random
 import asyncio
 import logging
 import traceback
-import lxml.html
-import trafilatura
 from bs4 import BeautifulSoup
 from urllib.parse import quote
 from utils.http_client import http
 from utils.longbridge import getNewsDetail
-from settings import HTTP_HOST_CLOUD
+from utils.dispatcher import AsyncRoundRobinDispatcher
+from settings import HTTP_HOST_CLOUD, LONGBRIDGE_URL
 
 
 logger = logging.getLogger(__name__)
 
 
-async def searchWithSerper(query: str, df: str = 'w'):
+async def searchWithSerper(query: str, df: str = 'w') -> str:
     '''使用 serper 搜索，每月 2000 次搜索
     :params df: h-过去一小时 / d-过去一天 / w-过去一周 / m-过去一个月 / y-过去一年
     '''
-    url = f"{HTTP_HOST_CLOUD}/api/search/serper?q={quote(query)}&dateRestrict={df}"
+    url = f"{HTTP_HOST_CLOUD}/api/search/serper?q={quote(query)}&tbs={df}"
     try:
         resp = await http.get(url)
-        logger.info(resp.text)
         if resp.status_code == 200:
-            logger.info(resp.text)
-    except:
+            detail = []
+            datas = json.loads(resp.text)
+            for r in datas['results']:
+                if len(r['content']) > 100:
+                    detail.append(f"【标题】: {r['title']}\n【正文】: {r['content']}\n")
+            return "\n---\n".join(detail)
+        return f"Get News error: http status code is {resp.status_code}"
+    except Exception as e:
         logger.error(traceback.format_exc())
+        return f"Get News Exception: {str(e)}"
 
 
 async def getNewsFromLongBridge(keyword: str, lastDay: str) -> str:
-    return getNewsDetail(keyword, lastDay)
+    return await getNewsDetail(keyword, lastDay)
 
 
 async def getNewsFromDongCai(keyword: str, lastDay: str) -> str:
@@ -96,6 +101,7 @@ async def getNewsFromDongCai(keyword: str, lastDay: str) -> str:
         target_day = lastDay + " 09:30:00"
         recent_news = [r for r in news_list if r['date'] > target_day]
         details = await asyncio.gather(*[get_detail(n) for n in recent_news])
+        logger.info(f"Search News from dongcai local - {details}")
         return "\n---\n".join(details)
     else:
         return ''
@@ -143,7 +149,16 @@ async def extract_paragraphs_async(html_content: str, target_id: str = None) -> 
 
 async def getNewsFromDongCaiCloud(keyword: str, lastDay: str) -> str:
     try:
-        res = await http.get(f'http://127.0.0.1:3000/api/search/dongcai?keyword={keyword}&lastDay={lastDay}')
-        logger.info(res.text)
+        res = await http.get(f'{LONGBRIDGE_URL}/getNews?keyword={keyword}&lastDay={lastDay}')
+        logger.info(f"Search News from dongcai cloud - {res.text}")
     except:
         logger.error(traceback.format_exc())
+        return ''
+
+
+search_method_list = [getNewsFromDongCai, getNewsFromDongCaiCloud, getNewsFromLongBridge]
+search_dispatcher = AsyncRoundRobinDispatcher(methods=search_method_list, max_retries=3, timeout=99, cooldown=200, name="AIDispatcher")
+
+
+async def getNews(*args, **kwargs):
+    return await search_dispatcher.call(*args, **kwargs)

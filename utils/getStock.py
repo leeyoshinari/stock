@@ -716,7 +716,7 @@ async def updateEtfShares():
         for r in etfs:
             detail: Detail = await Detail.get_one((r.code, d))
             await ETF.update(r.code, capital=round(detail.current_price * detail.shares, 2))
-            logger.info(f"update ETF shares success, {r.code} - {r.name} - {r.capital}")
+            logger.info(f"update ETF total shares success, {r.code} - {r.name} - {r.capital}")
     except:
         sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, '更新 ETF 份额异常')
         logger.error(traceback.format_exc())

@@ -92,7 +92,7 @@ class AsyncRoundRobinDispatcher:
                 # 6. 调用成功，重置状态
                 async with self._lock:
                     worker.fail_count = 0
-                logger.debug(f"✅ [{self.name}] Worker '{worker.name}' 调用成功")
+                logger.info(f"✅ [{self.name}] Worker '{worker.name}' 调用成功")
                 return result
 
             except asyncio.TimeoutError:
