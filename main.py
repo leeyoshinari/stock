@@ -231,7 +231,7 @@ async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
     if RUN_ENV != 'dev':
         scheduler.add_job(getStock.updateEtfShares, 'cron', hour=8, minute=30, second=20, misfire_grace_time=10)    # 更新前一天的ETF份额
-        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=8, minute=50, second=0, misfire_grace_time=10)     # 开始分析 ETF
+        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=8, minute=58, second=0, misfire_grace_time=10)     # 开始分析 ETF
         scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)      # 检查今天是否开市
         scheduler.add_job(getStock.setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)     # 中午更新股票信息
         scheduler.add_job(getStock.setAllSZStock, 'cron', hour=12, minute=0, second=20, misfire_grace_time=10)                 # 中午更新股票信息

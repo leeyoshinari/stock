@@ -880,6 +880,21 @@ class ETF(Base, CRUDBase):
     __sortable__ = {'capital': capital, 'fee': fee}
 
 
+class Analysis(Base, CRUDBase):
+    __tablename__ = 'analysis'
+    __table_args__ = (
+        {'sqlite_autoincrement': True}
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(8), nullable=False, comment="股票代码")
+    day = Column(String(8), nullable=False, comment="日期")
+    content = Column(Text, nullable=True, comment="分析结果")
+    create_time = Column(DateTime, default=datetime.now)
+
+    __sortable__ = {'day': day, 'create_time': create_time}
+
+
 class Capital(Base, CRUDBase):
     __tablename__ = 'capital'
 

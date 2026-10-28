@@ -21,7 +21,7 @@ from utils.initData import initStockData, getStockFundFlow
 from utils.queryStockHq import getStockHqFromTencent, getStockHq
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
-from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital
+from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital, Analysis
 from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST, TOTAL_FUND
 import aiofiles
 
@@ -877,7 +877,7 @@ async def write_analysize_result(data: dict):
         status = TradeType.TEMS
     else:
         pass
-    await Transaction.create(code=code, name=name, price=price, shares=shares, status=status, user_id=DEFAULT_USER_ID, flag=0, content=json.dumps(data, ensure_ascii=False))
+    await Transaction.create(code=code, name=name, price=price, shares=shares, status=status, user_id=DEFAULT_USER_ID, flag=0)
 
 
 async def auto_analysize_etf():
@@ -917,6 +917,8 @@ async def auto_analysize_etf():
         res = await analysize(code=code, userId=DEFAULT_USER_ID, availableFund=available, newsRes=news_etf_result, isAuto=True)
         if res.success:
             try:
+                # 所有分析记录保存
+                await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(res.data, ensure_ascii=False))
                 if res.data['action_plan']['operation'] == "不操作":
                     continue
                 await write_analysize_result(res.data)
