@@ -441,7 +441,8 @@ async def init_stock_fund_data(query: updateFundDo) -> Result:
 
 
 async def calc_stock_real_data(code: str) -> dict:
-    if code.startswith('1') or code.startswith('5'):
+    isEtf = code.startswith('1') or code.startswith('5')
+    if isEtf:
         res_stock: dict = await getStockHqFromTencent('', [{code: "-", f"{code}count": 5}])
     else:
         res_stock: dict = await getStockHq('', [{code: "-", f"{code}count": 5}])
@@ -477,8 +478,8 @@ async def calc_stock_real_data(code: str) -> dict:
     stockDo.update({'d': kdj['d']})
     stockDo.update({'j': kdj['j']})
     stockDo.update({'volume': stockDo['volume']})
-    stockDo.update({'shares': stockDo['shares']})
-    stockDo.update({'premium': stockDo['premium']})
+    stockDo.update({'shares': stockDo['shares'] if isEtf else 0})
+    stockDo.update({'premium': stockDo['premium'] if isEtf else 0})
     stockDo.update({'fund': await getStockZhuLiFundFromTencent(code)})
     up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
     stockDo.update({'boll_up': round(up, 2)})
@@ -847,7 +848,7 @@ async def analysize(code: str, userId: int, availableFund: float = 100000, newsR
         analyzer = AsyncETFAnalyzer(input_data=user_input)
         result.data = await analyzer.analyze()
         logger.info(f"{stock.code} - {stock.name} analyze result is : {result.data['rating']} - {result.data['core_logic']}")
-        await asyncio.sleep(30)
+        await asyncio.sleep(5)
     except Exception as e:
         logger.error(traceback.format_exc())
         result.msg = str(e)

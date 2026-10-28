@@ -71,7 +71,7 @@ async def queryGemini(baseUrl: str, systemPrompt: str, userMessage: str, model: 
 
 
 async def queryOpenAI(baseUrl: str, systemPrompt: str, userMessage: str, model: str, apiKey: str = AUTH_CODE) -> str:
-    """ 请求 Gemini, 官方url: https://api.openai.com/v1
+    """ 请求 OpenAI, 官方url: https://api.openai.com/v1
     :params baseUrl: 传入的url, 可以走代理
     :params systemPrompt: 系统提示词, 系统指令
     :params userMessage: 用户输入的信息
@@ -93,6 +93,8 @@ async def queryOpenAI(baseUrl: str, systemPrompt: str, userMessage: str, model: 
             {"role": "user", "content": userMessage}
         ],
         "temperature": 0.1,
+        "stream": False,
+        "enable_thinking": False,
         "response_format": {"type": "json_object"}
     }
     res = await http.post(url=url, json_data=data, headers=headers)
@@ -133,8 +135,8 @@ async def queryGeminiVercel(systemPrompt: str, userMessage: str) -> str:
     return res
 
 
-ai_method_list = [queryChatGPTLocal, queryGeminiCloud, queryChatGPTCloud, queryGeminiVercel]
-ai_dispatcher = AsyncRoundRobinDispatcher(methods=ai_method_list, max_retries=3, timeout=99, cooldown=600, name="AIDispatcher")
+ai_method_list = [queryChatGPTLocal]    # , queryGeminiCloud, queryChatGPTCloud, queryGeminiVercel]
+ai_dispatcher = AsyncRoundRobinDispatcher(methods=ai_method_list, max_retries=5, timeout=99, cooldown=600, name="AIDispatcher")
 
 
 async def chat(*args, **kwargs):

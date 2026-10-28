@@ -147,35 +147,42 @@ function analysize_stock_ai(code, name) {
     fetch(`${prefix}/analyzer?code=${code}&userId=${userId}`)
         .then(res => res.json())
         .then(data => {
-            let op_text = '';
+            if (!data.success) {
+                alert(data.msg);
+                return;
+            }
+            document.getElementById("stock-info").innerText = `${code} - ${name}`;
+            document.getElementById("stock-rank").innerText = data.data.rating;
+            document.getElementById("stock-suggest").innerText = data.data.action_plan.operation;
+            document.getElementById("stock-core-text").innerText = data.data.action_plan.operation_reason.replace('\\n', '\n');
+            document.getElementById("stock-detail-text").innerText = data.data.detailed_analysis.replace('\\n', '\n');
+            document.getElementById("stock-risk").innerText = data.data.risk_warning.replace('\\n', '\n');
+            document.getElementById("stock-position").innerText = data.data.action_plan.stop_loss_profit;
+
             if (data.data.action_plan.operation !== "不操作") {
-                op_text = `, 费用: ${data.data.action_plan.operation_amount}, 股数: ${data.data.action_plan.operation_shares}`
+                document.getElementById("stock-suggest-share").style.display = '';
+                document.getElementById("stock-suggest-money").style.display = '';
+                document.getElementById("stock-suggest-share-data").style.display = '';
+                document.getElementById("stock-suggest-money-data").style.display = '';
+                document.getElementById("stock-suggest-share-data").innerText = data.data.action_plan.operation_shares;
+                document.getElementById("stock-suggest-money-data").innerText = data.data.action_plan.operation_amount;
+            } else {
+                document.getElementById("stock-suggest-share").style.display = 'none';
+                document.getElementById("stock-suggest-money").style.display = 'none';
+                document.getElementById("stock-suggest-share-data").style.display = 'none';
+                document.getElementById("stock-suggest-money-data").style.display = 'none';
             }
-            let hold = '';
-            if (data.data.action_plan.current_position && data.data.action_plan.current_position.length > 0) {
-                hold = `当前仓位: 成本: ${data.data.action_plan.current_position[0].price}, 股数: ${data.data.action_plan.current_position[0].shares} \n `;
+            if (data.data.action_plan.current_position && data.data.action_plan.current_position.shares > 0) {
+                document.getElementById("stock-hold").style.display = '';
+                document.getElementById("stock-hold-data").innerText = `成本: ${data.data.action_plan.current_position.price}, 股数: ${data.data.action_plan.current_position.shares}`;
+            } else {
+                document.getElementById("stock-hold").style.display = 'none';
             }
-            let s = `${hold}评级: ${data.data.rating} \n 操作建议: ${data.data.action_plan.operation}${op_text} \n 核心观点: ${data.data.action_plan.operation_reason} \n 详细分析: ${data.data.detailed_analysis} \n 风险点: ${data.data.risk_warning} \n 止损位: ${data.data.action_plan.stop_loss_profit}`
-            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + s;
-            document.getElementsByClassName("stock-data")[0].style.display = "flex";
+            document.getElementsByClassName("stock-analysize")[0].style.display = "flex";
         })
         .finally(() => {close_modal_cover();})
 }
 
-function sell_stock_ai(code, name) {
-    document.getElementsByClassName("stock-data")[0].style.display = "none";
-    let buy_time = document.getElementById("buy-time").value;
-    let buy_price = document.getElementById("buy-price").value;
-    let site = localStorage.getItem('site');
-    show_modal_cover();
-    fetch(`${prefix}/sell/stock?code=${code}&price=${buy_price}&t=${buy_time}&site=${site}`)
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById("data-tips").innerText = `${code} - ${name} : ` + data.data;
-            document.getElementsByClassName("stock-data")[0].style.display = "flex";
-        })
-        .finally(() => {close_modal_cover();})
-}
 
 function delete_etf(code) {
     show_modal_cover();
@@ -234,11 +241,15 @@ function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style
 
 const overlay = document.querySelector('.stock-chart');
 const overlay_data = document.querySelector('.stock-data');
+const overlay_analysize = document.querySelector('.stock-analysize');
 overlay.addEventListener('click', function(event) {
   if (event.target === overlay) {overlay.style.display = 'none';}
 });
 overlay_data.addEventListener('click', function(event) {
   if (event.target === overlay_data) {overlay_data.style.display = 'none';}
+});
+overlay_analysize.addEventListener('click', function(event) {
+  if (event.target === overlay_analysize) {overlay_analysize.style.display = 'none';}
 });
 
 document.getElementById("pre-page").disabled = 'true';

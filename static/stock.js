@@ -223,10 +223,10 @@ function analysize_stock_ai(code, name) {
             document.getElementById("stock-position").innerText = data.data.action_plan.stop_loss_profit;
 
             if (data.data.action_plan.operation !== "不操作") {
-                document.getElementById("stock-suggest-share").style.display = 'block';
-                document.getElementById("stock-suggest-money").style.display = 'block';
-                document.getElementById("stock-suggest-share-data").style.display = 'block';
-                document.getElementById("stock-suggest-money-data").style.display = 'block';
+                document.getElementById("stock-suggest-share").style.display = '';
+                document.getElementById("stock-suggest-money").style.display = '';
+                document.getElementById("stock-suggest-share-data").style.display = '';
+                document.getElementById("stock-suggest-money-data").style.display = '';
                 document.getElementById("stock-suggest-share-data").innerText = data.data.action_plan.operation_shares;
                 document.getElementById("stock-suggest-money-data").innerText = data.data.action_plan.operation_amount;
             } else {
@@ -236,7 +236,7 @@ function analysize_stock_ai(code, name) {
                 document.getElementById("stock-suggest-money-data").style.display = 'none';
             }
             if (data.data.action_plan.current_position && data.data.action_plan.current_position.shares > 0) {
-                document.getElementById("stock-hold").style.display = 'block';
+                document.getElementById("stock-hold").style.display = '';
                 document.getElementById("stock-hold-data").innerText = `成本: ${data.data.action_plan.current_position.price}, 股数: ${data.data.action_plan.current_position.shares}`;
             } else {
                 document.getElementById("stock-hold").style.display = 'none';
