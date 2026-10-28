@@ -1,6 +1,6 @@
 const pageSize = 20;
 const defaultUserId = "99";
-const TradeStatus = {"RECD": "买入", "AIS": "卖出", "TEMB": "买入", "TEMS": "卖出"}
+const TradeStatus = {"RECD": "买入", "AIS": "卖出", "TEMB": "买入", "TEMS": "卖出", "FAIL": "买入(未成交)"}
 const originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
   const defaultHeaders = {'referered': localStorage.getItem("pwd")};

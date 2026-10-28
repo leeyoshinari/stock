@@ -120,9 +120,9 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
             try:
                 stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).order_by(Transaction.create_time.asc()).all()
                 res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
-                if stock[-1].status == TradeType.FAIL:
-                    continue
                 for s in stock:
+                    if s.status == TradeType.FAIL:
+                        continue
                     res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
                 if res['shares'] == 0:
                     await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=trade_type,
@@ -633,10 +633,10 @@ async def get_today_hold() -> dict:
     current_day = f"{tools.value[:4]}-{tools.value[4:6]}-{tools.value[6:]}"
     if time.strftime("%H:%M:%S") < "09:35:00" and time.strftime("%H:%M:%S") > "09:00:00":  # 已分析但未买入
         current_day = time.strftime("%Y-%m-%d")
-        status = [TradeType.TEMB, TradeType.TEMS]
+        status = [TradeType.TEMB, TradeType.TEMS, TradeType.FAIL]
         today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
     else:
-        status = [TradeType.RECD, TradeType.AIS]
+        status = [TradeType.RECD, TradeType.AIS, TradeType.FAIL]
         today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).greater(create_time=current_day + " 08:00:00").all()
     todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
     holdList = await get_holding(user_id=DEFAULT_USER_ID)
@@ -947,6 +947,7 @@ async def auto_trade_etf():
         current_day = time.strftime("%Y-%m-%d")
         capital: Capital = await Capital.get_one(tool.value)
         available = capital.available
+        logger.info(f"current day {capital.day} available fund is {available}.")
         # 先卖出
         rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMS).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
         for r in rows:
@@ -958,11 +959,12 @@ async def auto_trade_etf():
             # TODO: 真实的操作
             await Transaction.update(r.id, price=stockDo.current_price, shares=real_shares, fee=round(fee, 2), status=TradeType.AIS)  # 更新真实价格和佣金
             available = available + (stockDo.current_price * real_shares - fee)
-            logger.info(f"自动卖出 {r.code} - {r.name}, price: {stockDo.current_price}, shares: {real_shares}, fee: {fee}")
+            logger.info(f"Auto sell {r.code} - {r.name}, price: {stockDo.current_price}, shares: {real_shares}, fee: {fee}, fund: {stockDo.current_price * real_shares - fee}, current available fund is {available}")
             await asyncio.sleep(1)
 
         # 卖出后更新可用金额
         await Capital.update(tool.value, available=round(available, 2))
+        logger.info(f"after sell ETF, current available fund is {available}")
         # 再买入
         buy_amount = 0.0
         price_dict = {}
@@ -1016,11 +1018,12 @@ async def auto_trade_etf():
                 available = available - (amount + fee)
             # TODO: 真实的操作
             await Transaction.update(r.id, price=curr_price, shares=real_shares, fee=round(fee, 2), status=TradeType.RECD)  # 更新真实价格和佣金
-            logger.info(f"自动买入 {r.code} - {r.name}, price: {curr_price}, shares: {real_shares}, fee: {fee}")
+            logger.info(f"Auto buy {r.code} - {r.name}, price: {curr_price}, shares: {real_shares}, fee: {fee}, fund: {amount + fee}, current available fund is {available}")
             await asyncio.sleep(1)
 
         # 卖出后更新可用金额
         await Capital.update(tool.value, available=round(available, 2))
+        logger.info(f"after buy ETF, current available fund is {available}")
         # hold_fund = await calc_hold_capital()
         await update_holding_capital()
     except:
