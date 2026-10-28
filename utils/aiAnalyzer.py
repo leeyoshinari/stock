@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 from typing import Any, Callable
 from functools import partial
 from utils.AI import chat
-from utils.webSearch import searchWithDuckDuckGo
 from settings import read_prompt
 from utils.akshare import getGlobalShortInfoFromSina, getGlobalShortInfoFromThs, getStockResearchReport, getStockFinanceReportFromSina, getShortInfoMorning, getNewsFromDongCai
 from utils.longbridge import getNewsDetail, getStockNews, getStockReport, getStockCalcIndex, getStockCapital, getStockValuation, getStockFinancialStatement, getStockFinancialAnalysis
@@ -33,7 +32,8 @@ system_prompt_etf_analyzer_tech = read_prompt('etf_analyzer_tech.md')
 async def search_and_extract(query: str, max_results: int = 5) -> str:
     """DuckDuckGo 联网搜索兜底"""
     try:
-        content = await searchWithDuckDuckGo(query, df='w', max_results=max_results)
+        content = ''
+        # content = await searchWithDuckDuckGo(query, df='w', max_results=max_results)
         return json.dumps(content, ensure_ascii=False) if content else ""
     except Exception as e:
         return f"Search Exception: {str(e)}"
@@ -444,6 +444,7 @@ action_plan.operation_shares: 初步建议的股数。
 第一顺位：rating 为“强烈看好”的标的。
 第二顺位：对比 core_logic 的爆发力与确定性，以及 detailed_analysis 中数据支撑的扎实程度。逻辑更硬、数据更实的优先。
 第三顺位：对比 risk_warning。短期风险更可控、胜率更高的优先。
+第四顺位：在同优先级的情况下，优先买入未持仓的标的，已持仓的标的可以暂时不操作。
 3. 资金裁剪与做减法：
 计算所有初步建议买入的总金额。若超出可用金额，按上述优先级顺序分配资金。一旦决策结果是买入，必须保证最低买入金额是5000元，否则不买入。
 降级/放弃原则：对于优先级靠后的标的，优先降低买入股数；若资金极度紧张，优先级最低的标的买入金额低于5000元，则直接将其 operation 改为“不操作”。

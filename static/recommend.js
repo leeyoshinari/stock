@@ -39,6 +39,7 @@ function getTradeData() {
             document.getElementById("curr-total").innerText = data.data.total;
             document.getElementById("curr-av").innerText = data.data.available;
             document.getElementById("curr-hold").innerText = data.data.hold;
+            document.getElementById("curr-profit").innerText = data.data.profit + '%';
             let figure = document.getElementById("capital-figure");
             figure.style.width = findMin(document.body.clientWidth, 820) + 'px';
             figure.style.height = '350px';

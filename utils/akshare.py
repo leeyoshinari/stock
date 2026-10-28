@@ -439,7 +439,6 @@ async def get_detail(n):
 async def extract_paragraphs_async(html_content: str, target_id: str = None) -> str:
     """
     同步的 HTML 解析函数。
-    此函数会被放入线程池执行，不会阻塞 asyncio 事件循环。
     """
     if not html_content:
         return ""

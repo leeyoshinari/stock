@@ -55,7 +55,11 @@ button {
     width: 88px;
     cursor: pointer;
 }
-
+a {
+    cursor: pointer;
+    color: inherit;
+    text-decoration: none;
+}
 .stock-list {
     margin-top: 20px;
 }

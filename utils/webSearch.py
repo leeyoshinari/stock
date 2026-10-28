@@ -2,12 +2,17 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import json
+import random
+import asyncio
 import logging
 import traceback
 import lxml.html
 import trafilatura
+from bs4 import BeautifulSoup
 from urllib.parse import quote
 from utils.http_client import http
+from utils.longbridge import getNewsDetail
 from settings import HTTP_HOST_CLOUD
 
 
@@ -28,52 +33,117 @@ async def searchWithSerper(query: str, df: str = 'w'):
         logger.error(traceback.format_exc())
 
 
-async def searchWithDuckDuckGo(query: str, df: str = 'w', max_results: int = 5) -> list[dict]:
-    """DuckDuckGo 搜索 (限制最近一周 df=w) + trafilatura 正文提取"""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "zh-CN,zh;q=0.9",
-        "cache-control": "max-age=0",
-        "content-type": "application/x-www-form-urlencoded",
-        "priority": "u=0, i",
-        "sec-ch-ua": '"Chromium";v="152", "Not?A_Brand";v="24", "Google Chrome";v="152"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"macOS"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "Referer": "https://html.duckduckgo.com/"
+async def getNewsFromLongBridge(keyword: str, lastDay: str) -> str:
+    return getNewsDetail(keyword, lastDay)
+
+
+async def getNewsFromDongCai(keyword: str, lastDay: str) -> str:
+    """
+    东方财富-个股新闻-最近 100 条新闻 https://so.eastmoney.com/news/s?keyword=603777
+
+    :params keyword: 股票代码
+    :params lastDay: 筛选日期, 格式: YYYY-MM-DD
+    :return: 新闻
+    :rtype: str
+    """
+    url = "https://search-api-web.eastmoney.com/search/jsonp"
+    inner_param = {
+        "uid": "",
+        "keyword": keyword,
+        "type": ["cmsArticleWebOld"],
+        "client": "web",
+        "clientType": "web",
+        "clientVersion": "curr",
+        "param": {
+            "cmsArticleWebOld": {
+                "searchScope": "default",
+                "sort": "default",
+                "pageIndex": 1,
+                "pageSize": 10,
+                "preTag": "<em>",
+                "postTag": "</em>",
+            }
+        },
     }
-    data = {'q': query, 'df': df, 'b': None, 'kl': None}
-    url = "https://html.duckduckgo.com/html/"  # ?q={urllib.parse.quote(query)}&b=&kl=&df=w"
+    params = {
+        "cb": "jQuery35101792940631092459_1764599530165",
+        "param": json.dumps(inner_param, ensure_ascii=False),  # 保留中文，
+        "_": "1764599530176",
+    }
+    headers = {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "en,zh-CN;q=0.9,zh;q=0.8",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "cookie": "qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_sp=2025-11-19%2014%3A19%3A16; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858; st_asi=delete",
+        "host": "search-api-web.eastmoney.com",
+        "pragma": "no-cache",
+        "referer": "https://so.eastmoney.com/news/s?keyword=603777",
+        "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "script",
+        "sec-fetch-mode": "no-cors",
+        "sec-fetch-site": "same-site",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    }
+    res = await http.get(url, params=params, headers=headers)
+    if res.status_code == 200:
+        res_text = res.text.replace('({', 'q1a2z3').replace('})', 'q1a2z3').split('q1a2z3')[1]
+        datas = json.loads('{' + res_text + '}')
+        news_list = datas['result']['cmsArticleWebOld']
+        target_day = lastDay + " 09:30:00"
+        recent_news = [r for r in news_list if r['date'] > target_day]
+        details = await asyncio.gather(*[get_detail(n) for n in recent_news])
+        return "\n---\n".join(details)
+    else:
+        return ''
+
+
+async def get_detail(n):
+    await asyncio.sleep(random.random())
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}
+    html_resp = await http.get(n["url"], headers=headers)
+    content = n.get('excerpt')
+    if html_resp.status_code == 200:
+        content = await extract_paragraphs_async(html_resp.text, 'ContentBody')
+    return (
+        f"【标题】: {n.get('title', '').replace('<em>', '').replace('</em>', '')}\n"
+        f"【时间】: {n.get('date')}\n"
+        f"【正文】: {content}\n"
+    )
+
+
+async def extract_paragraphs_async(html_content: str, target_id: str = None) -> str:
+    """
+    同步的 HTML 解析函数。
+    """
+    if not html_content:
+        return ""
+
+    def _parse_html_sync(html_content: str, target_id: str) -> str:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        # 如果指定了目标区域，则优先在该区域内查找，提高准确率并减少解析量
+        search_area = soup.find(id=target_id) if target_id else soup
+        if not search_area:
+            search_area = soup  # 降级为全局搜索
+
+        extracted_texts = []
+        for p in search_area.find_all('p'):
+            # separator='' 防止块级元素被意外加空格，strip=True 去除首尾空白
+            text = p.get_text(separator='', strip=True)
+            if text:
+                extracted_texts.append(text)
+        return '\n'.join(extracted_texts)
+
+    result = await asyncio.to_thread(_parse_html_sync, html_content, target_id)
+    return result
+
+
+async def getNewsFromDongCaiCloud(keyword: str, lastDay: str) -> str:
     try:
-        resp = await http.post(url, data=data, headers=headers)
-        if resp.status_code != 200:
-            return "Search Error: HTTP " + str(resp.status_code) + resp.text
-        logger.debug(f"Web Search KeyWord: {query}, result: {resp.text}")
-        tree = lxml.html.fromstring(resp.text)
-        content = []
-        snippetList = tree.xpath('//a[@class="result__snippet"]')
-        links = tree.xpath('//a[@class="result__url"]/@href')
-        for snippet, link in zip(snippetList, links):
-            text = snippet.text_content().strip()
-            text_len = len(text)
-            try:
-                html_resp = await http.get(link, headers=headers)
-                if html_resp.status_code == 200:
-                    extracted = trafilatura.extract(html_resp.text, include_comments=False, include_tables=False)
-                    if extracted:
-                        if len(extracted) < text_len * 2:
-                            continue
-                        content.append({"snippet": text, "content": extracted[:1000]})
-                        logger.info(f"Fetch Content success: {query} - {text} - {link}")
-                if len(content) > max_results:
-                    break
-            except Exception as e:
-                logger.error(f"WebSearch Fetch Content Error: {text} - {link} - {e}")
-        return content
+        res = await http.get(f'http://127.0.0.1:3000/api/search/dongcai?keyword={keyword}&lastDay={lastDay}')
+        logger.info(res.text)
     except:
         logger.error(traceback.format_exc())

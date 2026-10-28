@@ -183,6 +183,8 @@ class StockController(Controller):
             result = await views.get_today_hold()
         if idx == 'auto_analysize_etf':
             result = await views.auto_analysize_etf()
+        if idx == 'update_holding_capital':
+            result = await views.update_holding_capital()
         return result
 
 

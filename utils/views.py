@@ -22,7 +22,7 @@ from utils.queryStockHq import getStockHqFromTencent, getStockHq
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
 from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital
-from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST
+from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST, TOTAL_FUND
 import aiofiles
 
 
@@ -120,6 +120,8 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
             try:
                 stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).order_by(Transaction.create_time.asc()).all()
                 res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
+                if stock[-1].status == TradeType.FAIL:
+                    continue
                 for s in stock:
                     res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
                 if res['shares'] == 0:
@@ -322,9 +324,8 @@ async def all_stock_info(query: SearchStockParam) -> Result:
                 etfInfo: list[ETF] = await ETF.query().isin(code=hold_stock_list).all()
                 for f in etfInfo:
                     r = EtfInfoList.from_orm_format(f).model_dump()
-                    r.update({'filter': None, 'region': r['capital'], 'concept': r['fee']})
+                    r.update({'filter': None, 'region': r['capital'], 'concept': json.dumps(r['stocks'], ensure_ascii=False)})
                     etfList.append(r)
-                logger.info(etfList)
             else:
                 stockInfo: list[Stock] = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo] + etfList
@@ -616,7 +617,8 @@ async def getTradeData() -> Result:
             day.append(r.day)
             ratio.append(round(ra, 2))
             hs.append(round(hs_ra, 2))
-        result.data = {'todayList': res['todayList'], 'holdList': res['holdList'], 'day': day, 'ratio': ratio, 'hs': hs,
+        profit = round((capital[-1].total - TOTAL_FUND) / TOTAL_FUND * 100, 2)
+        result.data = {'todayList': res['todayList'], 'holdList': res['holdList'], 'day': day, 'ratio': ratio, 'hs': hs, 'profit': profit,
                        'currentDay': capital[-1].day, 'total': capital[-1].total, 'available': capital[-1].available, 'hold': capital[-1].hold}
         logger.info("query trade data success ~")
     except Exception as e:
@@ -640,7 +642,7 @@ async def get_today_hold() -> dict:
     holdList = await get_holding(user_id=DEFAULT_USER_ID)
     for h in holdList:
         detail: Detail = await Detail.query().equal(code=h['code']).order_by(Detail.day.desc()).first()
-        h['price'] = round(h['price'], 2)
+        h['price'] = round(h['price'], 3)
         h['profit'] = round((detail.current_price - h['price']) * h['shares'], 2)
     return {'todayList': todayList, 'holdList': holdList}
 
@@ -922,6 +924,7 @@ async def auto_analysize_etf():
                     available -= float(res.data['action_plan']['operation_amount'])  # 买入需要扣减可用金额
                 elif res.data['action_plan']['operation'] in ['减仓', '清仓']:
                     available += float(res.data['action_plan']['operation_amount'])  # 卖出需要加上可用金额
+                available = max(available, 0)
                 logger.info(f"✅ 分析 ETF 成功 - {res.data}")
             except:
                 logger.error(f"❌ Error: 分析结果入库失败 - {r} - {traceback.format_exc()}")
@@ -1005,7 +1008,7 @@ async def auto_trade_etf():
             amount = curr_price * real_shares   # 真实买入金额
             fee = max(amount * etf_fee_ratio, 5)
             available = available - (amount + fee)
-            if available < 0:
+            if available < 0:   # 如果不够买入，则减少买入数量
                 delta_shares = (int((-1 * available) / (curr_price * 100)) + 1) * 100
                 real_shares = real_shares - delta_shares
                 amount = curr_price * real_shares  # 真实买入金额

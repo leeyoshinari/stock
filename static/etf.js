@@ -202,9 +202,9 @@ function hold_stock(code, name) {
 function show_top_stocks(code) {
     const codeEle = document.getElementById('stocks-' + code);
     const stockList = JSON.parse(codeEle.innerText);
-    let s = '<div style="display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:space-around;"><div>股票代码</div><div>股票名称</div><div>持仓比例</div></div>';
+    let s = '<div style="display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:space-around;"><div>股票名称</div><div>股票代码</div><div>持仓比例</div></div>';
     stockList.forEach(item => {
-        s += `<div style="display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:space-around;"><div>${item.code}</div><div>${item.name}</div><div>${item.ratio}%</div></div>`
+        s += `<div style="display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:space-around;"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${item.ratio}%</div></div>`
     })
     document.getElementById("data-tips").innerHTML = s;
     document.getElementById("data-tips").style.width = '300px';
