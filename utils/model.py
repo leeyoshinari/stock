@@ -87,7 +87,7 @@ class StockDataList(BaseModel):
                    open_price=obj.open_price, max_price=obj.max_price, min_price=obj.min_price, volume=obj.volume, fund=obj.fund,
                    ma_five=obj.ma_five, ma_ten=obj.ma_ten, ma_twenty=obj.ma_twenty, qrr=obj.qrr, diff=round(obj.emas - obj.emal, 3),
                    dea=round(obj.dea, 3), k=round(obj.kdjk, 3), d=round(obj.kdjd, 3), j=round(obj.kdjj, 3), boll_up=obj.boll_up, boll_low=obj.boll_low,
-                   shares=round(obj.shares, 2) if obj.shares is None else 0, premium=obj.premium)
+                   shares=round(obj.shares, 2) if obj.shares is not None else 0, premium=obj.premium)
 
 
 class StockInfoList(BaseModel):
