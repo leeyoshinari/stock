@@ -918,7 +918,9 @@ async def auto_analysize_etf():
         if res.success:
             try:
                 # 所有分析记录保存
-                await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(res.data, ensure_ascii=False))
+                analysis_data = res.data
+                del analysis_data['date']
+                await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(analysis_data, ensure_ascii=False))
                 if res.data['action_plan']['operation'] == "不操作":
                     continue
                 await write_analysize_result(res.data)
