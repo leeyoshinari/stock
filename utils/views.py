@@ -1007,7 +1007,8 @@ async def auto_trade_etf():
         if available * 0.95 < buy_amount:  # 0.95是冗余系数，即5%的冗余，避免实际买入超出可用金额
             today_buy = []
             for r in rows:
-                d = json.loads(r.content)
+                ai_content = await getAnalysizeResult(r.code, r.create_time.strftime("%Y%m%d"))
+                d = json.loads(ai_content[0]['content'])
                 d['action_plan']['current_price'] = price_dict[r.code]
                 today_buy.append(d)
             etf_again = await analyze_buy_etf(available * 0.95, today_buy)
