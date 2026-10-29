@@ -1008,7 +1008,7 @@ async def auto_trade_etf():
             today_buy = []
             for r in rows:
                 ai_content = await getAnalysizeResult(r.code, r.create_time.strftime("%Y%m%d"))
-                d = json.loads(ai_content[0]['content'])
+                d = json.loads(ai_content.data[0]['content'])
                 d['action_plan']['current_price'] = price_dict[r.code]
                 today_buy.append(d)
             etf_again = await analyze_buy_etf(available * 0.95, today_buy)
@@ -1106,7 +1106,7 @@ async def auto_select_email():
         hold_str = ''
         for r in res['todayList']:
             ai_content = await getAnalysizeResult(r['code'], r['create_time'].replace('-', ''))
-            content = json.loads(ai_content[0]['content'])
+            content = json.loads(ai_content.data[0]['content'])
             today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;"><details style="color: #0052d9; cursor: pointer;">
