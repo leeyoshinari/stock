@@ -10,7 +10,7 @@ import traceback
 from datetime import datetime, timedelta
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo
 from utils.model import StockInfoList, ToolsInfoList, SetStockParam
-from utils.model import EtfInfoList, TradeStockList, SetStockHold
+from utils.model import EtfInfoList, TradeStockList, SetStockHold, AnalysisResultList
 from utils.selectStock import getStockZhuLiFundFromTencent, isOpenStock
 from utils.results import Result
 from utils.send_email import sendEmail
@@ -795,9 +795,28 @@ async def analysizeEtfFromNews() -> Result:
         resp = await analyze_etf_from_news(res.data, lastDay)
         result.data = resp
         logger.info(f"从新闻中提取出的ETF结果 {resp}")
-    except:
+    except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False
+        result.msg = str(e)
+    return result
+
+
+async def getAnalysizeResult(code: str, day: str = None) -> Result:
+    """获取 AI 分析结果"""
+    result = Result()
+    try:
+        if day:
+            datas: list[Analysis] = await Analysis.query().equal(code=code, day=day).all()
+        else:
+            datas: list[Analysis] = await Analysis.query().equal(code=code).order_by(Analysis.day.desc()).all()
+        result.data = [AnalysisResultList.from_orm_format(f).model_dump() for f in datas]
+        result.total = len(datas)
+        logger.info(f"get AI analysis result success, {code} - {day}")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        result.success = False
+        result.msg = str(e)
     return result
 
 
@@ -1085,7 +1104,8 @@ async def auto_select_email():
         today_str = ''
         hold_str = ''
         for r in res['todayList']:
-            content = json.loads(r['content'])
+            ai_content = await getAnalysizeResult(r['code'], r['create_time'].replace('-', ''))
+            content = json.loads(ai_content[0]['content'])
             today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;"><details style="color: #0052d9; cursor: pointer;">

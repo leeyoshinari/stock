@@ -161,6 +161,13 @@ class StockController(Controller):
             result = await views.setEtf(code, running)
         return result
 
+    @get('/getAnalysis', summary="获取标的AI分析结果")
+    async def get_analyzer(self, request: Request, code: str, day: str | None = None) -> Result:
+        result = Result()
+        if checkout(request.headers.get('referered', '123')):
+            result = await views.getAnalysizeResult(code=code, day=day)
+        return result
+
     @get('/analyzer', summary="全面分析标的")
     async def analyzer(self, request: Request, code: str, userId: str | None = None) -> Result:
         result = Result()
@@ -185,6 +192,8 @@ class StockController(Controller):
             result = await views.auto_analysize_etf()
         if idx == 'update_holding_capital':
             result = await views.update_holding_capital()
+        if idx == 'auto_select_email':
+            result = await views.auto_select_email()
         return result
 
 

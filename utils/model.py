@@ -176,6 +176,22 @@ class TradeStockList(BaseModel):
                    fee=obj.fee, user_id=obj.user_id, create_time=c, update_time=u, flag=obj.flag, content=obj.content)
 
 
+class AnalysisResultList(BaseModel):
+    id: int = None
+    code: str = None
+    day: str = None
+    content: Optional[str] = None
+    create_time: str = None
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_format(cls, obj):
+        c = obj.create_time.strftime("%Y-%m-%d")
+        return cls(id=obj.id, code=obj.code, day=obj.day, create_time=c, content=obj.content)
+
+
 class EtfInfoList(BaseModel):
     code: str
     name: str
