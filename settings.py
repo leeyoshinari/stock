@@ -62,6 +62,10 @@ ACCESS_KEY = get_config("accessKey")
 BACKUP_PATH = get_config("backupPath")
 LONGBRIDGE_URL = get_config("longbridgeUrl")
 EMAIL_TEMPLATE = os.path.join(PROMPT_PATH, "email.txt")
+ETF_ANALYZE_NEWS = os.path.join(PROMPT_PATH, 'etf_analyzer_news.md')
+ETF_ANALYZE_TECH = os.path.join(PROMPT_PATH, 'etf_analyzer_tech.md')
+ETF_ANALYZE_FINALLY = os.path.join(PROMPT_PATH, 'etf_analyzer_finally.md')
+AUTO_DECISION_MAKING = os.path.join(PROMPT_PATH, 'auto_decisio_making.md')
 
 
 def checkout(pwd: str) -> bool:

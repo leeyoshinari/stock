@@ -6,14 +6,15 @@ import json
 import logging
 import asyncio
 import traceback
+import aiofiles
 from datetime import datetime, timedelta
 from typing import Any, Callable
 from functools import partial
 from utils.AI import chat
 from utils.webSearch import getNews, searchWithSerper
-from settings import read_prompt
-from utils.akshare import getGlobalShortInfoFromSina, getGlobalShortInfoFromThs, getStockResearchReport, getStockFinanceReportFromSina, getShortInfoMorning, getNewsFromDongCai
-from utils.longbridge import getStockNews, getStockReport, getStockCalcIndex, getStockCapital, getStockValuation, getStockFinancialStatement, getStockFinancialAnalysis
+from utils.akshare import getGlobalShortInfoFromSina, getGlobalShortInfoFromThs, getStockFinanceReportFromSina, getShortInfoMorning
+from utils.longbridge import getStockNews, getStockValuation, getStockFinancialAnalysis
+from settings import ETF_ANALYZE_NEWS, ETF_ANALYZE_TECH, ETF_ANALYZE_FINALLY, AUTO_DECISION_MAKING
 
 
 logger = logging.getLogger(__name__)
@@ -27,23 +28,19 @@ stock_k_line_comment = '''
 day：交易日期；current_price：当日收盘价；last_price：前一日收盘价；open_price：开盘价；max_price：最高价；min_price：最低价；volume：成交量；fund：主力资金净流入（单位：万）；turnover_rate：换手率；ma_five：5日均线；ma_ten：10日均线；ma_twenty：20日均线和布林线中轨线；qrr：量比；diff：MACD的DIFF；dea：MACD的DEA；k：KDJ的K值；d：KDJ的D值；j：KDJ的J值；boll_up：布林线上轨线；boll_low：布林线下轨线\n
 【K线数据】
 '''
-system_prompt_etf_analyzer_tech = read_prompt('etf_analyzer_tech.md')
 
 
-async def search_and_extract(query: str, max_results: int = 5) -> str:
-    """DuckDuckGo 联网搜索兜底"""
-    try:
-        content = ''
-        # content = await searchWithDuckDuckGo(query, df='w', max_results=max_results)
-        return json.dumps(content, ensure_ascii=False) if content else ""
-    except Exception as e:
-        return f"Search Exception: {str(e)}"
+async def read_prompt(filePath: str) -> str:
+    async with aiofiles.open(filePath, 'r', encoding='utf-8') as f:
+        res = await f.read()
+    return res
 
 
 class AsyncETFAnalyzer:
     def __init__(self, input_data: dict):
         self.today: str = input_data.get("toDay", datetime.now().strftime("%Y-%m-%d"))
         self.type: str = input_data.get("type", "stock")    # 类型，stock-股票，etf-ETF
+        self.totalFund: float = input_data.get("totalFund", 0)          # 总资产
         self.availableFund: float = input_data.get("availableFund", 0)  # 可用资产
         self.name: str = input_data.get("name", "")     # 股票名称
         self.code: str = input_data.get("code", "")     # 股票code
@@ -122,22 +119,17 @@ class AsyncETFAnalyzer:
                         partial(getNews, f"{self.industry}产业 政策 监管", self.today),
                         partial(getNews, f"{self.industry}行业", self.today),
                     ],
-                    "prompt": "你是一位资深的宏观策略与产业政策分析师，擅长从政策文本、行业新闻和宏观数据中剥离噪音，精准判断行业中观景气度与政策底/市场底。\n你的任务：基于用户提供的行业政策与新闻数据，评估该行业近期的政策导向、供需格局及整体景气度，最终判定该行业对 ETF 的宏观基本面是构成实质性利好、利空还是中性，并重点提示潜在的监管或产业风险。",
-                    "rule": """【分析框架与约束条件】（请在思考时严格遵循，并在输出中体现）：
-                    1. 事实与噪音剥离：严格区分“国家级/部委级实质性政策落地（如具体补贴金额、准入文件）”与“市场传闻/小作文/口号式呼吁”。仅以前者作为核心判断依据。
-                    2. 政策导向与监管评估：重点分析政策是鼓励发展、规范整顿还是限制扩张。关注补贴退坡、行业准入限制或突发性强监管（如环保、反垄断、数据安全）的潜在风险。
-                    3. 产业景气度与供需验证：基于数据提取关键指标（如产能利用率、库存周期、上下游需求增速、产品价格拐点），判断行业处于“主动补库存”、“被动去库存”还是“产能过剩”阶段。
-                    4. 风险一票否决：若数据中显示该行业面临突发性严厉监管、核心补贴取消或严重的产能过剩价格战，即使有局部利好，也必须给予“明确利空”或“高风险”评级。
-                    5. 严格数据边界：绝对忠实于用户提供的行业政策与新闻数据，严禁编造任何政策文件、宏观数据或行业指标。若某维度数据缺失，请明确填写“当前数据未提及”，不可臆测。""",
-                    "conclusion": f"详细分析{self.industry}行业近期是否具备支撑 ETF 上涨的条件，核心驱动力或最大阻碍是什么。"
+                    "prompt": ETF_ANALYZE_NEWS,
+                    "rule": "",
+                    "conclusion": ""
                 },
                 {
-                    "name": "技术面与资金流向",
+                    "name": "技术面",
                     "aggregate": True,
                     "api_chain": [],
-                    "prompt": system_prompt_etf_analyzer_tech,
+                    "prompt": ETF_ANALYZE_TECH,
                     "rule": "",
-                    "conclusion": "详细的深度分析报告"
+                    "conclusion": ""
                 }
                 # , {
                 #     "name": "重仓股深度共振",
@@ -257,30 +249,26 @@ class AsyncETFAnalyzer:
         # if config.get("is_etf_leaders"):
         #     return await self._analyze_etf_leaders_dimension(config["prompt"])
 
-        # 1. 执行 Fallback 数据获取
         context = f"{self.name}({self.code}) {self.industry}"
         if config["api_chain"]:
             raw_data = await self._fetch_data(config["api_chain"], context, dim_name, config.get("aggregate", False))
         else:
             raw_data = ''
         # 2. 追加技术面 K 线数据（如果是技术面维度）
-        if dim_name == "技术面与资金流向" and self.kLine:
-            raw_data += f"\n{etf_k_line_comment if self.type == "etf" else stock_k_line_comment}\n{self.kLine}"
+        if dim_name == "技术面" and self.kLine:
+            raw_data = self.kLine
 
         # 3. 构建定制化 Prompt
-        system_prompt = f"""{config["prompt"]}
-
-{config["rule"]}
-
-请严格输出 JSON：{{"dimension": "{dim_name}", "analysis": "{config['conclusion']}"}}"""
+        system_prompt = await read_prompt(config['prompt'])
+        system_prompt = system_prompt.replace('dimension_name', dim_name).replace('real_industry', self.industry)
         user_message = f"""用户输入的数据如下：
-【标的】: {self.name} ({self.code}), 类型: {self.type}, 行业: {self.industry}
+【标的】: {self.name} ({self.code}), 行业: {self.industry}
 【当前日期】: {self.today}
 【原始数据】:{raw_data}"""
         result = await chat(system_prompt, user_message)
         logger.info(f"{self.code} - {self.name} - {dim_name} 维度分析结果如下: {result}")
         if "error" in result:
-            return {"dimension": dim_name, "sentiment": "中性", "analysis": f"分析失败: {result}"}
+            return {"dimension": dim_name, "score": 10, "analysis": f"分析失败: {result}"}
         return json.loads(result)
 
     async def _final_decision(self, dimension_results: list[dict]) -> dict[str, Any]:
@@ -288,53 +276,14 @@ class AsyncETFAnalyzer:
         hold_info = json.dumps(self.hold, ensure_ascii=False) if self.has_position else "无持仓"
         dim_results_str = json.dumps(dimension_results, ensure_ascii=False, indent=2)
         news_result_prompt = f"【最新新闻事件驱动】: {self.news_reason}。特别注意：这是从最近24小时的新闻中分析出来的，仅供参考。"
+        system_prompt = await read_prompt(ETF_ANALYZE_FINALLY)
+        system_prompt = system_prompt.replace('replace_date', self.today).replace('replace_code', self.code).replace('replace_name', self.name)
+        system_prompt = system_prompt.replace('replace_current_price', self.current_price)
+        system_prompt = system_prompt.replace('current_position_json', json.dumps(self.hold, ensure_ascii=False))
 
-        system_prompt = f"""你是一位在中国A股市场拥有丰富实战经验的资深量化投研与交易决策专家。你的任务是综合用户输入的【各维度分析结果】的独立分析结果，结合标的现状与账户头寸，进行交叉验证，并输出严谨、可执行的最终交易决策。
-
-【分析与决策框架】
-1. 交叉验证与共振分析：必须综合评估各个维度。寻找“共振点”（如：估值低估+资金持续流入+技术面突破）或“冲突点”（如：基本面良好但技术面破位/主力出逃）。
-2. 异常降级处理：若某个维度的分析结果为空、报错或数据缺失，必须在分析中明确指出，并在决策时对该维度降权（视为中性或未知），严禁自行脑补缺失数据。
-3. 综合评级定义：
-   - 强烈看好：三个维度均为正面，逻辑高度自洽，多维指标产生强烈向上共振。
-   - 看好：至少两个核心维度（如基本面+技术面）为正面，无明显排雷信号或重大技术瑕疵。
-   - 中性：多空因素交织，或维度间存在明显冲突（如基本面好但资金面流出），趋势不明朗。
-   - 看空：存在财务排雷信号、重大监管风险，或技术面/资金面出现严重破位、主力坚决出逃。
-
-【交易执行与头寸管理规则】
-1. 资金约束：买入金额绝对不能超过用户当前可用资金。若可用资金不足但评级为“看好/强烈看好”需建仓，必须在逻辑中说明“卖出部分现有持仓以腾出资金”的调仓计划，不能因为可用资金不足而减少买入的股数。
-2. A股交易规则（极其重要）：
-   - 买入股数：必须是 100 股（1手）的整数倍。
-   - 卖出股数：绝对不能超过当前实际持仓股数。
-3. 操作金额与评级映射（仅供参考，需结合股价折算股数）：
-   - 强烈看好：建议买入 10000 - 15000元
-   - 看好：建议买入 5000 - 10000元
-   - 中性：建议买入 0元（建议观望/减仓）
-   - 看空：建议买入 0元（若已有持仓，应执行减仓或清仓）
-
-【严格输出约束】
-必须且只能输出合法的 JSON 字符串。严禁包含 Markdown 代码块标记（如 ```json）、不要包含任何额外的解释文本。
-
-【输出格式规则】:
-请严格输出 JSON：
-{{
- "date": "{self.today}", "code": "{self.code}", "name": "{self.name}",
- "rating": "强烈看好|看好|中性|看空",
- "core_logic": "2-3句话核心逻辑",
- "detailed_analysis": "对每个维度进行详细的交叉验证分析。必须引用各维度报告中的具体数据支撑，严禁编造。若某维度报错需在此说明。",
- "risk_warning": "2-3句话最需警惕的风险",
- "action_plan": {{
-   "current_position": {json.dumps(self.hold, ensure_ascii=False)},
-   "current_price": {self.current_price},
-   "operation": "建仓|加仓|不操作|减仓|清仓",
-   "operation_amount": "建议金额(数字)",
-   "operation_shares": "建议股数(数字)",
-   "operation_reason": "简要说明操作理由（如：因可用资金不足，需要在操作理由后加上“可用资金不足，需要卖出部分现有持仓以腾出资金。”的说明文案）",
-   "stop_loss_profit": "硬性止损/止盈位"
- }}
-}}"""
         user_message = f"""用户输入的数据是：
-【标的信息】: {self.name} ({self.code}), 类型: {self.type}, 行业: {self.industry}
-【账户可用资金】: {self.availableFund}元
+【标的信息】: {self.name} ({self.code}), 行业: {self.industry}
+【账户资金】: 总资产: {self.totalFund}元, 可用资金: {self.availableFund}元
 【当前持仓】: {hold_info}
 {news_result_prompt if self.news_reason else ""}
 【各维度分析结果】: {dim_results_str}"""

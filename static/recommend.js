@@ -30,10 +30,10 @@ function getTradeData() {
             data.data.todayList.forEach(item => {
                 const temp = item.status.startsWith("TEM") ? "(待成交)" : "";
                 const tempPrice = item.status.startsWith("TEM") ? "(预估)" : "";
-                today += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${TradeStatus[item.status] + temp}</div><div>${item.price}${tempPrice}</div><div>${item.shares}</div><div onclick="show_concept('${item.code}');" style="cursor:pointer;">点我</div><div id="ai-${item.code}" style="display:none;">${item.content}</div></div>`;
+                today += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${TradeStatus[item.status] + temp}</div><div>${item.price}${tempPrice}</div><div>${item.shares}</div><div><a onclick="show_concept('${item.code}', '${item.name}', '');">点我</a></div></div>`;
             });
             data.data.holdList.forEach(item => {
-                hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${item.create_time}</div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
+                hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div><a onclick="show_concept('${item.code}', '${item.name}', '1');">${item.create_time}</a></div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
             });
             document.getElementById("curr-day").innerText = data.data.currentDay;
             document.getElementById("curr-total").innerText = data.data.total;
@@ -53,16 +53,32 @@ function getTradeData() {
         .finally(() => {close_modal_cover();})
 }
 
-function show_concept(code) {
-    let codeEle = document.getElementById('ai-' + code);
-    const data = JSON.parse(codeEle.innerText);
-    document.getElementById("stock-info").innerText = `${code} - ${data.name}`;
-    document.getElementById("stock-rank").innerText = data.rating;
-    document.getElementById("stock-core-text").innerText = data.action_plan.operation_reason.replace('\\n', '\n');
-    document.getElementById("stock-detail-text").innerText = data.detailed_analysis.replace('\\n', '\n');
-    document.getElementById("stock-risk").innerText = data.risk_warning.replace('\\n', '\n');
-    document.getElementById("stock-position").innerText = data.action_plan.stop_loss_profit;
-    document.getElementsByClassName("stock-data")[0].style.display = "flex";
+function show_concept(code, name, flag) {
+    show_modal_cover();
+    let day = '';
+    if (!flag) {
+        day = document.getElementById("curr-day").innerText;
+    }
+    fetch(`${prefix}/getAnalysis?code=${code}&day=${day}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                alert(data.msg);
+                return;
+            }
+            let s = `<div id="stock-info" style="font-size:larger;font-weight:bold;">${code} - ${name}</div>`;
+            data.data.forEach(item => {
+                const d = JSON.parse(item.content);
+                s += `<hr style="width:100%;"><div style="display:block;"><span style="font-weight:bold;">${item.day} 评级: </span><span id="stock-rank" style="color:red;">${d.rating}</span></div>
+                <div style="display:block;"><span style="font-weight:bold;">核心观点: </span><span id="stock-core-text">${d.action_plan.operation_reason.replace('\\n', '\n')}</span></div>
+                <div style="display:block;"><span style="font-weight:bold;">详细分析: </span><span id="stock-detail-text">${d.detailed_analysis.replace('\\n', '\n')}</span></div>
+                <div style="display:block;"><span style="font-weight:bold;">风险点: </span><span id="stock-risk">${d.risk_warning.replace('\\n', '\n')}</span></div>
+                <div style="display:block;"><span style="font-weight:bold;">点位: </span><span id="stock-position">${d.action_plan.stop_loss_profit}</span></div>`;
+            })
+            document.getElementById("data-tips").innerHTML = s;
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
+        })
+        .finally(() => {close_modal_cover();})
 }
 
 getTradeData();

@@ -9,7 +9,7 @@ import asyncio
 import traceback
 from datetime import datetime, timedelta
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo
-from utils.model import StockInfoList, ToolsInfoList, SetStockParam
+from utils.model import StockInfoList, ToolsInfoList, SetStockParam, TradeRecordList
 from utils.model import EtfInfoList, TradeStockList, SetStockHold, AnalysisResultList
 from utils.selectStock import getStockZhuLiFundFromTencent, isOpenStock
 from utils.results import Result
@@ -116,18 +116,18 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
 
         for r in rows:
             try:
-                stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).order_by(Transaction.create_time.asc()).all()
+                filter = [TradeType.RECD, TradeType.AIS] if r[0] == DEFAULT_USER_ID else [TradeType.BUY, TradeType.SELL]
+                trade_type = TradeType.AUTO if r[0] == DEFAULT_USER_ID else TradeType.MAN
+                stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).order_by(Transaction.create_time.asc()).all()
                 res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
                 for s in stock:
                     if s.status == TradeType.FAIL:
                         continue
                     res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
-                trade_type = TradeType.AUTO if r[0] == DEFAULT_USER_ID else TradeType.MAN
                 if res['shares'] == 0:
                     await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=trade_type,
                                              fee=round(res['profit'], 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
 
-                    filter = [TradeType.RECD, TradeType.AIS] if r[0] == DEFAULT_USER_ID else [TradeType.BUY, TradeType.SELL]
                     await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).update(flag=1)
                     logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
                 else:
@@ -803,13 +803,15 @@ async def analysizeEtfFromNews() -> Result:
 
 
 async def getAnalysizeResult(code: str, day: str = None) -> Result:
-    """获取 AI 分析结果"""
+    """获取 AI 分析结, day的格式是: %Y%m%d"""
     result = Result()
     try:
         if day:
             datas: list[Analysis] = await Analysis.query().equal(code=code, day=day).all()
         else:
-            datas: list[Analysis] = await Analysis.query().equal(code=code).order_by(Analysis.day.desc()).all()
+            trade: Transaction = await Transaction.query().equal(code=code, flag=0, user_id=DEFAULT_USER_ID).order_by(Transaction.id.asc()).first()
+            pre_day = trade.create_time.strftime("%Y%m%d")
+            datas: list[Analysis] = await Analysis.query().equal(code=code).greater_equal(day=pre_day).order_by(Analysis.day.desc()).all()
         result.data = [AnalysisResultList.from_orm_format(f).model_dump() for f in datas]
         result.total = len(datas)
         logger.info(f"get AI analysis result success, {code} - {day}")
@@ -820,10 +822,11 @@ async def getAnalysizeResult(code: str, day: str = None) -> Result:
     return result
 
 
-async def analysize(code: str, userId: int, availableFund: float = 100000, newsRes: str = None, isAuto: bool = False) -> Result:
+async def analysize(code: str, userId: int, totalFund: float = 100000, availableFund: float = 100000, newsRes: str = None, isAuto: bool = False) -> Result:
     """分析标的，判断怎么操作 \n
     :params code: code
     :params userId: 用户Id
+    :params totalFund: 用户总金额
     :params availableFund: 用户可用金额
     :params newsRes: 从新闻资讯中分析结果
     :params isAuto: 是否只程序自动调用
@@ -838,7 +841,10 @@ async def analysize(code: str, userId: int, availableFund: float = 100000, newsR
             stock: ETF = await ETF.get_one(code)
         else:
             stock: Stock = await Stock.get_one(code)
+
+        # 获取 K 线数据
         res: Result = await queryByCodeForAI(code, 30)
+        current_price = res.data[-1]['current_price']
         hold = await get_holding(user_id=userId, code=stock.code)
         if not res.success:
             logger.error(f"Get K-line Error: code:{code}, {res.msg}")
@@ -849,20 +855,36 @@ async def analysize(code: str, userId: int, availableFund: float = 100000, newsR
                 result.success = res_flag
                 result.msg = reason
                 return result
-        user_hold = [{"name": d['name'], "code": d['code'], "price": round(d['price'], 2), "shares": d["shares"]} for d in hold]
+
+        # 获取当前仓位数据
+        user_hold = {}
+        if hold:
+            amount = round(hold[0]['price'] * hold[0]["shares"], 2)
+            current_position = (amount / totalFund) * 100
+            profit = (current_price - hold[0]['price']) / hold[0]['price'] * 100
+            user_hold = {"name": hold[0]['name'], "code": hold[0]['code'], "price": round(hold[0]['price'], 2), "shares": hold[0]["shares"],
+                         "amount": amount, "current_position": current_position + "%", "profit": profit + "%"}
+
+        # 获取交易记录
+        tradeList: list[Transaction] = await Transaction.query().equal(code=code, user_id=userId, flag=0).order_by(Transaction.id.desc()).limit(5).all()
+        trade = [TradeRecordList.from_orm_format(f).model_dump() for f in tradeList]
+        # analysisList: list[Analysis] = await Analysis.query().equal(code=code).order_by(Analysis.day.desc()).limit(5).all()
         user_input = {
             "type": "etf" if isEtf else "stock",
             "name": stock.name,
             "code": stock.code,
             "toDay": f"{open_time[:4]}-{open_time[4:6]}-{open_time[6:]}",
+            "totalFund": totalFund,
             "availableFund": availableFund,
             "newsRes": newsRes,
+            "current_price": current_price,
             "userId": userId,
             "industry": stock.name.split("ETF")[0] if isEtf else stock.industry,
             "concept": stock.industry if isEtf else stock.concept,
             "stocks": stock.stocks if isEtf else "",
             "k_line": json.dumps(res.data, ensure_ascii=False),
-            "hold": user_hold[0] if len(user_hold) > 0 else {}
+            "hold": user_hold,
+            "trade": trade
         }
         analyzer = AsyncETFAnalyzer(input_data=user_input)
         result.data = await analyzer.analyze()
@@ -933,7 +955,7 @@ async def auto_analysize_etf():
         news_etf_data = [etf for etf in etfData if etf['code'] == code]
         news_etf_result = news_etf_data[0]['reason'] if news_etf_data else None
         logger.info(f"📡 开始分析 ETF - {r}")
-        res = await analysize(code=code, userId=DEFAULT_USER_ID, availableFund=available, newsRes=news_etf_result, isAuto=True)
+        res = await analysize(code=code, userId=DEFAULT_USER_ID, totalFund=capital.total, availableFund=available, newsRes=news_etf_result, isAuto=True)
         if res.success:
             try:
                 # 所有分析记录保存

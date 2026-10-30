@@ -859,7 +859,6 @@ class Transaction(Base, CRUDBase):
     fee = Column(Float, default=0.0, comment="手续费/盈利金额(status=M/A)")
     flag = Column(Integer, default=0, nullable=False, comment="0:持仓, 1:清仓")
     user_id = Column(Integer, nullable=False, comment="用户Id, 99:系统自动, 1:我自己 ...")
-    content = Column(Text, nullable=True, comment="分析结果")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

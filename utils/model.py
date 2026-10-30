@@ -176,6 +176,22 @@ class TradeStockList(BaseModel):
                    fee=obj.fee, user_id=obj.user_id, create_time=c, update_time=u, flag=obj.flag, content=obj.content)
 
 
+class TradeRecordList(BaseModel):
+    price: float = None
+    shares: int = None
+    operation: str = None
+    operate_time: str = None
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_format(cls, obj):
+        c = obj.create_time.strftime("%Y-%m-%d")
+        operation = "buy" if obj.status.name == "RECD" else "sell"
+        return cls(price=round(obj.price, 3), shares=obj.shares, operation=operation, operate_time=c)
+
+
 class AnalysisResultList(BaseModel):
     id: int = None
     code: str = None
