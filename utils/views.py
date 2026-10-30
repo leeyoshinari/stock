@@ -532,9 +532,9 @@ async def queryTradeStockList(userId: int = None, page: int = 1) -> Result:
     pageSize = 20
     try:
         offset = (page - 1) * pageSize
-        filter = [TradeType.MAN, TradeType.AUTO]
-        total_num: int = await Transaction.query().equal(user_id=userId).isin(status=filter).count()
-        stockInfo: list[Transaction] = await Transaction.query().equal(user_id=userId).isin(status=filter).order_by(Transaction.create_time.desc()).offset(offset).limit(pageSize).all()
+        filter = TradeType.AUTO if userId == DEFAULT_USER_ID else TradeType.MAN
+        total_num: int = await Transaction.query().equal(user_id=userId, status=filter).count()
+        stockInfo: list[Transaction] = await Transaction.query().equal(user_id=userId, status=filter).order_by(Transaction.create_time.desc()).offset(offset).limit(pageSize).all()
         stockList = [TradeStockList.from_orm_format(f).model_dump() for f in stockInfo]
         result.total = total_num
         result.data = stockList
@@ -917,7 +917,7 @@ async def write_analysize_result(data: dict):
     elif operation in ['减仓', '清仓']:
         status = TradeType.TEMS
     else:
-        pass
+        return
     await Transaction.create(code=code, name=name, price=price, shares=shares, status=status, user_id=DEFAULT_USER_ID, flag=0)
 
 
@@ -997,7 +997,7 @@ async def auto_trade_etf():
         rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMS).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
         for r in rows:
             current_hold = await get_holding(user_id=DEFAULT_USER_ID, code=r.code)
-            real_shares = min(current_hold['shares'], r.shares)
+            real_shares = min(current_hold[0]['shares'], r.shares)
             res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
             stockDo: StockModelDo = res_stock['data'][0]
             fee = max((stockDo.current_price * real_shares) * etf_fee_ratio, 5)

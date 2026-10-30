@@ -30,10 +30,10 @@ function getTradeData() {
             data.data.todayList.forEach(item => {
                 const temp = item.status.startsWith("TEM") ? "(待成交)" : "";
                 const tempPrice = item.status.startsWith("TEM") ? "(预估)" : "";
-                today += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${TradeStatus[item.status] + temp}</div><div>${item.price}${tempPrice}</div><div>${item.shares}</div><div><a onclick="show_concept('${item.code}', '${item.name}', '');">点我</a></div></div>`;
+                today += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${TradeStatus[item.status] + temp}</div><div>${item.price}${tempPrice}</div><div>${item.shares}</div><div><a onclick="show_concept('${item.code}', '${item.name}');">点我</a></div></div>`;
             });
             data.data.holdList.forEach(item => {
-                hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div><a onclick="show_concept('${item.code}', '${item.name}', '1');">${item.create_time}</a></div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
+                hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div><a onclick="show_concept('${item.code}', '${item.name}');">${item.create_time}</a></div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
             });
             document.getElementById("curr-day").innerText = data.data.currentDay;
             document.getElementById("curr-total").innerText = data.data.total;
@@ -53,13 +53,13 @@ function getTradeData() {
         .finally(() => {close_modal_cover();})
 }
 
-function show_concept(code, name, flag) {
+function show_concept(code, name) {
     show_modal_cover();
-    let day = '';
-    if (!flag) {
-        day = document.getElementById("curr-day").innerText;
-    }
-    fetch(`${prefix}/getAnalysis?code=${code}&day=${day}`)
+    // let day = '';
+    // if (!flag) {
+    //     day = document.getElementById("curr-day").innerText;
+    // }
+    fetch(`${prefix}/getAnalysis?code=${code}&day=`)
         .then(res => res.json())
         .then(data => {
             if (!data.success) {
