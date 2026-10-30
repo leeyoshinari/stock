@@ -53,7 +53,7 @@ class TradeType(str, PyEnum):
     # 手动已清仓
     MAN = "M"
     # 自动已清仓
-    AUTO = "A"
+    AUTO = "E"
     # 暂时买入，用于自动化处理
     TEMB = "TB"
     # 暂时卖出，用于自动化处理
