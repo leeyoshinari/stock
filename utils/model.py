@@ -161,7 +161,6 @@ class TradeStockList(BaseModel):
     fee: float = None
     flag: int = None
     user_id: int = None
-    content: Optional[str] = None
     create_time: str = None
     update_time: str = None
 
@@ -173,7 +172,7 @@ class TradeStockList(BaseModel):
         c = obj.create_time.strftime("%Y-%m-%d")
         u = obj.update_time.strftime("%Y-%m-%d")
         return cls(id=obj.id, code=obj.code, name=obj.name, price=round(obj.price, 3), shares=obj.shares, status=obj.status.name,
-                   fee=obj.fee, user_id=obj.user_id, create_time=c, update_time=u, flag=obj.flag, content=obj.content)
+                   fee=obj.fee, user_id=obj.user_id, create_time=c, update_time=u, flag=obj.flag)
 
 
 class TradeRecordList(BaseModel):
