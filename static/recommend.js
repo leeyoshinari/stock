@@ -59,7 +59,8 @@ function show_concept(code, name) {
     // if (!flag) {
     //     day = document.getElementById("curr-day").innerText;
     // }
-    fetch(`${prefix}/getAnalysis?code=${code}&day=`)
+    const userId = localStorage.getItem('userId') || defaultUserId;
+    fetch(`${prefix}/getAnalysis?code=${code}&userId=${userId}`)
         .then(res => res.json())
         .then(data => {
             if (!data.success) {
@@ -67,12 +68,21 @@ function show_concept(code, name) {
                 return;
             }
             let s = `<div id="stock-info" style="font-size:larger;font-weight:bold;">${code} - ${name}</div>`;
-            data.data.forEach(item => {
+            if (data.data.hold && data.data.hold?.price) {
+                s += `<div style="display:block;"><span style="font-weight:bold;">当前持仓: </span><span style="font-weight:bold;margin-left:20px;">成本: </span><span>${data.data.hold.price.toFixed(3)}</span><span style="margin-left:20px;">股数: </span><span>${data.data.hold.shares}</span></div>`;
+            }
+            data.data.analysis.forEach(item => {
                 const d = JSON.parse(item.content);
-                s += `<hr style="width:100%;"><div style="display:block;"><span style="font-weight:bold;">${item.day} 评级: </span><span id="stock-rank" style="color:red;">${d.rating}</span></div>
-                <div style="display:block;"><span style="font-weight:bold;">核心观点: </span><span id="stock-core-text">${d.action_plan.operation_reason.replace('\\n', '\n')}</span></div>
+                const operation = d.action_plan.operation
+                let share = '';
+                if (operation !== '不操作') {
+                    share = `<span style="font-weight:bold;margin-left:20px;">股数: </span><span id="stock-rank">${d.action_plan.operation_shares}</span>`;
+                }
+                s += `<hr style="width:100%;"><div style="display:block;"><span style="font-weight:bold;">${item.day} 评级: </span><span id="stock-rank" style="color:red;">${d.rating}</span><span style="font-weight:bold;margin-left:20px;">操作: </span><span id="stock-rank" style="color:red;">${operation}</span>${share}</div>
+                <div style="display:block;"><span style="font-weight:bold;">核心观点: </span><span id="stock-core-text">${d.core_logic.replace('\\n', '\n')}</span></div>
                 <div style="display:block;"><span style="font-weight:bold;">详细分析: </span><span id="stock-detail-text">${d.detailed_analysis.replace('\\n', '\n')}</span></div>
                 <div style="display:block;"><span style="font-weight:bold;">风险点: </span><span id="stock-risk">${d.risk_warning.replace('\\n', '\n')}</span></div>
+                <div style="display:block;"><span style="font-weight:bold;">操作理由: </span><span id="stock-core-text">${d.action_plan.operation_reason.replace('\\n', '\n')}</span></div>
                 <div style="display:block;"><span style="font-weight:bold;">点位: </span><span id="stock-position">${d.action_plan.stop_loss_profit}</span></div>`;
             })
             document.getElementById("data-tips").innerHTML = s;

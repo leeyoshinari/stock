@@ -45,14 +45,14 @@ class AsyncETFAnalyzer:
         self.name: str = input_data.get("name", "")     # 股票名称
         self.code: str = input_data.get("code", "")     # 股票code
         self.current_price = input_data.get("current_price", None)  # 当前价格
-        self.news_reason: str = input_data.get("newsRes", None)   # 从每日新闻中选出的ETF的原因
         self.industry: str = input_data.get("industry", self.name)     # 行业
         self.concept: str = input_data.get("concept", self.code)     # 股票概念
         # raw_stocks = input_data.get("stocks", [])
         # self.stocks: list[str] = [s.get("code", s) if isinstance(s, dict) else s for s in raw_stocks]   # ETF前10重仓股
-        self.kLine: str = input_data.get("k_line", "")      # K线等技术数据
-        self.hold: dict = input_data.get("hold", {})    # 当前持仓数据
-        self.has_position: bool = bool(self.hold and self.hold.get("shares", 0) > 0)
+        self.kLine: str = input_data.get("k_line", "")          # K线等技术数据
+        self.trade: list[dict] = input_data.get("trade", None)        # 交易记录
+        self.analysis: list[dict] = input_data.get("analysis", None)      # AI分析记录
+        self.hold: dict = input_data.get("hold", None)        # 当前持仓数据
         logger.debug(f"input_data is - {json.dumps(input_data, ensure_ascii=False)}")
 
     async def _fetch_data(self, api_chain: list[Callable], context: str, dimension: str, aggregate: bool = False) -> str:
@@ -109,7 +109,6 @@ class AsyncETFAnalyzer:
 
     def _get_dimension_configs(self) -> list[dict]:
         """构建维度配置：包含 API 降级链 和 定制化 Prompt"""
-        # 股票与 ETF 的差异化 API 链
         if self.type == "etf":
             configs = [
                 {
@@ -131,12 +130,6 @@ class AsyncETFAnalyzer:
                     "rule": "",
                     "conclusion": ""
                 }
-                # , {
-                #     "name": "重仓股深度共振",
-                #     "api_chain": [],
-                #     "prompt": "你是一位资深的 ETF 微观结构与基本面量化分析师，擅长“自下而上”的穿透分析。你的任务是通过拆解 ETF 前几大重仓股的财务、估值和机构评级数据，评估这些核心资产对整体 ETF 净值的支撑力度，并判断该 ETF 所跟踪的行业在近期是否具备上涨潜力。",
-                #     "is_etf_leaders": True
-                # }
             ]
         else:
             configs = [
@@ -268,27 +261,37 @@ class AsyncETFAnalyzer:
         result = await chat(system_prompt, user_message)
         logger.info(f"{self.code} - {self.name} - {dim_name} 维度分析结果如下: {result}")
         if "error" in result:
-            return {"dimension": dim_name, "score": 10, "analysis": f"分析失败: {result}"}
+            return {"dimension": dim_name, "score": 0, "analysis": f"分析失败: {result}"}
         return json.loads(result)
 
     async def _final_decision(self, dimension_results: list[dict]) -> dict[str, Any]:
         """Reduce 阶段：汇总所有维度，进行最终决策"""
-        hold_info = json.dumps(self.hold, ensure_ascii=False) if self.has_position else "无持仓"
-        dim_results_str = json.dumps(dimension_results, ensure_ascii=False, indent=2)
-        news_result_prompt = f"【最新新闻事件驱动】: {self.news_reason}。特别注意：这是从最近24小时的新闻中分析出来的，仅供参考。"
+        my_hold = None
+        if self.hold:
+            my_hold = {"成本": self.hold['price'], "数量": f"{self.hold['shares']}股", "市值": self.hold['amount'], "当前仓位": f"{self.hold['current_position']}%", "当前盈亏比": f"{self.hold['profit']}%"}
         system_prompt = await read_prompt(ETF_ANALYZE_FINALLY)
         system_prompt = system_prompt.replace('replace_date', self.today).replace('replace_code', self.code).replace('replace_name', self.name)
-        system_prompt = system_prompt.replace('replace_current_price', self.current_price)
+        system_prompt = system_prompt.replace('replace_current_price', str(self.current_price))
         system_prompt = system_prompt.replace('current_position_json', json.dumps(self.hold, ensure_ascii=False))
 
-        user_message = f"""用户输入的数据是：
-【标的信息】: {self.name} ({self.code}), 行业: {self.industry}
+        if self.type == 'etf':
+            user_message = f"""用户输入的数据是：
+【ETF信息】: {self.name} ({self.code}), 跟踪标的: {self.concept}, 行业: {self.industry}
 【账户资金】: 总资产: {self.totalFund}元, 可用资金: {self.availableFund}元
-【当前持仓】: {hold_info}
-{news_result_prompt if self.news_reason else ""}
-【各维度分析结果】: {dim_results_str}"""
+【当前持仓】: {json.dumps(my_hold, ensure_ascii=False) if self.hold else "无持仓"}
+【交易记录】: {json.dumps(self.trade, ensure_ascii=False) if self.trade else "暂无交易记录"}
+【历史分析结果】: {json.dumps(self.analysis, ensure_ascii=False) if self.analysis else "暂无历史分析结果"}
+【各维度分析结果】: {json.dumps(dimension_results, ensure_ascii=False, indent=2)}"""
+        else:
+            user_message = f"""用户输入的数据是：
+【股票信息】: {self.name} ({self.code}), 行业: {self.industry}
+【账户资金】: 总资产: {self.totalFund}元, 可用资金: {self.availableFund}元
+【当前持仓】: {json.dumps(my_hold, ensure_ascii=False) if self.hold else "无持仓"}
+【交易记录】: {json.dumps(self.trade, ensure_ascii=False) if self.trade else "暂无交易记录"}
+【各维度分析结果】: {json.dumps(dimension_results, ensure_ascii=False, indent=2)}"""
 
         res = await chat(system_prompt, user_message)
+        logger.info(f"{self.code} - {self.name} - 最终分析结果如下: {res}")
         return json.loads(res)
 
     async def analyze(self) -> dict[str, Any]:
@@ -301,12 +304,11 @@ class AsyncETFAnalyzer:
 
         logger.info("✅ 维度分析完成，正在进行最终汇总决策 (Reduce)...")
         final_result = await self._final_decision(dimension_results)
-
         if "error" in final_result:
             logger.error(f"❌ 最终决策失败: {final_result['error']}")
             return {"error": "Final Decision Failed", "raw": final_result}
 
-        logger.info(f"✅ 分析完成, JSON 解析成功。{final_result}")
+        logger.info(f"✅ 分析完成, JSON 解析成功 - {self.code} - {self.name}")
         return final_result
 
 

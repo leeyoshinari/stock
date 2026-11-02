@@ -162,10 +162,10 @@ class StockController(Controller):
         return result
 
     @get('/getAnalysis', summary="获取标的AI分析结果")
-    async def get_analyzer(self, request: Request, code: str, day: str | None = None) -> Result:
+    async def get_analyzer(self, request: Request, code: str, userId: int) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.getAnalysizeResult(code=code, day=day)
+            result = await views.getAnalysizeResult(code=code, userId=userId)
         return result
 
     @get('/analyzer', summary="全面分析标的")
@@ -240,10 +240,10 @@ async def lifespan(app: Litestar):
     await Database.init_db()    # 初始化数据库
     if RUN_ENV != 'dev':
         scheduler.add_job(getStock.updateEtfShares, 'cron', hour=8, minute=30, second=20, misfire_grace_time=10)    # 更新前一天的ETF份额
-        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=8, minute=58, second=0, misfire_grace_time=10)     # 开始分析 ETF
         scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)      # 检查今天是否开市
         scheduler.add_job(getStock.setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)     # 中午更新股票信息
         scheduler.add_job(getStock.setAllSZStock, 'cron', hour=12, minute=0, second=20, misfire_grace_time=10)                 # 中午更新股票信息
+        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=14, minute=40, second=0, misfire_grace_time=10)               # 开始分析 ETF
         scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新股票数据
         scheduler.add_job(getStock.updateStockFund, 'cron', hour=15, minute=50, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
         scheduler.add_job(getStock.updateEtfDetail, 'cron', hour='9,10,11,13,14', minute=45, second=20, misfire_grace_time=10)            # 更新ETF数据

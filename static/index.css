@@ -144,7 +144,7 @@ a {
     cursor: pointer;
 }
 
-.stock-chart, .stock-data, .stock-analysize {
+.stock-chart, .stock-data {
     position: fixed;
     background-color: #8d8a8a61;
     width: 100vw;
@@ -163,7 +163,7 @@ a {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
-#data-tips, #analysize-tips {
+#data-tips {
     display: flex;
     flex-direction: column;
     gap: 15px;

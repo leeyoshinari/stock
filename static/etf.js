@@ -151,34 +151,24 @@ function analysize_stock_ai(code, name) {
                 alert(data.msg);
                 return;
             }
-            document.getElementById("stock-info").innerText = `${code} - ${name}`;
-            document.getElementById("stock-rank").innerText = data.data.rating;
-            document.getElementById("stock-suggest").innerText = data.data.action_plan.operation;
-            document.getElementById("stock-core-text").innerText = data.data.action_plan.operation_reason.replace('\\n', '\n');
-            document.getElementById("stock-detail-text").innerText = data.data.detailed_analysis.replace('\\n', '\n');
-            document.getElementById("stock-risk").innerText = data.data.risk_warning.replace('\\n', '\n');
-            document.getElementById("stock-position").innerText = data.data.action_plan.stop_loss_profit;
-
-            if (data.data.action_plan.operation !== "不操作") {
-                document.getElementById("stock-suggest-share").style.display = '';
-                document.getElementById("stock-suggest-money").style.display = '';
-                document.getElementById("stock-suggest-share-data").style.display = '';
-                document.getElementById("stock-suggest-money-data").style.display = '';
-                document.getElementById("stock-suggest-share-data").innerText = data.data.action_plan.operation_shares;
-                document.getElementById("stock-suggest-money-data").innerText = data.data.action_plan.operation_amount;
-            } else {
-                document.getElementById("stock-suggest-share").style.display = 'none';
-                document.getElementById("stock-suggest-money").style.display = 'none';
-                document.getElementById("stock-suggest-share-data").style.display = 'none';
-                document.getElementById("stock-suggest-money-data").style.display = 'none';
+            const d = data.data;
+            let s = `<div id="stock-info" style="font-size:larger;font-weight:bold;">${code} - ${name}</div>`;
+            if (d.action_plan.current_position && d.action_plan.current_position?.price) {
+                s += `<div style="display:block;"><span style="font-weight:bold;">当前持仓: </span><span style="font-weight:bold;margin-left:20px;">成本: </span><span>${d.action_plan.current_position.price.toFixed(3)}</span><span style="margin-left:20px;">股数: </span><span>${d.action_plan.current_position.shares}</span><span style="margin-left:20px;">市值: </span><span>${d.action_plan.current_position.amount}</span></div>`;
             }
-            if (data.data.action_plan.current_position && data.data.action_plan.current_position.shares > 0) {
-                document.getElementById("stock-hold").style.display = '';
-                document.getElementById("stock-hold-data").innerText = `成本: ${data.data.action_plan.current_position.price}, 股数: ${data.data.action_plan.current_position.shares}`;
-            } else {
-                document.getElementById("stock-hold").style.display = 'none';
+            const operation = d.action_plan.operation
+            let share = '';
+            if (operation !== '不操作') {
+                share = `<span style="font-weight:bold;margin-left:20px;">股数: </span><span id="stock-rank">${d.action_plan.operation_shares}</span>`;
             }
-            document.getElementsByClassName("stock-analysize")[0].style.display = "flex";
+            s += `<div style="display:block;"><span style="font-weight:bold;">评级: </span><span id="stock-rank" style="color:red;">${d.rating}</span><span style="font-weight:bold;margin-left:20px;">操作: </span><span id="stock-rank" style="color:red;">${operation}</span>${share}</div>
+            <div style="display:block;"><span style="font-weight:bold;">核心观点: </span><span id="stock-core-text">${d.core_logic.replace('\\n', '\n')}</span></div>
+            <div style="display:block;"><span style="font-weight:bold;">详细分析: </span><span id="stock-detail-text">${d.detailed_analysis.replace('\\n', '\n')}</span></div>
+            <div style="display:block;"><span style="font-weight:bold;">风险点: </span><span id="stock-risk">${d.risk_warning.replace('\\n', '\n')}</span></div>
+            <div style="display:block;"><span style="font-weight:bold;">操作理由: </span><span id="stock-core-text">${d.action_plan.operation_reason.replace('\\n', '\n')}</span></div>
+            <div style="display:block;"><span style="font-weight:bold;">点位: </span><span id="stock-position">${d.action_plan.stop_loss_profit}</span></div>`;
+            document.getElementById("data-tips").innerHTML = s;
+            document.getElementsByClassName("stock-data")[0].style.display = "flex";
         })
         .finally(() => {close_modal_cover();})
 }
@@ -241,15 +231,11 @@ function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style
 
 const overlay = document.querySelector('.stock-chart');
 const overlay_data = document.querySelector('.stock-data');
-const overlay_analysize = document.querySelector('.stock-analysize');
 overlay.addEventListener('click', function(event) {
   if (event.target === overlay) {overlay.style.display = 'none';}
 });
 overlay_data.addEventListener('click', function(event) {
   if (event.target === overlay_data) {overlay_data.style.display = 'none';}
-});
-overlay_analysize.addEventListener('click', function(event) {
-  if (event.target === overlay_analysize) {overlay_analysize.style.display = 'none';}
 });
 
 document.getElementById("pre-page").disabled = 'true';
