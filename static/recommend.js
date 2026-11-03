@@ -30,10 +30,10 @@ function getTradeData() {
             data.data.todayList.forEach(item => {
                 const temp = item.status.startsWith("TEM") ? "(待成交)" : "";
                 const tempPrice = item.status.startsWith("TEM") ? "(预估)" : "";
-                today += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${TradeStatus[item.status] + temp}</div><div>${item.price}${tempPrice}</div><div>${item.shares}</div><div><a onclick="show_concept('${item.code}', '${item.name}');">点我</a></div></div>`;
+                today += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div>${TradeStatus[item.status] + temp}</div><div>${item.price}${tempPrice}</div><div>${item.shares}</div><div><a onclick="show_ai_result('${item.code}', '${item.name}');">点我</a></div></div>`;
             });
             data.data.holdList.forEach(item => {
-                hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div><a onclick="show_concept('${item.code}', '${item.name}');">${item.create_time}</a></div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
+                hold += `<div><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div><div><a onclick="show_ai_result('${item.code}', '${item.name}');">${item.create_time}</a></div><div>${item.price}</div><div>${item.shares}</div><div>${(item.price * item.shares + item.profit).toFixed(2)}</div><div>${item.profit}</div></div>`;
             });
             document.getElementById("curr-day").innerText = data.data.currentDay;
             document.getElementById("curr-total").innerText = data.data.total;
@@ -53,42 +53,42 @@ function getTradeData() {
         .finally(() => {close_modal_cover();})
 }
 
-function show_concept(code, name) {
-    show_modal_cover();
-    // let day = '';
-    // if (!flag) {
-    //     day = document.getElementById("curr-day").innerText;
-    // }
-    const userId = localStorage.getItem('userId') || defaultUserId;
-    fetch(`${prefix}/getAnalysis?code=${code}&userId=${userId}`)
-        .then(res => res.json())
-        .then(data => {
-            if (!data.success) {
-                alert(data.msg);
-                return;
-            }
-            let s = `<div id="stock-info" style="font-size:larger;font-weight:bold;">${code} - ${name}</div>`;
-            if (data.data.hold && data.data.hold?.price) {
-                s += `<div style="display:block;"><span style="font-weight:bold;">当前持仓: </span><span style="font-weight:bold;margin-left:20px;">成本: </span><span>${data.data.hold.price.toFixed(3)}</span><span style="margin-left:20px;">股数: </span><span>${data.data.hold.shares}</span></div>`;
-            }
-            data.data.analysis.forEach(item => {
-                const d = JSON.parse(item.content);
-                const operation = d.action_plan.operation
-                let share = '';
-                if (operation !== '不操作') {
-                    share = `<span style="font-weight:bold;margin-left:20px;">股数: </span><span id="stock-rank">${d.action_plan.operation_shares}</span>`;
-                }
-                s += `<hr style="width:100%;"><div style="display:block;"><span style="font-weight:bold;">${item.day} 评级: </span><span id="stock-rank" style="color:red;">${d.rating}</span><span style="font-weight:bold;margin-left:20px;">操作: </span><span id="stock-rank" style="color:red;">${operation}</span>${share}</div>
-                <div style="display:block;"><span style="font-weight:bold;">核心观点: </span><span id="stock-core-text">${d.core_logic.replace('\\n', '\n')}</span></div>
-                <div style="display:block;"><span style="font-weight:bold;">详细分析: </span><span id="stock-detail-text">${d.detailed_analysis.replace('\\n', '\n')}</span></div>
-                <div style="display:block;"><span style="font-weight:bold;">风险点: </span><span id="stock-risk">${d.risk_warning.replace('\\n', '\n')}</span></div>
-                <div style="display:block;"><span style="font-weight:bold;">操作理由: </span><span id="stock-core-text">${d.action_plan.operation_reason.replace('\\n', '\n')}</span></div>
-                <div style="display:block;"><span style="font-weight:bold;">点位: </span><span id="stock-position">${d.action_plan.stop_loss_profit}</span></div>`;
-            })
-            document.getElementById("data-tips").innerHTML = s;
-            document.getElementsByClassName("stock-data")[0].style.display = "flex";
-        })
-        .finally(() => {close_modal_cover();})
-}
+// function show_concept(code, name) {
+//     show_modal_cover();
+//     // let day = '';
+//     // if (!flag) {
+//     //     day = document.getElementById("curr-day").innerText;
+//     // }
+//     const userId = localStorage.getItem('userId') || defaultUserId;
+//     fetch(`${prefix}/getAnalysis?code=${code}&userId=${userId}`)
+//         .then(res => res.json())
+//         .then(data => {
+//             if (!data.success) {
+//                 alert(data.msg);
+//                 return;
+//             }
+//             let s = `<div id="stock-info" style="font-size:larger;font-weight:bold;">${code} - ${name}</div>`;
+//             if (data.data.hold && data.data.hold?.price) {
+//                 s += `<div style="display:block;"><span style="font-weight:bold;">当前持仓: </span><span style="font-weight:bold;margin-left:20px;">成本: </span><span>${data.data.hold.price.toFixed(3)}</span><span style="margin-left:20px;">股数: </span><span>${data.data.hold.shares}</span></div>`;
+//             }
+//             data.data.analysis.forEach(item => {
+//                 const d = JSON.parse(item.content);
+//                 const operation = d.action_plan.operation
+//                 let share = '';
+//                 if (operation !== '不操作') {
+//                     share = `<span style="font-weight:bold;margin-left:20px;">股数: </span><span id="stock-rank">${d.action_plan.operation_shares}</span>`;
+//                 }
+//                 s += `<hr style="width:100%;"><div style="display:block;"><span style="font-weight:bold;">${d.date} 评级: </span><span id="stock-rank" style="color:red;">${d.rating}</span><span style="font-weight:bold;margin-left:20px;">操作: </span><span id="stock-rank" style="color:red;">${operation}</span>${share}</div>
+//                 <div style="display:block;"><span style="font-weight:bold;">核心观点: </span><span id="stock-core-text">${d.core_logic.replace('\\n', '\n')}</span></div>
+//                 <div style="display:block;"><span style="font-weight:bold;">详细分析: </span><span id="stock-detail-text">${d.detailed_analysis.replace('\\n', '\n')}</span></div>
+//                 <div style="display:block;"><span style="font-weight:bold;">风险点: </span><span id="stock-risk">${d.risk_warning.replace('\\n', '\n')}</span></div>
+//                 <div style="display:block;"><span style="font-weight:bold;">操作理由: </span><span id="stock-core-text">${d.action_plan.operation_reason.replace('\\n', '\n')}</span></div>
+//                 <div style="display:block;"><span style="font-weight:bold;">点位: </span><span id="stock-position">${d.action_plan.stop_loss_profit}</span></div>`;
+//             })
+//             document.getElementById("data-tips").innerHTML = s;
+//             document.getElementsByClassName("stock-data")[0].style.display = "flex";
+//         })
+//         .finally(() => {close_modal_cover();})
+// }
 
 getTradeData();

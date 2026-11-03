@@ -65,7 +65,7 @@ function getStockList() {
                     deleteR = `<div><a onclick="set_ai_figure('${item.id}', '${item.code}')" style="cursor:pointer;">设置</a></div><div><a onclick="delete_data('${item.id}')">删除</a></div>`;
                 }
                 s += `<div id="${item.code}-${item.create_time}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a></div>
-                      <div id="price-${item.id}">${item.price}</div><div>${item.shares}</div><div>${item.create_time}</div><div>${getDayDiff(item.create_time, item.update_time)}</div><div id="profit-${item.id}" style="color:${profit_color};">${item.fee}</div>${deleteR}</div>`;
+                      <div id="price-${item.id}">${item.price}</div><div>${item.shares}</div><div>${item.create_time}</div><div>${getDayDiff(item.create_time, item.update_time)}</div><div id="profit-${item.id}" style="color:${profit_color};"><a onclick="show_ai_result('${item.code}', '${item.name}');">${item.fee}</a></div>${deleteR}</div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -154,67 +154,12 @@ function set_ai_text(itemId) {
     .finally(() => {close_modal_cover();})
 }
 
-function query_ai_hold(itemId) {
-    show_modal_cover();
-    fetch(`${prefix}/hold/ai/get?hId=${itemId}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                marked.use({
-                    renderer: {
-                        code({ text, lang }) {
-                            const validLang = (lang && hljs.getLanguage(lang)) ? lang : 'plaintext';
-                            const highlighted = hljs.highlight(text, { language: validLang }).value;
-                            return `<pre><code class="hljs ${validLang}">${highlighted}</code></pre>`;
-                        }
-                    }
-                });
-                const rawHtml = marked.parse(data.data);
-                const cleanHtml = DOMPurify.sanitize(rawHtml);
-                document.getElementById("stock-content").innerHTML = cleanHtml;
-                document.getElementById("stock-content-ai").style.display = "block";
-            }
-        })
-        .finally(() => {close_modal_cover();})
-}
-
-// function query_profit(itemId, code) {
-//     show_modal_cover();
-//     fetch(`${prefix}/query/price?code=${code}&site=`)
-//         .then(res => res.json())
-//         .then(data => {
-//             if (data.success) {
-//                 let current_price = data.data;
-//                 let buy_price = parseFloat(document.getElementById(`price-${itemId}`).innerText);
-//                 let ele = document.getElementById(`profit-${itemId}`);
-//                 ele.style.color = current_price > buy_price ? "red" : current_price < buy_price ? "green" : "";
-//                 ele.innerText = ((current_price - buy_price) / buy_price * 100).toFixed(2) + '%';
-//             }
-//         })
-//         .finally(() => {close_modal_cover();})
-// }
-
 function delete_data(codeId) {
     fetch(`${prefix}/deleteHold?hId=${codeId}`)
         .then(res => res.json())
         .then(data => {getStockList();})
 }
 
-function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}
-function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'none';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'none';}
-
-const overlay = document.querySelector('.stock-chart');
-const overlay_data = document.querySelector('.stock-data');
-const overlay_content = document.querySelector('#stock-content-ai');
-overlay.addEventListener('click', function(event) {
-  if (event.target === overlay) {overlay.style.display = 'none';}
-});
-overlay_data.addEventListener('click', function(event) {
-  if (event.target === overlay_data) {overlay_data.style.display = 'none';}
-});
-overlay_content.addEventListener('click', function(event) {
-  if (event.target === overlay_content) {overlay_content.style.display = 'none';}
-});
 
 document.getElementById("pre-page").disabled = 'true';
 getStockList();

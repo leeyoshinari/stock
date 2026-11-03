@@ -73,7 +73,7 @@ function getStockList() {
                     setFlag = `<div><a onclick="set_etf('${item.code}', ${item.running === 1 ? 0 : 1});" style="margin-right:3%;">${item.running === 1 ? 'No' : 'Yes'}</a><a onclick="delete_etf('${item.code}');">删除</a></div>`;
                 }
                 s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a><img id="hold-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="hold_stock('${item.code}', '${item.name}');" /></div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
-                      <div><img id="analyzer-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="analysize_stock_ai('${item.code}', '${item.name}');" style="width:20px;" /></div><div>${item.capital}</div><div>${item.fee}%</div><div>${item.create_time}</div><div onclick="show_top_stocks('${item.code}');">${item.industry}</div>${setFlag}<div id="stocks-${item.code}" style="display:none;">${JSON.stringify(item.stocks)}</div></div>`;
+                      <div><img id="analyzer-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="analysize_stock_ai('${item.code}', '${item.name}');" style="width:20px;" /></div><div>${item.capital}</div><div>${item.fee}%</div><div><a onclick="show_ai_result('${item.code}', '${item.name}');">${item.create_time}</a></div><div onclick="show_top_stocks('${item.code}');">${item.industry}</div>${setFlag}<div id="stocks-${item.code}" style="display:none;">${JSON.stringify(item.stocks)}</div></div>`;
             })
             document.getElementsByClassName("list")[0].innerHTML = s;
             if (page === parseInt((data.total + pageSize -1) / pageSize)) {
@@ -225,18 +225,6 @@ function set_stock_hold(code, status) {
         if (!data.success) {alert(data.msg);} else {document.getElementsByClassName("stock-data")[0].style.display = "none";}
     })
 }
-
-function show_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'flex';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'flex';}
-function close_modal_cover() {document.querySelectorAll('.modal_cover')[0].style.display = 'none';document.querySelectorAll('.modal_cover>.modal_gif')[0].style.display = 'none';}
-
-const overlay = document.querySelector('.stock-chart');
-const overlay_data = document.querySelector('.stock-data');
-overlay.addEventListener('click', function(event) {
-  if (event.target === overlay) {overlay.style.display = 'none';}
-});
-overlay_data.addEventListener('click', function(event) {
-  if (event.target === overlay_data) {overlay_data.style.display = 'none';}
-});
 
 document.getElementById("pre-page").disabled = 'true';
 getStockList();

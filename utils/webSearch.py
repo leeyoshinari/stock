@@ -101,7 +101,7 @@ async def getNewsFromDongCai(keyword: str, lastDay: str) -> str:
         target_day = lastDay + " 09:30:00"
         recent_news = [r for r in news_list if r['date'] > target_day]
         details = await asyncio.gather(*[get_detail(n) for n in recent_news])
-        logger.info(f"Search News from dongcai local - {details}")
+        logger.info(f"Search News from dongcai local - {keyword} - {details}")
         return "\n---\n".join(details)
     else:
         return ''
@@ -150,7 +150,8 @@ async def extract_paragraphs_async(html_content: str, target_id: str = None) -> 
 async def getNewsFromDongCaiCloud(keyword: str, lastDay: str) -> str:
     try:
         res = await http.get(f'{LONGBRIDGE_URL}/getNews?keyword={keyword}&lastDay={lastDay}')
-        logger.info(f"Search News from dongcai cloud - {res.text}")
+        logger.info(f"Search News from dongcai cloud - {keyword} - {res.text}")
+        return res.text
     except:
         logger.error(traceback.format_exc())
         return ''
