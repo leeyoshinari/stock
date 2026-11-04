@@ -15,7 +15,7 @@ from utils.webSearch import getNews, searchWithSerper
 from utils.akshare import getGlobalShortInfoFromSina, getGlobalShortInfoFromThs, getStockFinanceReportFromSina, getShortInfoMorning
 from utils.longbridge import getStockNews, getStockValuation, getStockFinancialAnalysis
 from settings import ETF_ANALYZE_NEWS, ETF_ANALYZE_TECH, ETF_ANALYZE_FINALLY, AUTO_DECISION_MAKING
-
+from settings import STOCK_ANALYZE_NEWS, STOCK_ANALYZE_TECH, STOCK_ANALYZE_BASIC, STOCK_ANALYZE_FINALLY
 
 logger = logging.getLogger(__name__)
 etf_k_line_comment = '''
@@ -118,79 +118,41 @@ class AsyncETFAnalyzer:
                         partial(getNews, f"{self.industry}产业 政策 监管", self.today),
                         partial(getNews, f"{self.industry}行业", self.today),
                     ],
-                    "prompt": ETF_ANALYZE_NEWS,
-                    "rule": "",
-                    "conclusion": ""
+                    "prompt": ETF_ANALYZE_NEWS
                 },
                 {
                     "name": "技术面",
                     "aggregate": True,
                     "api_chain": [],
-                    "prompt": ETF_ANALYZE_TECH,
-                    "rule": "",
-                    "conclusion": ""
+                    "prompt": ETF_ANALYZE_TECH
                 }
             ]
         else:
             configs = [
                 {
-                    "name": "宏观政策与监管环境",
+                    "name": "金融财经新闻",
                     "aggregate": False,
                     "api_chain": [
                         partial(getNews, f"{self.industry}产业 政策 监管", self.today),
                         partial(getStockNews, self.code, self.today),
                         partial(getNews, f"{self.industry} 美股 海外", self.today)
                     ],
-                    "prompt": "你是一位资深股票基本面与宏观行业分析师，擅长从宏观政策、产业链结构及全球宏观视角，对行业及特定标的进行深度、客观、数据驱动的基本面分析。请基于用户输入的数据，对指定标的及其所属行业进行严谨的基本面分析。",
-                    "rule": """【分析框架】（请在 analysis 中综合涵盖以下相关维度，若数据缺失请明确说明“原始数据未提供相关信息”，严禁臆测）：
-                    1. 政策与监管环境：近期的政策导向、监管态度、补贴变化及行业准入限制。重点评估政策整体是利好还是利空，并提示是否存在突发性监管风险。
-                    2. 产业链与成本结构：上游原材料成本变化对该行业及标的利润空间的挤压或释放效应。
-                    3. 全球宏观与外部映射：海外对标公司（如美股同类企业）走势的映射关系，以及关税、汇率波动、地缘政治对该行业的潜在影响。
-
-                    【严格约束】
-                    1. 绝对忠于【用户输入的数据】：所有结论必须有【用户输入的数据】中的具体事实或数值（如金额、比例、时间等）作为支撑，严禁编造、外推或引入外部未提供的知识。
-                    2. 逻辑严密：分析需条理清晰，因果关系明确，避免空泛的套话。
-                    3. 纯 JSON 输出：必须且只能输出合法的 JSON 字符串。严禁包含 Markdown 代码块标记（如 ```json 或 ```）、严禁包含任何前言、后记或额外解释文本。""",
-                    "conclusion": "在此处输出有数据支撑的详细分析文本"
+                    "prompt": STOCK_ANALYZE_NEWS
                 }, {
-                    "name": "基本面与业绩预期",
+                    "name": "基本面",
                     "aggregate": False,
                     "api_chain": [
                         partial(getStockFinancialAnalysis, self.code),
                         partial(getStockFinanceReportFromSina, self.code),
                     ],
-                    "prompt": "你是一位资深股票基本面与财务估值分析师，擅长通过财务报表数据和估值指标对上市公司进行深度、客观、数据驱动的基本面评估。请基于用户输入的数据，对指定标的进行严谨的财务基本面分析。",
-                    "rule": """【分析框架】（请在 analysis 中综合涵盖以下相关维度；若某项数据在原始数据中缺失，请明确说明"原始数据未提供该信息"，严禁臆测或编造）：
-                    1. 盈利能力分析：营收规模及增速、净利润及增速、毛利率、净利率、ROE、ROA 等核心盈利指标的表现与变化趋势。
-                    2. 财务健康度：资产负债率、流动比率/速动比率、经营性现金流净额等指标，评估公司的偿债能力、资金链安全性与潜在财务风险。
-                    3. 成长性判断：基于营收和利润的同比/环比变化趋势，判断公司当前所处的发展阶段（高速成长/稳健增长/增速放缓/承压下行）。
-                    4. 综合评价与风险提示：综合以上分析，给出该标的当前基本面的整体定性评价，明确列出主要亮点（如盈利改善、估值偏低等）与核心风险点（如负债过高、增速下滑、估值泡沫等）。
-
-                    【严格约束】
-                    1. 绝对忠于【用户输入的数据】：所有结论必须有【用户输入的数据】中的具体数值（如金额、比率、百分比、同比增速等）作为直接支撑，严禁编造、外推或引入外部未提供的知识。
-                    2. 逻辑严密：分析需条理清晰，因果关系明确，数据引用与结论之间必须有清晰的推导逻辑，避免空泛套话。
-                    3. 纯 JSON 输出：必须且只能输出合法的 JSON 字符串。严禁包含 Markdown 代码块标记（如 ```json 或 ```）、严禁包含任何前言、后记或额外解释文本。""",
-                    "conclusion": "在此处输出有数据支撑的详细分析文本"
+                    "prompt": STOCK_ANALYZE_BASIC
                 }, {
-                    "name": "技术面与资金流向",
+                    "name": "技术面",
                     "aggregate": True,
                     "api_chain": [
                         partial(getStockValuation, self.code),
                     ],
-                    "prompt": "你是一位资深量化与技术面分析师，擅长结合量价关系、主力资金流向、技术指标以及估值安全边际，对股票进行深度、客观、数据驱动的综合研判。请基于用户输入的数据，对指定标的进行严谨的技术面与资金面分析。",
-                    "rule": """【分析框架】（请在 analysis 中严格按以下维度展开；若某项数据缺失，请明确说明“原始数据未提供该信息”，严禁臆测或编造）：
-                    1. 趋势与均线系统：分析当前价格与 5日/10日/20日均线 的相对位置，判断短期趋势方向。重点评估是否存在“价格远离均线导致短线情绪透支”或“均线系统未修复”的弱势特征。
-                    2. 量价关系与假信号识别：结合 volume、turnover_rate、qrr，重点排查并警示以下异常/假信号：高开低走、长上影线、单日暴涨但量能异常、高换手率+小阳线或上影线（疑似主力出货）、高位派发特征。
-                    3. 资金面深度解析：分析 fund (主力资金净流入) 的近期趋势与单日异常值。结合价格走势，判断资金是在持续吸筹、震荡洗盘，还是拉高出货。
-                    4. 技术指标状态：综合研判 MACD（是否存在假金叉、高位钝化、顶/底背离）、KDJ（超买/超卖区域及 J 值极端情况）、布林带（价格触及上下轨、开口/收口状态）给出的共振或冲突信号。
-                    5. 估值与安全边际辅助：结合提供的 PE、PB、PS 历史分位数及同行对比（溢价/折价情况），以及股息率水平，评估当前技术位置是否具备基本面支撑（例如：“技术超卖 + 估值低估”的共振买点，或“技术高位 + 估值泡沫”的强烈风险）。
-                    6. 综合结论与风险提示：用简练的语言总结当前技术面与资金面的整体状态（如：多头趋势/震荡筑底/顶部背离风险等），并明确列出 1-2 个最核心的技术或资金面风险点。
-
-                    【严格约束】
-                    1. 绝对忠于【用户输入的数据】：所有结论必须有【用户输入的数据】中的具体数值（如价格、成交量、资金额、指标数值、分位数等）作为直接支撑，严禁编造、外推或引入外部未提供的知识。
-                    2. 逻辑严密：分析需条理清晰，因果关系明确（例如：“因换手率达X%且收长上影，故疑似出货”），避免空泛的套话。
-                    3. 纯 JSON 输出：必须且只能输出合法的 JSON 字符串。严禁包含 Markdown 代码块标记（如 ```json 或 ```）、严禁包含任何前言、后记或额外解释文本。""",
-                    "conclusion": "在此处输出有数据支撑的详细分析文本"
+                    "prompt": STOCK_ANALYZE_TECH
                 }
             ]
         return configs
@@ -249,7 +211,7 @@ class AsyncETFAnalyzer:
             raw_data = ''
         # 2. 追加技术面 K 线数据（如果是技术面维度）
         if dim_name == "技术面" and self.kLine:
-            raw_data = self.kLine
+            raw_data += self.kLine
 
         # 3. 构建定制化 Prompt
         system_prompt = await read_prompt(config['prompt'])

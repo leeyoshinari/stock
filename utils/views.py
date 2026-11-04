@@ -7,6 +7,7 @@ import json
 import logging
 import asyncio
 import traceback
+import aiofiles
 from datetime import datetime, timedelta
 from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo
 from utils.model import StockInfoList, ToolsInfoList, SetStockParam, TradeRecordList
@@ -22,8 +23,7 @@ from utils.queryStockHq import getStockHqFromTencent, getStockHq
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
 from utils.metric import real_traded_minutes, bollinger_bands
 from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital, Analysis
-from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST, TOTAL_FUND
-import aiofiles
+from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST, TOTAL_FUND, DEFAULT_AI_RESULT
 
 
 logger = logging.getLogger(__name__)
@@ -628,11 +628,11 @@ async def getTradeData() -> Result:
     return result
 
 
-async def get_today_hold() -> dict:
+async def get_today_hold(flag: int = 0) -> dict:
+    """flag 标识, 0-默认, 1-用于发送邮件"""
     tools: Tools = await Tools.get_one("openDoor")
     current_day = f"{tools.value[:4]}-{tools.value[4:6]}-{tools.value[6:]}"
-    if time.strftime("%H:%M:%S") < "09:35:00" and time.strftime("%H:%M:%S") > "09:00:00":  # 已分析但未买入
-        current_day = time.strftime("%Y-%m-%d")
+    if flag == 1:  # 已分析但未买入
         status = [TradeType.TEMB, TradeType.TEMS, TradeType.FAIL]
         today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
     else:
@@ -962,7 +962,16 @@ async def auto_analysize_etf():
         if len(hold) < 1:    # 如果未持仓，则需要预过滤，已持仓则直接走AI决策
             res_flag, reason = pre_filter_etf(detail_res.data)
             if not res_flag:
-                logger.error(f"❌ Error: 分析 ETF 失败 - {res_flag} - {reason}")
+                default_result = DEFAULT_AI_RESULT
+                default_result["date"] = f"{tool.value[:4]}-{tool.value[4:6]}-{tool.value[6:]}"
+                default_result["code"] = code
+                default_result["name"] = r["名称"]
+                default_result["core_logic"] = reason
+                default_result["detailed_analysis"] = reason
+                default_result["action_plan"]["current_position"] = hold
+                default_result["action_plan"]["operation_reason"] = reason
+                await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(default_result, ensure_ascii=False))
+                logger.error(f"❌ Error: 分析 ETF 失败 - {code} - {res_flag} - {reason}")
                 continue
         res = await analysize(code=code, userId=DEFAULT_USER_ID, hold=hold, kline=detail_res.data, totalFund=capital.total, availableFund=available)
         if res.success:
@@ -981,8 +990,16 @@ async def auto_analysize_etf():
             except:
                 logger.error(f"❌ Error: 分析结果入库失败 - {r} - {traceback.format_exc()}")
         else:
+            default_result = DEFAULT_AI_RESULT
+            default_result["date"] = f"{tool.value[:4]}-{tool.value[4:6]}-{tool.value[6:]}"
+            default_result["code"] = code
+            default_result["name"] = r["名称"]
+            default_result["core_logic"] = res.msg
+            default_result["detailed_analysis"] = res.msg
+            default_result["action_plan"]["current_position"] = hold
+            default_result["action_plan"]["operation_reason"] = res.msg
+            await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(default_result, ensure_ascii=False))
             logger.error(f"❌ Error: 分析 ETF 失败 - {r} - {res.msg}")
-        await asyncio.sleep(5)
     scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10))
 
     # 获取持仓数据和今日数据，用于发送邮件
@@ -1128,7 +1145,7 @@ async def update_holding_capital():
 async def auto_select_email():
     try:
         tradeStatus = {"TEMB": "买入", "TEMS": "卖出", "RECD": "买入", "AIS": "卖出"}
-        res = await get_today_hold()
+        res = await get_today_hold(flag=1)
         today_str = ''
         hold_str = ''
         for r in res['todayList']:

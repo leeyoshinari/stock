@@ -66,6 +66,10 @@ ETF_ANALYZE_NEWS = os.path.join(PROMPT_PATH, 'etf_analyzer_news.md')
 ETF_ANALYZE_TECH = os.path.join(PROMPT_PATH, 'etf_analyzer_tech.md')
 ETF_ANALYZE_FINALLY = os.path.join(PROMPT_PATH, 'etf_analyzer_finally.md')
 AUTO_DECISION_MAKING = os.path.join(PROMPT_PATH, 'auto_decisio_making.md')
+STOCK_ANALYZE_NEWS = os.path.join(PROMPT_PATH, 'stock_analyzer_news.md')
+STOCK_ANALYZE_TECH = os.path.join(PROMPT_PATH, 'stock_analyzer_tech.md')
+STOCK_ANALYZE_BASIC = os.path.join(PROMPT_PATH, 'stock_analyzer_basic.md')
+STOCK_ANALYZE_FINALLY = os.path.join(PROMPT_PATH, 'stock_analyzer_finally.md')
 
 
 def checkout(pwd: str) -> bool:
@@ -90,7 +94,31 @@ def read_prompt(fileName: str) -> str:
     return res
 
 
-# 通用判断是否买入的提示词
-# ANALYSIZE_PROMPT = read_prompt(os.path.join(PROMPT_PATH, 'buy-common.md'))
 # 每天自动分析时，去除重复的ETF
 EXCLUSIVE_ETF_LIST = ['510310', '159352', '159949', '562500']
+
+DEFAULT_AI_RESULT = {
+    "date": "",
+    "code": "",
+    "name": "",
+    "rating": "中性",
+    "score": 60,
+    "core_logic": "",
+    "detailed_analysis": "",
+    "risk_warning": "",
+    "action_plan": {
+        "current_position": {
+            "price": 0.88,
+            "shares": 31900,
+            "amount": 28085.3,
+            "current_position": 28.46,
+            "profit": 0.41
+        },
+        "current_price": 0,
+        "operation": "不操作",
+        "operation_amount": 0,
+        "operation_shares": 0,
+        "operation_reason": "",
+        "stop_loss_profit": ""
+    }
+}
