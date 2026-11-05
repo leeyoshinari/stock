@@ -39,7 +39,7 @@ async def getNewsDetail(keyword: str, lastDay: str) -> str:
     新闻搜索 + 并发获取正文详情\n
     :params lastDay: 筛选日期, 格式: YYYY-MM-DD
     """
-    await asyncio.sleep(random.random() * 1.5 + 0.5)
+    await asyncio.sleep(random.random() * 1.5)
     try:
         # 搜索新闻列表
         cmd = f'longbridge news search "{keyword}" --format json'

@@ -628,11 +628,11 @@ async def getTradeData() -> Result:
     return result
 
 
-async def get_today_hold(flag: int = 0) -> dict:
-    """flag 标识, 0-默认, 1-用于发送邮件"""
+async def get_today_hold() -> dict:
     tools: Tools = await Tools.get_one("openDoor")
     current_day = f"{tools.value[:4]}-{tools.value[4:6]}-{tools.value[6:]}"
-    if flag == 1:  # 已分析但未买入
+    num: int = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=[TradeType.TEMB, TradeType.TEMS]).count()
+    if num > 0:  # 已分析但未买入
         status = [TradeType.TEMB, TradeType.TEMS, TradeType.FAIL]
         today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
     else:
@@ -946,8 +946,13 @@ async def auto_analysize_etf():
     #     logger.info(f"✅ 从财经新闻中筛选出 ETF 成功 - {result}")
     # else:
     #     logger.error(f"❌ Error: 从财经新闻中筛选出 ETF 失败 - {result}")
+    hold_res = await get_holding(user_id=DEFAULT_USER_ID)
     etf_res = await getEtf()
-    for r in etf_res.data:
+    hold_code_list = [f['code'] for f in hold_res]
+    hold_etf_list = [f for f in etf_res if f["代码"] in hold_code_list]
+    not_hold_etf_list = [f for f in etf_res if f["代码"] not in hold_code_list]
+    all_etf = hold_etf_list + not_hold_etf_list
+    for r in all_etf:
         code = r["代码"]
         if code in EXCLUSIVE_ETF_LIST:
             continue
@@ -1000,10 +1005,10 @@ async def auto_analysize_etf():
             default_result["action_plan"]["operation_reason"] = res.msg
             await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(default_result, ensure_ascii=False))
             logger.error(f"❌ Error: 分析 ETF 失败 - {r} - {res.msg}")
-    scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10))
 
     # 获取持仓数据和今日数据，用于发送邮件
     await auto_select_email()
+    scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10))
 
 
 async def auto_trade_etf():
@@ -1145,7 +1150,7 @@ async def update_holding_capital():
 async def auto_select_email():
     try:
         tradeStatus = {"TEMB": "买入", "TEMS": "卖出", "RECD": "买入", "AIS": "卖出"}
-        res = await get_today_hold(flag=1)
+        res = await get_today_hold()
         today_str = ''
         hold_str = ''
         for r in res['todayList']:
