@@ -1060,7 +1060,7 @@ async def auto_trade_etf():
                 d = json.loads(ai_content.data['analysis'][0]['content'])
                 d['action_plan']['current_price'] = price_dict[r.code]
                 today_buy.append(d)
-            etf_again = await analyze_buy_etf(available * 0.95, today_buy)
+            etf_again = await analyze_buy_etf(capital.total, available * 0.95, today_buy)
             logger.info(f"由于可用金额不足，再次分析后的结果 - {etf_again}")
             for r in etf_again:
                 if r['action_plan']['operation'] != '不操作':
@@ -1071,6 +1071,7 @@ async def auto_trade_etf():
                     await Transaction.query().equal(code=r['code'], status=TradeType.TEMB, user_id=DEFAULT_USER_ID).greater(create_time=current_day + ' 08:30:00').update(shares=shares)
                 else:
                     await Transaction.query().equal(code=r['code'], status=TradeType.TEMB, user_id=DEFAULT_USER_ID).greater(create_time=current_day + ' 08:30:00').update(status=TradeType.FAIL)
+                    await Analysis.query().equal(code=r['code'], day=tool.value).update(content=json.dumps(r, ensure_ascii=False))
                     logger.warning(f"由于可用金额不足, 分析后决策不操作 - {r['code']}")
 
         # 开始真实交易

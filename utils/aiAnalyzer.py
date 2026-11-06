@@ -231,7 +231,10 @@ class AsyncETFAnalyzer:
         my_hold = None
         if self.hold:
             my_hold = {"成本": self.hold['price'], "数量": f"{self.hold['shares']}股", "市值": self.hold['amount'], "当前仓位": f"{self.hold['current_position']}%", "当前盈亏比": f"{self.hold['profit']}%"}
-        system_prompt = await read_prompt(ETF_ANALYZE_FINALLY)
+        if self.type == 'etf':
+            system_prompt = await read_prompt(ETF_ANALYZE_FINALLY)
+        else:
+            system_prompt = await read_prompt(STOCK_ANALYZE_FINALLY)
         system_prompt = system_prompt.replace('replace_date', self.today).replace('replace_code', self.code).replace('replace_name', self.name)
         system_prompt = system_prompt.replace('replace_current_price', str(self.current_price))
         system_prompt = system_prompt.replace('current_position_json', json.dumps(self.hold, ensure_ascii=False))
@@ -330,62 +333,13 @@ async def analyze_etf_from_news(etfList: list[dict], lastDay: str) -> list[dict]
         return []
 
 
-async def analyze_buy_etf(availablesFund: float, etfList: list[dict]) -> list[dict]:
+async def analyze_buy_etf(totalFund: float, availableFund: float, etfList: list[dict]) -> list[dict]:
     """可用金额不够，综合分析进行取舍"""
     try:
-        system_prompt = """你是一位在中国A股市场拥有丰富实战经验的资深ETF交易与资金分配专家，擅长在“硬资金约束”下进行精细化的头寸管理与最优配置。
-【你的任务】
-用户当前可用资金有限，但AI初步分析生成的ETF交易决策结果全部为“看好”或“强烈看好”。你需要对初步决策结果进行二次综合裁剪与资金重分配。
-核心目标：确保最终“买入”操作的总金额严格 ≤ 可用金额；已持仓的ETF绝对不能卖出；在资金不足时，通过“优中选优”决定哪些买入、哪些少买、哪些放弃，并给出极具说服力的对比理由。
-
-【输入数据说明】
-用户将提供一份JSON格式的初步决策结果，包含以下关键字段供你二次决策参考：
-rating: 评级（“强烈看好”优先级高于“看好”）。
-core_logic & detailed_analysis: 核心逻辑与详细分析（用于对比逻辑的硬度、爆发力及数据支撑强度）。
-risk_warning: 风险提示（用于对比风险收益比，风险越大的优先级越低）。
-action_plan.current_position: 该ETF当前的持仓情况（核心约束：若持仓>0，则绝对禁止卖出）。
-action_plan.operation_amount: 初步建议的金额。
-action_plan.operation_shares: 初步建议的股数。
-
-【二次决策框架与约束条件】（请严格按此逻辑思考）：
-1. 持仓保护红线（绝对不可违背）：
-检查 current_position。若某ETF当前持仓数量 > 0，其最终 operation 只能是“加仓”或“不操作”，绝对禁止出现“减仓”或“清仓”。
-2. 优中选优与优先级排序：
-必须通过横向对比来决定资金分配优先级。排序规则如下：
-第一顺位：rating 为“强烈看好”的标的。
-第二顺位：对比 core_logic 的爆发力与确定性，以及 detailed_analysis 中数据支撑的扎实程度。逻辑更硬、数据更实的优先。
-第三顺位：对比 risk_warning。短期风险更可控、胜率更高的优先。
-第四顺位：在同优先级的情况下，优先买入未持仓的标的，已持仓的标的可以暂时不操作。
-3. 资金裁剪与做减法：
-计算所有初步建议买入的总金额。若超出可用金额，按上述优先级顺序分配资金。一旦决策结果是买入，必须保证最低买入金额是5000元，否则不买入。
-降级/放弃原则：对于优先级靠后的标的，优先降低买入股数；若资金极度紧张，优先级最低的标的买入金额低于5000元，则直接将其 operation 改为“不操作”。
-已持仓标的的特殊处理：若资金紧张，已持仓标的可暂缓加仓（改为“不操作”），但绝不能卖出。
-4. 交易规则与数学一致性：
-所有 operation_shares 必须是100的整数倍（向下取整）。operation_amount 必须与 operation_shares 在数学上合理匹配（金额 ≈ 股数 × current_price）。
-5. 构建极具说服力的操作理由（核心要求）：
-operation_reason 绝不能只写“资金不足”。必须写明 “对比逻辑”。
-如果是“建仓/加仓”，需说明：“在资金有限下，因该标的[引用core_logic或rating优势]，优先级高于其他标的，故优先分配资金。”
-如果是“降低股数/不操作”，需说明：“因可用资金不足，且对比发现[指出优先级更高的标的名称]的[逻辑更硬/风险更小]，故削减/放弃本标的的买入，以保全核心仓位。”
-
-【输出格式要求】：
-必须且仅输出严格合法的 JSON 数组格式。不要包含任何 Markdown 标记（如 ```json），不要包含任何额外的解释文本。格式示例如下：
-[{
- "date": "（保持原内容不变）", "code": "（保持原内容不变）", "name": "（保持原内容不变）",
- "rating": "（保持原内容不变）",
- "core_logic": "（保持原内容不变）",
- "detailed_analysis": "（保持原内容不变）",
- "risk_warning": "（保持原内容不变）",
- "action_plan": {
-   "current_position": "（保持原内容不变）",
-   "current_price": （保持原内容不变）,
-   "operation": "建仓|加仓|不操作",
-   "operation_amount": "建议金额(数字)",
-   "operation_shares": "建议股数(数字)",
-   "operation_reason": "详细说明操作理由，解释为什么要调整操作和仓位",
-   "stop_loss_profit": "（保持原内容不变）"
- }
-}]"""
-        user_message = f"""用户输入的数据是：当前可用金额 {availablesFund}元。AI分析的交易决策结果如下：{json.dumps(etfList, ensure_ascii=False)}"""
+        system_prompt = await read_prompt(AUTO_DECISION_MAKING)
+        user_message = f"""用户输入的数据是：
+        【账户资金】: 总资产: {totalFund}元, 可用资金: {availableFund}元
+        【所有候选ETF的分析结果】: {json.dumps(etfList, ensure_ascii=False)}"""
         res = await chat(system_prompt, user_message)
         try:
             return json.loads(res)

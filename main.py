@@ -243,7 +243,7 @@ async def lifespan(app: Litestar):
         scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)      # 检查今天是否开市
         scheduler.add_job(getStock.setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)     # 中午更新股票信息
         scheduler.add_job(getStock.setAllSZStock, 'cron', hour=12, minute=0, second=20, misfire_grace_time=10)                 # 中午更新股票信息
-        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=14, minute=40, second=0, misfire_grace_time=10)               # 开始分析 ETF
+        scheduler.add_job(views.auto_analysize_etf, 'cron', hour=14, minute=30, second=0, misfire_grace_time=10)               # 开始分析 ETF
         scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新股票数据
         scheduler.add_job(getStock.updateStockFund, 'cron', hour=15, minute=50, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
         scheduler.add_job(getStock.updateEtfDetail, 'cron', hour='10,11,13,14', minute='0,10,20,30,40,50', second=8, misfire_grace_time=10)            # 更新ETF数据
