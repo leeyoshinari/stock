@@ -949,8 +949,8 @@ async def auto_analysize_etf():
     hold_res = await get_holding(user_id=DEFAULT_USER_ID)
     etf_res = await getEtf()
     hold_code_list = [f['code'] for f in hold_res]
-    hold_etf_list = [f for f in etf_res if f["代码"] in hold_code_list]
-    not_hold_etf_list = [f for f in etf_res if f["代码"] not in hold_code_list]
+    hold_etf_list = [f for f in etf_res.data if f["代码"] in hold_code_list]
+    not_hold_etf_list = [f for f in etf_res.data if f["代码"] not in hold_code_list]
     all_etf = hold_etf_list + not_hold_etf_list
     for r in all_etf:
         code = r["代码"]
