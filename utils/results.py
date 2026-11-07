@@ -42,9 +42,9 @@ def getMarketCode(code: str) -> int:
         return 0
 
 
-def get_past_date(days_diff: int = 383, date_format: str = "%Y%m%d") -> str:
+def get_past_date(days_diff: int = 373, date_format: str = "%Y%m%d") -> str:
     """根据当前日期和相差天数，计算之前的日期\n
-    :param days_diff: 相差天数, 默认383, 383天大概是一年多的数据, 大概共256个交易日
+    :param days_diff: 相差天数, 默认373, 373天大概是一年多的数据, 大概共250个交易日
     :param date_format: 默认"%Y%m%d"
     :return: 之前的日期字符串
     """

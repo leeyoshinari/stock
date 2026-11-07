@@ -717,13 +717,9 @@ async def clearStockData():
         stock: list[Stock] = await Stock.query().all()
         etf: list[ETF] = await ETF.query().equal(running=1).all()
         code = [f.code for f in stock] + [f.code for f in etf]
-        past_day = get_past_date(days_diff=383)
+        past_day = get_past_date()
         for c in code:
-            trans: list[Transaction] = await Transaction.query().equal(code=c).order_by(Transaction.id.desc()).limit(3).all()
-            if len(trans) == 0 or trans[0].status == TradeType.MAN:
-                _ = await Detail.query().equal(code=c).less_equal(day=past_day).delete()
-                logger.info(f"Delete detail data success, {c} - {past_day}")
-            else:
-                logger.info(f"Delete detail data fail because not sold, {c} - {past_day}")
+            _ = await Detail.query().equal(code=c).less_equal(day=past_day).delete()
+            logger.info(f"Delete detail data success, {c} - {past_day}")
     except:
         logger.error(traceback.format_exc())

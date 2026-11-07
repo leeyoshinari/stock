@@ -145,7 +145,7 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
 async def queryByCode(code: str, userId: int = None) -> Result:
     result = Result()
     try:
-        past_date = get_past_date(days_diff=383)
+        past_date = get_past_date()
         tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
         isEtf = code.startswith("1") or code.startswith("5")
