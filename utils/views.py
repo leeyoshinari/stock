@@ -13,7 +13,7 @@ from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinu
 from utils.model import StockInfoList, ToolsInfoList, SetStockParam, TradeRecordList
 from utils.model import EtfInfoList, TradeStockList, SetStockHold, AnalysisResultList
 from utils.selectStock import getStockZhuLiFundFromTencent, isOpenStock
-from utils.results import Result
+from utils.results import Result, get_past_date
 from utils.send_email import sendEmail
 from utils.etfData import pre_filter_etf
 from utils.scheduler import scheduler, get_schedule_time
@@ -90,7 +90,7 @@ def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shar
 
         result = {'cost': cost, 'shares': shares, 'profit': profit}
     except:
-        logger.error(traceback.format_exc())
+        logger.error(f"status: {status}, price: {price}, number: {number}, cost: {cost}, shares: {shares}, fee: {fee} - {traceback.format_exc()}")
     return result
 
 
@@ -145,6 +145,7 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
 async def queryByCode(code: str, userId: int = None) -> Result:
     result = Result()
     try:
+        past_date = get_past_date(days_diff=383)
         tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
         isEtf = code.startswith("1") or code.startswith("5")
@@ -199,7 +200,9 @@ async def queryByCode(code: str, userId: int = None) -> Result:
         coords = []
         for r in trans:
             if r.status in [TradeType.BUY, TradeType.SELL, TradeType.RECD, TradeType.AIS]:
-                coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
+                create_time = r.create_time.strftime("%Y%m%d")
+                if create_time > past_date:
+                    coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
         profit_res = await get_holding(user_id=userId, code=code)
         if x[-1] != day:
             logger.info(f"No real data, start query read data - code: {code}")
@@ -241,7 +244,7 @@ async def queryByCode(code: str, userId: int = None) -> Result:
         result.total = len(result.data)
         logger.info(f"Query stock k-line success - code: {code}")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"Query stock k-line fail - code: {code} - userId: {userId} - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -277,7 +280,7 @@ async def queryStockList(query: SearchStockParam) -> Result:
     return result
 
 
-async def calc_stock_real(code: str) -> Result:
+async def query_stock_real_data(code: str) -> Result:
     result = Result()
     try:
         x = []
@@ -302,7 +305,7 @@ async def calc_stock_real(code: str) -> Result:
             result.data.update({'name': st.name, 'region': st.region, 'industry': st.industry, 'concept': st.concept})
         logger.info(f"query Recommend stock minute real data success - {code}")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"query Recommend stock minute real data fail - {code} - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -386,6 +389,7 @@ async def all_etf_info(query: SearchStockParam) -> Result:
 
 
 async def set_stock(data: SetStockParam) -> Result:
+    '''设置股票数据(添加/删除标签)'''
     result = Result()
     try:
         stock: Stock = await Stock.get_one(data.code)
@@ -402,7 +406,7 @@ async def set_stock(data: SetStockParam) -> Result:
             await Stock.update(stock.code, filter=",".join(res_list))
             logger.info(f"Remove Stock Label Success - {stock.code} - {stock.name} - {data.tag}")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"{SetStockParam.model_validate(data).model_dump()} - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -418,7 +422,7 @@ async def init_stock_data(code: str) -> Result:
         await initStockData(code, stock.name)
         logger.info(f"初始化股票数据成功 - {code} - {stock.name}")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"code: {code} - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -498,7 +502,7 @@ async def get_user_hold(userId: str) -> Result:
     except Exception as e:
         result.success = False
         result.msg = str(e)
-        logger.error(traceback.format_exc())
+        logger.error(f"get_user_hold - userId: {userId} - {traceback.format_exc()}")
     return result
 
 
@@ -521,7 +525,7 @@ async def set_user_hold(data: SetStockHold) -> Result:
                                  fee=round(fee, 2), user_id=data.userId, create_time=date_obj, flag=0)
         logger.info(f"设置用户交易数据成功, 用户: {data.userId}, 股票: {data.code}, 数据: {data}")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"{SetStockHold.model_validate(data).model_dump()} - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -540,7 +544,7 @@ async def queryTradeStockList(userId: int = None, page: int = 1) -> Result:
         result.data = stockList
         logger.info("Query Hold Stock List Success ~")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"userId: {userId}, page: {page} - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -552,7 +556,7 @@ async def deleteHoldStock(rId: int) -> Result:
         _ = await Transaction.query().equal(id=rId).delete()
         logger.info(f"Delete Hold Stock {rId} Success ~")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"Delete Hold Stock {rId} Fail - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -564,7 +568,7 @@ async def deleteEtf(code: str) -> Result:
         _ = await ETF.query().equal(code=code).delete()
         logger.info(f"Delete ETF {code} Success ~")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"Delete ETF {code} Fail - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -577,7 +581,7 @@ async def setEtf(code: str, running: int) -> Result:
         await ETF.update(code, running=running)
         logger.info(f"Update ETF {code} Running Success ~")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"Update ETF {code} Running Fail - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -604,7 +608,6 @@ async def getTradeData() -> Result:
     result = Result()
     try:
         res = await get_today_hold()
-
         capital: list[Capital] = await Capital.query().order_by(Capital.day.asc()).all()
         day = []
         ratio = []
@@ -778,7 +781,7 @@ async def queryByCodeForAI(code: str, limit: int = 22) -> Result:
         result.data = stock_data
         logger.info(f"Query AI stock k-line success - code: {code}")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"Query AI stock k-line fail, code: {code}, limit: {limit} - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -816,7 +819,7 @@ async def getAnalysizeResult(code: str, userId: int, day: str = None) -> Result:
         result.total = len(datas)
         logger.info(f"get AI analysis result success, {code} - {day}")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"code: {code}, userId: {userId}, day: {day} - {traceback.format_exc()}")
         result.success = False
         result.msg = str(e)
     return result
@@ -890,7 +893,7 @@ async def analysize(code: str, userId: int, hold: list[dict] = None, kline: list
         result.data = await analyzer.analyze()
         logger.info(f"{stock.code} - {stock.name} analyze result is : {result.data['rating']} - {result.data['core_logic']}")
     except Exception as e:
-        logger.error(traceback.format_exc())
+        logger.error(f"code: {code}, userId: {userId} - {traceback.format_exc()}")
         result.msg = str(e)
         result.success = False
     return result
@@ -922,13 +925,13 @@ async def write_analysize_result(data: dict):
 
 async def auto_analysize_etf():
     """每天自动分析 ETF"""
-    today = datetime.today()
-    if today.weekday() >= 5:
-        logger.info("周末未开市，跳过...")
+    tool: Tools = await Tools.get_one("openDoor")
+    if tool.value != time.strftime("%Y%m%d"):
+        logger.info("今天未开市，跳过...")
         return
+
     # 先删除交易失败的数据
     await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.FAIL).delete()
-    tool: Tools = await Tools.get_one("openDoor")
     capital: Capital = await Capital.get_one(tool.value)
     available = capital.available
     # logger.info("🚀 开始获取新闻，分析筛选ETF")

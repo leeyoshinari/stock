@@ -17,6 +17,7 @@ from utils.dispatcher import AsyncRoundRobinDispatcher
 from utils.scheduler import scheduler
 from utils.http_client import http
 from utils.send_email import sendEmail
+from utils.results import get_past_date
 from utils.initData import initStockData
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import bollinger_bands, real_traded_minutes
@@ -41,18 +42,6 @@ alpha_sig = 2.0 / (9 + 1)
 
 def calc_MA(data: list, window: int, digit: int = 2) -> float:
     return round(sum(data[:window]) / len(data[:window]), digit)
-
-
-def get_past_date(days_diff: int) -> str:
-    """
-    根据当前日期和相差天数，计算之前的日期
-    :param days_diff: 相差天数
-    :return: 之前的日期字符串
-    """
-    date_format = "%Y%m%d"
-    current_date = datetime.now()
-    past_date = current_date - timedelta(days=days_diff)
-    return past_date.strftime(date_format)
 
 
 async def getStockFromTencent(host: str, datas: list[dict]) -> list[dict]:
@@ -728,7 +717,7 @@ async def clearStockData():
         stock: list[Stock] = await Stock.query().all()
         etf: list[ETF] = await ETF.query().equal(running=1).all()
         code = [f.code for f in stock] + [f.code for f in etf]
-        past_day = get_past_date(383)    # 383天大概是一年多的数据，大概共256个交易日
+        past_day = get_past_date(days_diff=383)
         for c in code:
             trans: list[Transaction] = await Transaction.query().equal(code=c).order_by(Transaction.id.desc()).limit(3).all()
             if len(trans) == 0 or trans[0].status == TradeType.MAN:

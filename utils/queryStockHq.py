@@ -50,10 +50,11 @@ async def getStockHqFromTencent(host: str, datas: list[dict]) -> dict[str, list]
     '''
     从腾讯获取股票实时行情数据
     '''
-    result = {'data': [], 'error': []}
+    result = {'data': [], 'error': [], 'closed': []}
     try:
         error_list = []
         data_list = []
+        closed_list = []
         dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
         dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
         stockCode = generateStockCode(dataDict)
@@ -76,6 +77,7 @@ async def getStockHqFromTencent(host: str, datas: list[dict]) -> dict[str, list]
                     stockDo.last_price = float(stockInfo[4])
                     stockDo.open_price = float(stockInfo[5])
                     if int(stockInfo[6]) < 2:
+                        closed_list.append({stockDo.code: stockDo.name})
                         logger.info(f"Tencent({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                         continue
                     if stockInfo[2].startswith('68'):
@@ -98,6 +100,7 @@ async def getStockHqFromTencent(host: str, datas: list[dict]) -> dict[str, list]
                         error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
             result['data'] = data_list
             result['error'] = error_list
+            result['closed'] = closed_list
         else:
             logger.error(f"Tencent({host}) - 请求未正常返回... {datas}")
             error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
@@ -114,10 +117,11 @@ async def getStockHqFromXueQiu(host: str, datas: list[dict]) -> dict[str, list]:
     '''
     从雪球获取股票实时行情数据
     '''
-    result = {'data': [], 'error': []}
+    result = {'data': [], 'error': [], 'closed': []}
     try:
         error_list = []
         data_list = []
+        closed_list = []
         dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
         dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
         stockCode = generateStockCode(dataDict)
@@ -142,6 +146,7 @@ async def getStockHqFromXueQiu(host: str, datas: list[dict]) -> dict[str, list]:
                         stockDo.min_price = s['low']
                         stockDo.turnover_rate = s['turnover_rate']
                         if not s['volume'] or s['volume'] < 2:
+                            closed_list.append({stockDo.code: stockDo.name})
                             logger.info(f"XueQiu({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                             continue
                         stockDo.volume = int(s['volume'] / 100)
@@ -156,6 +161,7 @@ async def getStockHqFromXueQiu(host: str, datas: list[dict]) -> dict[str, list]:
                             error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
                 result['data'] = data_list
                 result['error'] = error_list
+                result['closed'] = closed_list
             else:
                 logger.error(f"XueQiu({host}) - 请求未正常返回...响应值: {res_json}")
                 error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
@@ -176,10 +182,11 @@ async def getStockHqFromSina(host: str, datas: list[dict]) -> dict[str, list]:
     '''
     从新浪获取股票实时行情数据
     '''
-    result = {'data': [], 'error': []}
+    result = {'data': [], 'error': [], 'closed': []}
     try:
         error_list = []
         data_list = []
+        closed_list = []
         dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
         dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
         stockCode = generateStockCode(dataDict)
@@ -213,6 +220,7 @@ async def getStockHqFromSina(host: str, datas: list[dict]) -> dict[str, list]:
                             stockDo.open_price = float(stockInfo[1])
                             if int(stockInfo[8]) < 2:
                                 stop_list.append(code)
+                                closed_list.append({stockDo.code: stockDo.name})
                                 logger.info(f"Sina({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                                 continue
                             stockDo.volume = int(int(stockInfo[8]) / 100)
@@ -234,6 +242,7 @@ async def getStockHqFromSina(host: str, datas: list[dict]) -> dict[str, list]:
                             stockDo.open_price = float(stockInfo[1])
                             if int(stockInfo[8]) < 2:
                                 stop_list.append(code)
+                                closed_list.append({stockDo.code: stockDo.name})
                                 logger.info(f"Sina({host}) - {stockDo.code} - {stockDo.name} 休市, 跳过")
                                 continue
                             stockDo.volume = int(int(stockInfo[8]) / 100)
@@ -254,8 +263,8 @@ async def getStockHqFromSina(host: str, datas: list[dict]) -> dict[str, list]:
                 data_list.append(v)
                 logger.info(f"Sina({host}): {v}")
             result['data'] = data_list
-            if len(error_list) > 0:
-                result['error'] = error_list
+            result['closed'] = closed_list
+            result['error'] = error_list
         else:
             logger.error(f"Sina({host}) - 请求未正常返回... {datas}")
             error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
@@ -472,7 +481,7 @@ async def getMinuteKFromXueQiu(host: str, code: str) -> list[StockMinuteDo]:
 def getStockHqResponseValid(result: dict) -> bool:
     """getStockHq调度器业务规则校验 \n
     如果既没有成功的数据也没有失败的数据，则报错"""
-    if result['data'] or result['error']:
+    if result['data'] or result['error'] or result['closed']:
         return True
     return False
 

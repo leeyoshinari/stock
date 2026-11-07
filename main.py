@@ -66,7 +66,7 @@ class StockController(Controller):
     async def stock_real(self, request: Request, code: str) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
-            result = await views.calc_stock_real(code)
+            result = await views.query_stock_real_data(code)
         return result
 
     @get('/stock/list', summary="查询股票列表")

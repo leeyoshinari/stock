@@ -23,10 +23,13 @@ class SearchStockParam(BaseModel):
 class SetStockParam(BaseModel):
     code: str
     operate_type: str
-    buy_time: Optional[str] = None
-    buy_price: Optional[str] = None
-    sell_empty: Optional[str] = None
+    # buy_time: Optional[str] = None
+    # buy_price: Optional[str] = None
+    # sell_empty: Optional[str] = None
     tag: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 class StockModelDo(BaseModel):
@@ -149,6 +152,9 @@ class SetStockHold(BaseModel):
     price: float
     number: int
     userId: int
+
+    class Config:
+        from_attributes = True
 
 
 class TradeStockList(BaseModel):
