@@ -94,8 +94,8 @@ def read_prompt(fileName: str) -> str:
     return res
 
 
-# 每天自动分析时，去除重复的ETF
-EXCLUSIVE_ETF_LIST = ['510310', '159352', '159949', '562500']
+# 每天自动分析时，去除重复的ETF +  排除 标普500ETF、纳指100ETF、日经225
+EXCLUSIVE_ETF_LIST = ['510310', '159352', '159949', '562500'] + ['513500', '159941', '159501', '159659', '513100', '513880']
 
 DEFAULT_AI_RESULT = {
     "date": "",

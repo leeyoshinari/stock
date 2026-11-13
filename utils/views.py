@@ -590,9 +590,8 @@ async def setEtf(code: str, running: int) -> Result:
 async def getEtf() -> Result:
     result = Result()
     try:
-        exclude = ['513500', '159941', '159501', '159659', '513100']    # 排除 标普500ETF、纳指100ETF
         index = []
-        etfInfo: list[ETF] = await ETF.query().equal(running=1).notin(code=exclude).order_by(ETF.capital.desc()).all()
+        etfInfo: list[ETF] = await ETF.query().equal(running=1).order_by(ETF.capital.desc()).all()
         for r in etfInfo:
             index.append({"名称": r.name, "代码": r.code, "跟踪指数": r.industry})
         result.data = index
