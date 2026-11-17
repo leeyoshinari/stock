@@ -83,4 +83,3 @@ def real_traded_minutes() -> int:
     if traded > 240:
         return 240
     return traded
-

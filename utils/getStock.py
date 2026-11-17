@@ -17,10 +17,10 @@ from utils.dispatcher import AsyncRoundRobinDispatcher
 from utils.scheduler import scheduler
 from utils.http_client import http
 from utils.send_email import sendEmail
-from utils.results import get_past_date
+from utils.results import get_past_date, real_traded_minutes
 from utils.initData import initStockData
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
-from utils.metric import bollinger_bands, real_traded_minutes
+from utils.metric import bollinger_bands
 from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent
 from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina, getStockBanKuaiFromDOngCai
 from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent
