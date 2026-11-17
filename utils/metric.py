@@ -366,7 +366,7 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
 # ================================================================
 # 卖出信号检测
 # ================================================================
-def detect_sell(data: list[dict], pos: list[dict], cfg: StrategyConfig = None) -> Optional[dict[str, Any]]:
+def detect_sell(data: list[dict], pos: dict, cfg: StrategyConfig = None) -> Optional[dict[str, Any]]:
     """
     检测卖出信号 —— 检查data的最后一天是否触发卖出
 
@@ -381,8 +381,8 @@ def detect_sell(data: list[dict], pos: list[dict], cfg: StrategyConfig = None) -
     if cfg is None:
         cfg = StrategyConfig()
 
-    entry_price = pos[0]['price']
-    entry_day = pos[0]['day']
+    entry_price = pos['price']
+    entry_day = pos['day']
 
     entry_idx = -1
     for i in range(len(data)):
