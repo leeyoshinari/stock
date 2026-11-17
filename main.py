@@ -7,6 +7,7 @@ import os
 import time
 import asyncio
 import aiofiles
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager, suppress
 from litestar import Litestar, Request, Router, Controller, get, post
 from litestar.openapi import OpenAPIConfig
@@ -180,6 +181,13 @@ class StockController(Controller):
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             result = await views.getTradeData()
+        return result
+
+    @get('/backtest', summary="回测数据")
+    async def backtest(self, request: Request, code: str) -> Result:
+        result = Result()
+        if code == 'back_test':
+            scheduler.add_job(views.backtest, "date", run_date=datetime.now() + timedelta(seconds=10), misfire_grace_time=10)
         return result
 
     @post('/test')

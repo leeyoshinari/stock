@@ -51,3 +51,36 @@ def get_past_date(days_diff: int = 373, date_format: str = "%Y%m%d") -> str:
     current_date = datetime.now()
     past_date = current_date - timedelta(days=days_diff)
     return past_date.strftime(date_format)
+
+
+def real_traded_minutes() -> int:
+    """
+    实时获取当前时间，计算 A 股当日已交易分钟数
+    返回范围：1 ~ 240
+    """
+    now = datetime.now()
+    hour = now.hour
+    minute = now.minute
+    current = hour * 60 + minute
+    morning_start = 9 * 60 + 30     # 09:30
+    morning_end = 11 * 60 + 30    # 11:30
+    afternoon_start = 13 * 60       # 13:00
+    afternoon_end = 15 * 60       # 15:00
+
+    if current < morning_start:
+        traded = 0
+    elif morning_start <= current <= morning_end:
+        traded = current - morning_start
+    elif morning_end < current < afternoon_start:
+        traded = 120
+    elif afternoon_start <= current <= afternoon_end:
+        traded = 120 + (current - afternoon_start)
+    else:
+        traded = 240
+
+    if traded < 1:
+        return 1
+    if traded > 240:
+        return 240
+    return traded
+

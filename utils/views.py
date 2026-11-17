@@ -13,7 +13,7 @@ from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinu
 from utils.model import StockInfoList, ToolsInfoList, SetStockParam, TradeRecordList
 from utils.model import EtfInfoList, TradeStockList, SetStockHold, AnalysisResultList
 from utils.selectStock import getStockZhuLiFundFromTencent, isOpenStock
-from utils.results import Result, get_past_date
+from utils.results import Result, get_past_date, real_traded_minutes
 from utils.send_email import sendEmail
 from utils.etfData import pre_filter_etf
 from utils.scheduler import scheduler, get_schedule_time
@@ -21,7 +21,7 @@ from utils.aiAnalyzer import AsyncETFAnalyzer, analyze_etf_from_news, analyze_bu
 from utils.initData import initStockData, getStockFundFlow
 from utils.queryStockHq import getStockHqFromTencent, getStockHq
 from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
-from utils.metric import real_traded_minutes, bollinger_bands
+from utils.metric import bollinger_bands, backtest_grid
 from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital, Analysis
 from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST, TOTAL_FUND, DEFAULT_AI_RESULT
 
@@ -898,6 +898,36 @@ async def analysize(code: str, userId: int, hold: list[dict] = None, kline: list
     return result
 
 
+async def backtest():
+    try:
+        logger.info("开始获取股票数据...")
+        param_grid = {
+            # 买入核心参数
+            'min_gain': [5.0, 7.0, 9.0],
+            'vol_tier_a': [2.0, 2.5, 3.0],
+            'vol_tier_b': [1.5, 2.0, 2.5],
+            'close_position_min': [0.5, 0.6, 0.7],
+            'min_score': [65, 70, 75],
+            # 卖出核心参数
+            'hard_stop_pct': [0.05, 0.07, 0.10],
+            'trail_stop_pct': [0.06, 0.08, 0.10],
+            'profit_lock_threshold': [0.10, 0.12, 0.15],
+            'max_hold_days': [6, 8, 10],
+            'big_vol_ratio': [2.0, 2.5, 3.0],
+        }
+        stocks: Stock = await Stock.query().equal(running=1).all()
+        all_data = {}
+        for s in stocks:
+            res: Result = await queryByCodeForAI(s.code, 40)
+            all_data[s.code] = {'name': s.name, 'data': res.data}
+
+        logger.info("开始回测...")
+        _ = backtest_grid(all_data, param_grid)
+        logger.info("回测完成...")
+    except:
+        logger.error(traceback.format_exc())
+
+
 ''' ======================== Scheduler ========================  '''
 
 
@@ -1010,7 +1040,7 @@ async def auto_analysize_etf():
 
     # 获取持仓数据和今日数据，用于发送邮件
     await auto_select_email()
-    scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10))
+    scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10), misfire_grace_time=10)
 
 
 async def auto_trade_etf():
