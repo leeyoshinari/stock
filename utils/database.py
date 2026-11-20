@@ -60,6 +60,8 @@ class TradeType(str, PyEnum):
     TEMS = "TS"
     # 交易失败
     FAIL = "F"
+    # 除权、除息
+    DR = "DR"
 
 
 class Database:

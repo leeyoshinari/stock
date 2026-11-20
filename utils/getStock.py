@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import os
 import re
 import json
 import time
@@ -9,23 +10,27 @@ import random
 import logging
 import asyncio
 import traceback
+from typing import Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
-from settings import BATCH_SIZE, BATCH_INTERVAL, SENDER_EMAIL, EMAIL_PASSWORD, HTTP_HOST_CLOUD, HTTP_HOST_VERCEL, HTTP_HOST_NETLIFY
-from utils.model import StockModelDo
+from settings import BATCH_SIZE, BATCH_INTERVAL, HTTP_HOST_CLOUD, HTTP_HOST_VERCEL, HTTP_HOST_NETLIFY
+from settings import BASE_PATH, BACKUP_PATH, SENDER_EMAIL, EMAIL_PASSWORD, DEFAULT_USER_ID
+from settings import stock_fee_ratio, etf_fee_ratio, stamp_duty
+from utils.model import StockModelDo, StockDataList
 from utils.dispatcher import AsyncRoundRobinDispatcher
 from utils.scheduler import scheduler
 from utils.http_client import http
+from utils.backup import zip_file
 from utils.send_email import sendEmail
-from utils.results import get_past_date, real_traded_minutes
+from utils.common import calc_MA, calc_macd, calc_kdj, get_past_date, real_traded_minutes, queryByCodeForAI
 from utils.initData import initStockData
-from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
-from utils.metric import bollinger_bands
-from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent
-from utils.selectStock import getStockZhuLiFundFromTencent, getStockZhuLiFundFromSina, getStockBanKuaiFromDOngCai
+from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu, getStockHq
+from utils.metric import bollinger_bands, check_confirmation, detect_buy, detect_sell
+from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent, getStockDivideData
+from utils.selectStock import getStockZhuLiFund, getStockZhuLiFundFromSina, getStockBanKuaiFromDOngCai
 from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent
 from utils.etfData import getEtfShareFromSH, getEtfShareFromSZ
-from utils.database import Stock, Detail, Tools, Capital, ETF, Transaction, TradeType
+from utils.database import Stock, Detail, Tools, Capital, ETF, Transaction, TradeType, Analysis
 
 
 logger = logging.getLogger(__name__)
@@ -33,15 +38,6 @@ All_STOCK_DATA_SIZE = 3
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
-
-
-alpha_s = 2.0 / (12 + 1)
-alpha_l = 2.0 / (26 + 1)
-alpha_sig = 2.0 / (9 + 1)
-
-
-def calc_MA(data: list, window: int, digit: int = 2) -> float:
-    return round(sum(data[:window]) / len(data[:window]), digit)
 
 
 async def getStockFromTencent(host: str, datas: list[dict]) -> list[dict]:
@@ -103,27 +99,6 @@ async def getEtfFromTencent(host: str, datas: list[dict]) -> list[dict]:
         logger.error(traceback.format_exc())
         error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
         return error_list
-
-
-def calc_macd(price: float, ema_s: float, ema_l: float, dea: float) -> dict:
-    ema_s = alpha_s * price + (1 - alpha_s) * ema_s
-    ema_l = alpha_l * price + (1 - alpha_l) * ema_l
-    diff = ema_s - ema_l
-    dea = alpha_sig * diff + (1 - alpha_sig) * dea
-    return {'emas': ema_s, 'emal': ema_l, 'diff': diff, 'dea': dea}
-
-
-def calc_kdj(price: float, high_price: list, low_price: list, kdjk: float, kdjd: float) -> dict:
-    high_n = max(high_price[: 9])
-    low_n = min(low_price[: 9])
-    if high_n == low_n:
-        rsv = 50
-    else:
-        rsv = (price - low_n) / (high_n - low_n) * 100
-    kdjk = 2.0 * kdjk / 3 + rsv / 3
-    kdjd = 2.0 * kdjd / 3 + kdjk / 3
-    kdjj = 3 * kdjk - 2 * kdjd
-    return {'k': kdjk, 'd': kdjd, 'j': kdjj}
 
 
 async def saveStockInfo(stockDo: StockModelDo):
@@ -302,6 +277,9 @@ async def updateStockDetail():
             if results:
                 pass
             logger.info(f"总共 {len(etfList)} 个 ETF ...")
+
+            # 更新主力流入数据
+            scheduler.add_job(updateStockFund, "date", run_date=datetime.now() + timedelta(seconds=10), args=[1], misfire_grace_time=10)
         except:
             logger.error(traceback.format_exc())
 
@@ -349,6 +327,12 @@ async def checkTradeDay():
                             capital: Capital = await Capital.query().order_by(Capital.day.desc()).first()
                             await Capital.create(day=current_day, total=capital.total, available=capital.available, hold=capital.hold, campare=capital.campare)
                         logger.info(f"{current_day} 今天开市")
+
+                        # 根据除权、分红数据更新 K 线图
+                        scheduler.add_job(updateStockDivideData, "date", run_date=datetime.now() + timedelta(minutes=30), misfire_grace_time=10)
+                        # 中午更新股票信息
+                        scheduler.add_job(setAllSHStock, "date", run_date=datetime.now() + timedelta(hours=2), args=["8"], misfire_grace_time=10)
+                        scheduler.add_job(setAllSZStock, "date", run_date=datetime.now() + timedelta(hours=2), misfire_grace_time=10)
                         break
                     else:
                         logger.info("未开市, 跳过1...")
@@ -402,6 +386,11 @@ async def updateStockFund(a=1):
                     sendEmail(SENDER_EMAIL, SENDER_EMAIL, EMAIL_PASSWORD, "获取所有股票的主力资金净流入数据失败")
             await asyncio.sleep(5)
             await checkUpdateStockFund()  # 更新漏网数据，如果有
+
+            # 备份数据库
+            db_path = os.path.join(BASE_PATH, 'sqlite3.db')
+            zip_path = os.path.join(BACKUP_PATH, f'db.{day}.zip')
+            scheduler.add_job(zip_file, "date", run_date=datetime.now() + timedelta(seconds=60), args=[[db_path], zip_path], misfire_grace_time=10)
         else:
             logger.info("不在交易时间。。。")
     except:
@@ -415,7 +404,7 @@ async def checkUpdateStockFund():
         stocks: list[Detail] = await Detail.query().equal(day=day).less_equal(fund=0.01).greater_equal(fund=-0.01).all()
         for s in stocks:
             try:
-                fund = await getStockZhuLiFundFromTencent(s.code)
+                fund = await getStockZhuLiFund(s.code)
             except:
                 fund = await getStockZhuLiFundFromSina(s.code)
             await Detail.update((s.code, s.day), fund=fund)
@@ -494,13 +483,14 @@ async def setAllSHStock(stock_type: str = "1"):
                                         await initStockData(code, name)
                                         continue
                                     await Stock.update(s.code, name=name)
+                                    logger.info(f"{s.code} 股票名称从 {s.name} -> {name}")
                                 except NoResultFound:
                                     is_running = 1
                                     if 'ST' in name.upper() or '退' in name:
                                         is_running = 0
                                     if is_running == 1:
                                         await Stock.create(code=code, name=name, running=is_running, region="", industry="", concept="", filter="")
-                                        logger.info(f"股票 {name} - {code}  | {name} - {code} 添加成功, 状态是 {is_running} ...")
+                                        logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
                                 except:
                                     logger.error(traceback.format_exc())
                         else:
@@ -562,13 +552,14 @@ async def setAllSZStock():
                                         await initStockData(code, name)
                                         continue
                                     await Stock.update(s.code, name=name)
+                                    logger.info(f"{s.code} 股票名称从 {s.name} -> {name}")
                                 except NoResultFound:
                                     is_running = 1
                                     if 'ST' in name.upper() or '退' in name:
                                         is_running = 0
                                     if is_running == 1:
                                         await Stock.create(code=code, name=name, running=is_running, region="", industry="", concept="", filter="")
-                                        logger.info(f"股票 {name} - {code} | {name} - {code} 添加成功, 状态是 {is_running} ...")
+                                        logger.info(f"股票 {name} - {code} 添加成功, 状态是 {is_running} ...")
                                 except:
                                     logger.error(traceback.format_exc())
                         else:
@@ -721,5 +712,83 @@ async def clearStockData():
         for c in code:
             _ = await Detail.query().equal(code=c).less_equal(day=past_day).delete()
             logger.info(f"Delete detail data success, {c} - {past_day}")
+
+        # 更新股票行业、概念等数据
+        scheduler.add_job(updateStockBanKuai, "date", run_date=datetime.now() + timedelta(seconds=10), misfire_grace_time=10)
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def updateStockDivideData():
+    '''获取派息除权信息，更新股票K线数据'''
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        if tool.value != time.strftime("%Y%m%d"):
+            logger.info("今天未开市，跳过...")
+            return
+        day = f"{tool.value[:4]}-{tool.value[4:6]}-{tool.value[6:]}"
+        res = await getStockDivideData(day)
+        for r in res:
+            await initStockData(r['code'], r['name'])
+            await asyncio.sleep(30)
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def auto_buy():
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        if tool.value != time.strftime("%Y%m%d"):
+            logger.info("今天未开市，跳过...")
+            return
+        stocks: list[Stock] = await Stock.query().equal(running=1).all()
+        for s in stocks:
+            k_line = await queryByCodeForAI(s.code, limit=40, flag=False)
+            res = detect_buy(k_line)
+            if res:
+                await Transaction.create(code=s.code, name=s.name, status=TradeType.TEMB, price=res['price'], shares=res['shares'],
+                                         fee=0, flag=0, user_id=DEFAULT_USER_ID)
+                await Analysis.create(code=s.code, day=res['day'], content=json.dumps(res, ensure_ascii=False))
+                logger.info(f"detect buy signal - {s.code} - {s.name} - {res}")
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def buy_confirm():
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        if tool.value != time.strftime("%Y%m%d"):
+            logger.info("今天未开市，跳过...")
+            return
+        trans_temp: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.TEMB).all()
+        for r in trans_temp:
+            k_line = await queryByCodeForAI(r.code, limit=40)
+            confirmed, buy_price = check_confirmation(k_line)
+            if confirmed and buy_price is not None:
+                fee = max(buy_price * r.shares * stock_fee_ratio, 5)
+                await Transaction.update(r.id, price=buy_price, status=TradeType.RECD, fee=fee)
+                logger.info(f"buy stock {r.code} - {r.name} success, price: {buy_price}, shares: {r.shares}")
+            await asyncio.sleep(2)
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def auto_sell():
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        if tool.value != time.strftime("%Y%m%d"):
+            logger.info("今天未开市，跳过...")
+            return
+        trans_temp: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.RECD).all()
+        for r in trans_temp:
+            k_line = await queryByCodeForAI(r.code, limit=40)
+            position = {'day': r.create_time.strftime("%Y%m%d"), 'code': r.code, 'name': r.name, 'price': r.price, 'shares': r.shares}
+            res = detect_sell(k_line, position)
+            if res:
+                fee = max(res['price'] * r.shares * stock_fee_ratio, 5) + res['price'] * r.shares * stamp_duty
+                await Transaction.create(code=r.code, name=r.name, status=TradeType.AIS, price=res['price'], shares=r.shares,
+                                         fee=fee, flag=0, user_id=r.user_id)
+                logger.info(f"sell stock {r.code} - {r.name} success, price: {res['price']}, shares: {r.shares}")
+            await asyncio.sleep(2)
     except:
         logger.error(traceback.format_exc())

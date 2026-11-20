@@ -4,7 +4,6 @@
 
 import math
 import logging
-import itertools
 from typing import Any, Optional
 from dataclasses import dataclass
 
@@ -29,34 +28,32 @@ class StrategyConfig:
     # ---------- 买入: 硬性门槛 ----------
     min_gain: float = 5.0             # 当日涨幅 ≥ 5%
     vol_ma_period: int = 20           # 均量回看周期
-    require_above_ma5: bool = True    # 收盘 > MA5
-    require_above_ma10: bool = True   # 收盘 > MA10
-    require_above_ma20: bool = True   # 收盘 > MA20
-    require_macd_golden: bool = True  # DIFF > DEA (金叉)
     require_diff_above_zero: bool = False  # ★问题2: True=严格模式(会漏底部反转股)
-    require_breakout: bool = True     # 收盘突破前10日最高收盘价(或前20日的97%)
 
     # ---------- 买入: 量能分档 ----------
     # A档: 当日量 ≥ A×20日均量
     # B档: 当日量 ≥ B×20日均量 或 量比≥b_qrr
     # C档: 换手率≥c_turnover% 且 突破前20日最高收盘×(1+c_break_pct)
-    vol_tier_a: float = 2.5
-    vol_tier_b: float = 2.0
-    vol_tier_b_qrr: float = 2.5
-    vol_tier_c_turnover: float = 8.0
-    vol_tier_c_break_pct: float = 0.03
+    vol_tier_a: float = 7
+    vol_tier_b: float = 5
+    # vol_tier_c_turnover: float = 8.0
+    # vol_tier_c_break_pct: float = 0.03
 
     # ---------- 买入: 尾盘确认 ----------
-    close_position_min: float = 0.60  # (收-低)/(高-低) ≥ 0.60
+    close_position_min: float = 0.7  # (收-低)/(高-低) ≥ 0.60
     body_ratio_min: float = 0.35      # (收-开)/(高-低) ≥ 0.35
     hold_above_last: float = 0.99     # 收盘 ≥ 昨收×0.99
 
     # ---------- 买入: 其他 ----------
-    min_score: int = 70               # 综合评分门槛(满分140)
+    min_score: int = 75               # 综合评分门槛(满分140)
     macd_cross_lookback: int = 5      # 近N日内出现新金叉才加满分
     pre_heat_days: int = 5            # 启动前N日若连续过热则降级
     pre_heat_turnover: float = 8.0    # 过热换手率阈值
-    buy_cooldown_days: int = 3        # 放连续买入冷静期
+    buy_cooldown_days: int = 3        # 连续买入冷静期
+
+    # ---------- 买入: T+1确认 ----------
+    confirm_ratio: float = 0.97       # T+1收盘价不能比信号日跌太多
+    confirm_max_drop: float = -5.0    # T+1最大跌幅
 
     # ---------- 买入: 资金分配 ----------
     amount_level_1: float = 20000.0
@@ -68,22 +65,17 @@ class StrategyConfig:
 
     # ---------- 卖出规则 ----------
     hard_stop_pct: float = 0.07       # S1 硬止损 -7%
-    profit_lock_threshold: float = 0.12   # S2 浮盈>12%后启用移动止盈
-    trail_stop_pct: float = 0.08      # S2 从最高收盘回撤8%止盈
-    big_profit_pct: float = 0.20      # S3 浮盈>20%后均线止损改用MA10
-    big_vol_ratio: float = 2.5        # S4 巨量阈值(×20日均量)
-    take_profit_pct: float = 0.6     # S7 目标止盈 +60%
-    max_hold_days: int = 8            # S8 最大持仓天数
+    profit_lock_threshold: float = 0.03   # S2 浮盈>8%后启用移动止盈
+    trail_stop_pct: float = 0.03      # S2 从最高收盘回撤3%止盈
+    big_vol_ratio: float = 1.5        # S4 巨量阈值(×20日均量)
+    max_hold_days: int = 6            # S8 最大持仓天数
     time_stop_min_profit: float = 0.03  # S8 到期最低浮盈要求
+    grace_period_days: int = 2        # 卖出保护期，防止频繁交易
 
     # ---------- 回测 ----------
     cost_rate: float = 1 / 10000          # 股票交易佣金，默认万分之一，不免5
     stamp_duty: float = 5 / 10000         # 印花税，默认万分之5
 
-
-# ================================================================
-# 工具函数
-# ================================================================
 
 def calc_vol_ma(data: list[dict], idx: int, period: int):
     """计算第idx天之前period个交易日的平均成交量"""
@@ -121,13 +113,9 @@ def get_score_level(score, cfg):
         return '弱', 0
 
 
-# ================================================================
-# 买入信号检测
-# ================================================================
-
 def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dict] = None) -> Optional[dict[str, Any]]:
     """
-    检测买入信号 —— 检查data的最后一天是否触发买入
+    检测买入信号 —— 检查data的最后一天是否触发买入，（注意：仅产生信号，需T+1确认后才买入）
 
     回测模式: 逐日调用 detect_buy(data[:i+1], cfg, positions)
     实时模式: 传入最近40天数据 detect_buy(last_40_days, cfg, positions)
@@ -165,25 +153,37 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
     reasons = []
 
     # ===== 硬性条件 =====
-    # 1. 涨幅
+    # 涨幅
     if gain < cfg.min_gain:
         return None
 
-    # 2. 站上均线
-    if cfg.require_above_ma5 and d['current_price'] <= d['ma_five']:
-        return None
-    if cfg.require_above_ma10 and d['current_price'] <= d['ma_ten']:
-        return None
-    if cfg.require_above_ma20 and d['current_price'] <= d['ma_twenty']:
+    # 主力资金
+    if d['fund'] < 100:
         return None
 
-    # 3. MACD金叉
-    if cfg.require_macd_golden and d['diff'] <= d['dea']:
+    # 当前价必须大于开盘价，避免高开低走
+    if d['current_price'] <= d['open_price']:
+        return None
+
+    # 一字板，成交量和量比没意义
+    if d['min_price'] == d['max_price']:
+        return None
+
+    # 站上均线
+    if d['current_price'] <= d['ma_five']:
+        return None
+    if d['current_price'] <= d['ma_ten']:
+        return None
+    if d['current_price'] <= d['ma_twenty']:
+        return None
+
+    # MACD金叉
+    if d['diff'] <= d['dea']:
         return None
     if cfg.require_diff_above_zero and d['diff'] <= 0:
         return None
 
-    # 4. 突破前高
+    # 突破前高
     closes = []
     for k in range(n - 1):
         closes.append(data[k]['current_price'])
@@ -196,13 +196,13 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
     else:
         max_close_20 = max(closes)
 
+    # 收盘突破前10日最高收盘价(或前20日的97%)
     broke_10 = d['current_price'] > max_close_10
     broke_20 = d['current_price'] > max_close_20 * 0.97
-
-    if cfg.require_breakout and not broke_10 and not broke_20:
+    if not broke_10 and not broke_20:
         return None
 
-    # 5. 量能
+    # 量能
     vol_ma = calc_vol_ma(data, n - 1, cfg.vol_ma_period)
     if vol_ma is None or vol_ma <= 0:
         return None
@@ -214,22 +214,21 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
     vol_tier = ''
     if vol_ratio >= cfg.vol_tier_a:
         vol_tier = 'A'
-    elif vol_ratio >= cfg.vol_tier_b or qrr >= cfg.vol_tier_b_qrr:
+    elif vol_ratio >= cfg.vol_tier_b:
         vol_tier = 'B'
-    elif turnover >= cfg.vol_tier_c_turnover and d['current_price'] > max_close_20 * (1 + cfg.vol_tier_c_break_pct):
-        vol_tier = 'C'
+    # elif turnover >= cfg.vol_tier_c_turnover and d['current_price'] > max_close_20 * (1 + cfg.vol_tier_c_break_pct):
+    #     vol_tier = 'C'
 
     if vol_tier == '':
         return None
 
-    # 6. 尾盘确认
+    # 尾盘确认
     day_range = d['max_price'] - d['min_price']
     if day_range > 0:
         close_position = (d['current_price'] - d['min_price']) / day_range
         body_ratio = (d['current_price'] - d['open_price']) / day_range
     else:
-        close_position = 1.0
-        body_ratio = 1.0
+        return None
 
     if close_position < cfg.close_position_min:
         return None
@@ -363,9 +362,51 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
     }
 
 
-# ================================================================
-# 卖出信号检测
-# ================================================================
+def check_confirmation(data: list[dict], cfg: StrategyConfig = None) -> tuple[bool, Any]:
+    """
+    检查data的最后一天是否确认买入信号
+
+    参数:
+        data: 完整K线数据
+        cfg: 策略参数
+
+    返回:
+        (True, buy_price) - 确认，返回买入价
+        (False, None) - 未确认
+    """
+    if cfg is None:
+        cfg = StrategyConfig()
+
+    signal_day = data[-2]
+    confirm_day = data[-1]
+
+    if confirm_day['fund'] < 100:
+        return False, None
+
+    # 条件1: T+1收盘价不能比信号日跌太多
+    if confirm_day['current_price'] < signal_day['current_price'] * cfg.confirm_ratio:
+        return False, None
+
+    # 条件2: T+1收盘价不能跌破信号日最低价（不能跌回突破起点）
+    if confirm_day['current_price'] < signal_day['min_price']:
+        return False, None
+
+    # 条件3: T+1不能暴跌
+    t1_gain = (confirm_day['current_price'] - confirm_day['last_price']) / confirm_day['last_price'] * 100.0
+    if t1_gain < cfg.confirm_max_drop:
+        return False, None
+
+    # 条件4: T+1必须可买入（不能是一字涨停无法成交）
+    if confirm_day['max_price'] == confirm_day['min_price']:
+        return False, None
+
+    # T+1不能高开低走
+    if confirm_day['current_price'] <= confirm_day['open_price']:
+        return False, None
+
+    return True, confirm_day['current_price']
+
+
 def detect_sell(data: list[dict], pos: dict, cfg: StrategyConfig = None) -> Optional[dict[str, Any]]:
     """
     检测卖出信号 —— 检查data的最后一天是否触发卖出
@@ -403,6 +444,9 @@ def detect_sell(data: list[dict], pos: dict, cfg: StrategyConfig = None) -> Opti
     pnl = (price - entry_price) / entry_price
     hold_days = n - entry_idx - 1
 
+    # 是否在保护期内
+    in_grace = hold_days <= cfg.grace_period_days
+
     # 买入后最高收盘
     max_close = entry_price
     for k in range(entry_idx + 1, n):
@@ -423,7 +467,7 @@ def detect_sell(data: list[dict], pos: dict, cfg: StrategyConfig = None) -> Opti
         }
 
     # ---- S2: 移动止盈 ----
-    if pnl > cfg.profit_lock_threshold:
+    if not in_grace and pnl > cfg.profit_lock_threshold:
         trail_price = max_close * (1 - cfg.trail_stop_pct)
         if price <= trail_price:
             return {
@@ -434,26 +478,10 @@ def detect_sell(data: list[dict], pos: dict, cfg: StrategyConfig = None) -> Opti
                 'pnl_pct': round(pnl * 100, 2)
             }
 
-    # ---- S3: 趋势破位 ----
-    if pnl > cfg.big_profit_pct:
-        ma_ref = d['ma_ten']
-        ma_name = 'MA10'
-    else:
-        ma_ref = d['ma_five']
-        ma_name = 'MA5'
-
-    if price < ma_ref:
-        return {
-            'day': d['day'],
-            'price': price,
-            'reason': f'S3-破位: 跌破 {ma_name} ({ma_ref:.2f})',
-            'hold_days': hold_days,
-            'pnl_pct': round(pnl * 100, 2)
-        }
-
     # ---- S4: 巨量滞涨/大阴 ----
-    if vol_ma is not None and vol_ma > 0:
+    if not in_grace and vol_ma is not None and vol_ma > 0:
         day_vol_ratio = d['volume'] / vol_ma
+        # day_vol_ratio = d['qrr']
         day_gain = (d['current_price'] - d['last_price']) / d['last_price'] * 100.0
         if day_vol_ratio >= cfg.big_vol_ratio:
             if price < d['open_price']:
@@ -484,16 +512,6 @@ def detect_sell(data: list[dict], pos: dict, cfg: StrategyConfig = None) -> Opti
                 'pnl_pct': round(pnl * 100, 2)
             }
 
-    # ---- S6: 目标止盈 ----
-    if pnl >= cfg.take_profit_pct:
-        return {
-            'day': d['day'],
-            'price': price,
-            'reason': f'S6-目标止盈: +{round(pnl * 100, 2)}%',
-            'hold_days': hold_days,
-            'pnl_pct': round(pnl * 100, 2)
-        }
-
     # ---- S7: 时间止损 ----
     if hold_days >= cfg.max_hold_days and pnl < cfg.time_stop_min_profit:
         return {
@@ -507,9 +525,6 @@ def detect_sell(data: list[dict], pos: dict, cfg: StrategyConfig = None) -> Opti
     return None
 
 
-# ================================================================
-# 单组参数回测
-# ================================================================
 def backtest_single_stock(data: list[dict], cfg: StrategyConfig = None):
     """
     对单只股票回测，支持多次买入卖出
@@ -526,6 +541,8 @@ def backtest_single_stock(data: list[dict], cfg: StrategyConfig = None):
 
     trades = []
     position = None
+    pending_signal = None
+    pending_idx = -1
 
     for i in range(cfg.vol_ma_period + 5, len(data)):
         sub_data = data[:i + 1]
@@ -550,18 +567,32 @@ def backtest_single_stock(data: list[dict], cfg: StrategyConfig = None):
                     'buy_level': position.get('level', '')
                 })
                 position = None
+                pending_signal = None
         else:
+            # ---- 空仓：检查是否有待确认信号 ----
+            if pending_signal is not None and pending_idx >= 0:
+                confirmed, buy_price = check_confirmation(sub_data, cfg)
+                if confirmed and buy_price is not None:
+                    # 确认成功，今天买入
+                    position = {
+                        'day': pending_signal['day'],  # data[i]['day'],
+                        'price': buy_price,
+                        'shares': pending_signal['shares'],
+                        'score': pending_signal['score'],
+                        'level': pending_signal['level'],
+                        'actual_amount': pending_signal['actual_amount'],
+                        'reasons': pending_signal['reasons']
+                    }
+                pending_signal = None
+                pending_idx = -1
+                if position is not None:
+                    continue
             # ---- 空仓：检查是否买入 ----
             positions_for_check = []
-            buy = detect_buy(sub_data, cfg, positions_for_check)
-            if buy is not None:
-                position = {
-                    'day': buy['day'],
-                    'price': buy['price'],
-                    'shares': buy['shares'],
-                    'score': buy['score'],
-                    'level': buy['level']
-                }
+            signal = detect_buy(sub_data, cfg, positions_for_check)
+            if signal is not None:
+                pending_signal = signal
+                pending_idx = i
 
     return trades
 
@@ -593,10 +624,6 @@ def backtest_all(all_data: dict, cfg: StrategyConfig = None):
 
     return all_trades
 
-
-# ================================================================
-# 实时决策接口
-# ================================================================
 
 def realtime_check(code: str, name: str, data: list[dict], positions: list[dict], cfg: StrategyConfig = None) -> Optional[dict[str, Any]]:
     """
@@ -633,10 +660,6 @@ def realtime_check(code: str, name: str, data: list[dict], positions: list[dict]
             return result
         return None
 
-
-# ================================================================
-# 回测指标计算
-# ================================================================
 
 def calc_metrics(trades):
     """计算回测统计指标"""
@@ -677,77 +700,6 @@ def calc_metrics(trades):
     }
 
 
-# ================================================================
-# 参数网格回测
-# ================================================================
-
-def backtest_grid(all_data: dict, param_grid: dict, top_n: int = 10):
-    """
-    参数网格遍历回测
-
-    参数:
-        all_data:   dict - {code: {'name':..., 'data':...}}
-        param_grid: dict - {参数名: [值1, 值2, ...]}
-        top_n:      int - 输出前N名
-
-    返回:
-        list[dict] - 所有组合结果（按profit_factor降序）
-    """
-    if not param_grid:
-        cfg = StrategyConfig()
-        trades = backtest_all(all_data, cfg)
-        metrics = calc_metrics(trades)
-        return [metrics]
-
-    keys = list(param_grid.keys())
-    values = []
-    for k in keys:
-        v = param_grid[k]
-        if not isinstance(v, list):
-            v = [v]
-        values.append(v)
-
-    total_combos = 1
-    for v in values:
-        total_combos *= len(v)
-
-    logger.info(f'参数网格: {len(keys)}个参数, 共{total_combos}种组合, 正在遍历中...')
-    all_results = []
-    count = 0
-
-    for combo in itertools.product(*values):
-        count += 1
-        cfg_kwargs = {}
-        for i, key in enumerate(keys):
-            cfg_kwargs[key] = combo[i]
-
-        cfg = StrategyConfig(**cfg_kwargs)
-        trades = backtest_all(all_data, cfg)
-        metrics = calc_metrics(trades)
-        metrics['params'] = cfg_kwargs
-        metrics['trades'] = trades
-        all_results.append(metrics)
-
-    all_results.sort(key=lambda x: (-x['profit_factor'], -x['total_pnl_pct']))
-
-    # 输出TOP N
-    logger.info(f'\n{"=" * 90}')
-    logger.info(f'  回测完成: {count}种组合, TOP {min(top_n, count)}')
-    logger.info(f'{"=" * 90}')
-
-    for rank, res in enumerate(all_results[:top_n], 1):
-        logger.info(f'\n  ┌─ 第{rank}名 ─────────────────────────────────────────────')
-        logger.info(f'  │ 参数: {res["params"]}')
-        logger.info(f'  │ 交易{res["total_trades"]}笔 | 胜率{res["win_rate"]}% | 盈亏比{res["profit_factor"]} | 总收益{res["total_pnl_pct"]:+.2f}%')
-        logger.info(f'  │ 最大盈利{res["max_win_pct"]:+.2f}% | 最大亏损{res["max_loss_pct"]:.2f}% | 平均持仓{res["avg_hold_days"]}天')
-        for t in res['trades']:
-            icon = '✅' if t['pnl_pct'] > 0 else '❌'
-            logger.info(f'  │  {icon}[{t["code"]}] {t["buy_day"]}买@{t["buy_price"]:.2f}→{t["sell_day"]}卖@{t["sell_price"]:.2f} - {t["sell_reason"]} - {t["pnl_pct"]:+.1f}%')
-        logger.info(f'  └{"─" * 70}')
-
-    return all_results
-
-
 if __name__ == '__main__':
     # ============================================================
     # 场景1: 从数据库获取数据并回测
@@ -764,45 +716,4 @@ if __name__ == '__main__':
     #     '300006': {'name': '莱美药业', 'data': [...]},
     #     '688386': {'name': '泛亚微透', 'data': [...]},
     # }
-
-    # ============================================================
-    # 场景2: 参数网格回测
-    # ============================================================
-    # 精选10个最影响决策的参数
-    param_grid = {
-        # 买入核心参数
-        'min_gain': [5.0, 7.0, 9.0],
-        'vol_tier_a': [2.0, 2.5, 3.0],
-        'vol_tier_b': [1.5, 2.0, 2.5],
-        'close_position_min': [0.5, 0.6, 0.7],
-        'min_score': [65, 70, 75],
-        # 卖出核心参数
-        'hard_stop_pct': [0.05, 0.07, 0.10],
-        'trail_stop_pct': [0.06, 0.08, 0.10],
-        'profit_lock_threshold': [0.10, 0.12, 0.15],
-        'max_hold_days': [6, 8, 10],
-        'big_vol_ratio': [2.0, 2.5, 3.0],
-    }
-    # 总组合数: 3^10 = 59049（可根据需要减少参数或值）
-
-    # 如果组合太多，可以分步搜索：
-    # 第一步：固定卖出参数，搜索买入参数
-    # 第二步：固定最优买入参数，搜索卖出参数
-
-    # ============================================================
-    # 场景3: 实时决策
-    # ============================================================
-    # today_data = db.query(f"SELECT * FROM kline WHERE code='300006' ORDER BY day DESC LIMIT 40")
-    # today_data.reverse()  # 按日期正序
-    # current_positions = [{'day': '20261115', 'price': 9.5, 'shares': 2000}]
-    #
-    # result = realtime_check('300006', '莱美药业', today_data, current_positions)
-    # if result['action'] == 'buy':
-    #     print(f"买入信号: {result['detail']}")
-    # elif result['action'] == 'sell':
-    #     print(f"卖出信号: {result['detail']}")
-    # else:
-    #     print("继续持有/观望")
-
-    # print('系统初始化完成')
-    # print('评分标准: 满分116 | 极强≥100(2万) | 强≥85(1万) | 中≥70(5千) | 弱<70(不买)')
+    pass

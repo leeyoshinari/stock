@@ -9,137 +9,27 @@ import asyncio
 import traceback
 import aiofiles
 from datetime import datetime, timedelta
-from utils.model import SearchStockParam, StockModelDo, StockDataList, StockMinuteDo, updateFundDo
+from utils.model import SearchStockParam, StockModelDo, StockMinuteDo, updateFundDo
 from utils.model import StockInfoList, ToolsInfoList, SetStockParam, TradeRecordList
 from utils.model import EtfInfoList, TradeStockList, SetStockHold, AnalysisResultList
-from utils.selectStock import getStockZhuLiFundFromTencent, isOpenStock
-from utils.results import Result, get_past_date, real_traded_minutes
+from utils.results import Result
+from utils.common import calc_stock_real_data, get_past_date, queryByCodeForAI, get_holding
 from utils.send_email import sendEmail
 from utils.etfData import pre_filter_etf
-from utils.scheduler import scheduler, get_schedule_time
+from utils.scheduler import scheduler
 from utils.aiAnalyzer import AsyncETFAnalyzer, analyze_etf_from_news, analyze_buy_etf
 from utils.initData import initStockData, getStockFundFlow
 from utils.queryStockHq import getStockHqFromTencent, getStockHq
-from utils.queryStockHq import getMinuteKFromTongHuaShun, getMinuteKFromDongcai, getMinuteKFromSina
-from utils.metric import bollinger_bands, backtest_grid
+from utils.queryStockHq import getMinuteKFromDongcai, getMinuteKFromSina
 from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital, Analysis
 from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST, TOTAL_FUND, DEFAULT_AI_RESULT
+from settings import stock_fee_ratio, etf_fee_ratio, stamp_duty
 
 
 logger = logging.getLogger(__name__)
-stock_fee_ratio = 1 / 10000   # 股票交易佣金，默认万分之一，不免5
-etf_fee_ratio = 2.5 / 10000   # ETF交易佣金，默认万分之2.5，不免5
-stamp_duty = 5 / 10000   # 印花税，默认万分之5
-alpha_s = 2.0 / (12 + 1)
-alpha_l = 2.0 / (26 + 1)
-alpha_sig = 2.0 / (9 + 1)
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
-AI_DECIDE = {}
-
-
-def calc_MA(data: list, window: int) -> float:
-    return round(sum(data[:window]) / len(data[:window]), 2)
-
-
-def calc_macd(price: float, ema_s: float, ema_l: float, dea: float) -> dict:
-    ema_s = alpha_s * price + (1 - alpha_s) * ema_s
-    ema_l = alpha_l * price + (1 - alpha_l) * ema_l
-    diff = ema_s - ema_l
-    dea = alpha_sig * diff + (1 - alpha_sig) * dea
-    return {'emas': ema_s, 'emal': ema_l, 'diff': diff, 'dea': dea}
-
-
-def calc_kdj(price: float, high_price: list, low_price: list, kdjk: float, kdjd: float) -> dict:
-    high_n = max(high_price[: 9])
-    low_n = min(low_price[: 9])
-    if high_n == low_n:
-        rsv = 50
-    else:
-        rsv = (price - low_n) / (high_n - low_n) * 100
-    kdjk = 2.0 * kdjk / 3 + rsv / 3
-    kdjd = 2.0 * kdjd / 3 + kdjk / 3
-    kdjj = 3 * kdjk - 2 * kdjd
-    return {'k': kdjk, 'd': kdjd, 'j': kdjj}
-
-
-def calc_holding(status: str, price: float, number: int, cost: float = 0.0, shares: int = 0, fee: float = 0.0) -> dict:
-    """计算持仓\n
-    :params status: 方向，买入 or 卖出
-    :params price: 本次交易的价格
-    :params number: 本次交易的股数
-    :params cost: 当前持仓成本
-    :params shares: 当前持仓股数
-    :params fee: 本次交易费用"""
-    result = {}
-    try:
-        profit = 0.0
-        if status == TradeType.BUY or status == TradeType.RECD:    # 建仓/加仓
-            total_value = cost * shares + price * number + fee
-            shares += number
-            cost = round(total_value / shares, 6)
-            profit = (price - cost) * shares
-        else:    # 减仓/清仓
-            if number > shares:
-                raise Exception(f"卖出数量大于持仓数量, {number} > {shares} ...")
-            profit = (price - cost) * number - fee
-            shares -= number
-            if shares != 0:
-                cost = cost - (profit / shares)
-
-        result = {'cost': cost, 'shares': shares, 'profit': profit}
-    except:
-        logger.error(f"status: {status}, price: {price}, number: {number}, cost: {cost}, shares: {shares}, fee: {fee} - {traceback.format_exc()}")
-    return result
-
-
-async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
-    '''获取持仓的数据，更新已清仓的数据
-
-    :params user_id: 用户id, 默认用户 99, DEFAULT_USER_ID
-    :params code: 股票代码
-    '''
-    result = []
-    try:
-        filter = [TradeType.RECD, TradeType.AIS] if user_id == DEFAULT_USER_ID else [TradeType.BUY, TradeType.SELL]
-        if user_id is not None and code:
-            rows = await Transaction.query().equal(code=code, user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-        elif user_id is not None and not code:
-            rows = await Transaction.query().equal(user_id=user_id, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-        elif code and user_id is None:
-            filter = [TradeType.BUY, TradeType.SELL, TradeType.RECD, TradeType.AIS]
-            rows = await Transaction.query().equal(code=code, flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-        else:
-            filter = [TradeType.BUY, TradeType.SELL, TradeType.RECD, TradeType.AIS]
-            rows = await Transaction.query().equal(flag=0).isin(status=filter).select("user_id", "code").distinct().all()
-
-        for r in rows:
-            try:
-                filter = [TradeType.RECD, TradeType.AIS] if r[0] == DEFAULT_USER_ID else [TradeType.BUY, TradeType.SELL]
-                trade_type = TradeType.AUTO if r[0] == DEFAULT_USER_ID else TradeType.MAN
-                stock: list[Transaction] = await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).order_by(Transaction.create_time.asc()).all()
-                res = {'cost': 0.0, 'shares': 0, 'profit': 0.0}
-                for s in stock:
-                    if s.status == TradeType.FAIL:
-                        continue
-                    res = calc_holding(s.status, s.price, s.shares, res['cost'], res['shares'], s.fee)
-                if res['shares'] == 0:
-                    await Transaction.create(code=stock[-1].code, name=stock[-1].name, price=s.price, shares=s.shares, status=trade_type,
-                                             fee=round(res['profit'], 2), user_id=stock[-1].user_id, flag=1, create_time=stock[0].create_time)
-
-                    await Transaction.query().equal(code=r[1], user_id=r[0], flag=0).isin(status=filter).update(flag=1)
-                    logger.info(f"{stock[-1].code} - {stock[-1].name} 已清仓, 盈利: {round(res['profit'], 2)}")
-                else:
-                    info = {'name': stock[-1].name, 'code': stock[-1].code, 'create_time': stock[0].create_time.strftime("%Y-%m-%d"),
-                            'user_id': stock[-1].user_id, 'price': res['cost'], 'shares': res['shares'], 'profit': res['profit'], 'status': trade_type}
-                    result.append(info)
-                    logger.info(f"{stock[-1].code} - {stock[-1].name} - {res}")
-            except:
-                logger.error(f"{r} - {traceback.format_exc()}")
-    except:
-        logger.error(f"{user_id} - {code} - {traceback.format_exc()}")
-    return result
 
 
 async def queryByCode(code: str, userId: int = None) -> Result:
@@ -149,7 +39,12 @@ async def queryByCode(code: str, userId: int = None) -> Result:
         tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
         isEtf = code.startswith("1") or code.startswith("5")
+        current_day = time.strftime("%Y%m%d")
+        current_time = time.strftime("%H:%M:%S")
         stockInfo: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.asc()).all()
+        need_newest = current_day == stockInfo[-1].day and current_time > "09:30:00" and current_time < "15:30:00"
+        if need_newest:
+            stockInfo.pop()
         data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volume', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate', 'fund']] for row in stockInfo]
         bollinger = []
         x = []
@@ -203,9 +98,8 @@ async def queryByCode(code: str, userId: int = None) -> Result:
                 create_time = r.create_time.strftime("%Y%m%d")
                 if create_time > past_date:
                     coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
-        profit_res = await get_holding(user_id=userId, code=code)
-        if x[-1] != day:
-            logger.info(f"No real data, start query read data - code: {code}")
+
+        if need_newest:
             stockDo: dict = await calc_stock_real_data(code)
             if stockDo:
                 x.append(day)
@@ -227,8 +121,8 @@ async def queryByCode(code: str, userId: int = None) -> Result:
                 premium.append(round(stockDo['premium'], 2) if isEtf else None)
                 boll_up.append(stockDo['boll_up'])
                 boll_low.append(stockDo['boll_low'])
-        else:
-            fund[-1] = await getStockZhuLiFundFromTencent(code)
+
+        profit_res = await get_holding(user_id=userId, code=code)
         profit = round((data[-1][1] - profit_res[0]['price']) * profit_res[0]['shares'], 2) if profit_res else None
         cost = round(profit_res[0]['price'], 3) if profit_res else None
         shares = profit_res[0]['shares'] if profit_res else None
@@ -444,54 +338,6 @@ async def init_stock_fund_data(query: updateFundDo) -> Result:
     return result
 
 
-async def calc_stock_real_data(code: str) -> dict:
-    isEtf = code.startswith('1') or code.startswith('5')
-    if isEtf:
-        res_stock: dict = await getStockHqFromTencent('', [{code: "-", f"{code}count": 5}])
-    else:
-        res_stock: dict = await getStockHq('', [{code: "-", f"{code}count": 5}])
-    if not res_stock['data']:
-        return None
-    stockDo = StockModelDo.model_validate(res_stock['data'][0]).model_dump()
-    stock_price_obj: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(21).all()
-    stock_price = [r.current_price for r in stock_price_obj]
-    high_price = [r.max_price for r in stock_price_obj]
-    low_price = [r.min_price for r in stock_price_obj]
-    stock_price.insert(0, stockDo['current_price'])
-    high_price.insert(0, stockDo['max_price'])
-    low_price.insert(0, stockDo['min_price'])
-    real_trade_time = real_traded_minutes()
-    volume_list = [r.volume for r in stock_price_obj[: 5]]
-    volume_len = min(max(len(volume_list), 1), 5)
-    emas = stock_price_obj[0].emas
-    emal = stock_price_obj[0].emal
-    dea = stock_price_obj[0].dea
-    kdjk = stock_price_obj[0].kdjk
-    kdjd = stock_price_obj[0].kdjd
-    average_volume = (sum(volume_list) / volume_len) * (real_trade_time / 240)
-    average_volume = average_volume if average_volume > 0 else stockDo['volume']
-    macd = calc_macd(stockDo['current_price'], emas, emal, dea)
-    kdj = calc_kdj(stockDo['current_price'], high_price, low_price, kdjk, kdjd)
-    stockDo.update({'ma_five': calc_MA(stock_price, 5)})
-    stockDo.update({'ma_ten': calc_MA(stock_price, 10)})
-    stockDo.update({'ma_twenty': calc_MA(stock_price, 20)})
-    stockDo.update({'qrr': round(stockDo['volume'] / average_volume, 2)})
-    stockDo.update({'diff': macd['emas'] - macd['emal']})
-    stockDo.update({'dea': macd['dea']})
-    stockDo.update({'k': kdj['k']})
-    stockDo.update({'d': kdj['d']})
-    stockDo.update({'j': kdj['j']})
-    stockDo.update({'volume': stockDo['volume']})
-    stockDo.update({'shares': stockDo['shares'] if isEtf else 0})
-    stockDo.update({'premium': stockDo['premium'] if isEtf else 0})
-    stockDo.update({'fund': await getStockZhuLiFundFromTencent(code)})
-    up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
-    stockDo.update({'boll_up': round(up, 2)})
-    stockDo.update({'boll_low': round(dn, 2)})
-    logger.info(stockDo)
-    return stockDo
-
-
 async def get_user_hold(userId: str) -> Result:
     result = Result()
     try:
@@ -507,8 +353,19 @@ async def get_user_hold(userId: str) -> Result:
 
 
 async def set_user_hold(data: SetStockHold) -> Result:
+    '''
+    data.status, 0-卖出, 1-买入, 2-除权分红
+    '''
     result = Result()
     try:
+        if data.status == 2:
+            stock: Stock = await Stock.get_one(data.code)
+            await Transaction.create(code=data.code, name=stock.name, price=0, shares=0, status=TradeType.DR,
+                                     fee=data.price, user_id=data.userId, flag=0)
+            logger.info(f"设置除权分红数据成功, 用户: {data.userId}, 股票: {data.code}, 数据: {data}")
+            return result
+
+        # 设置买入卖出交易数据
         fee = 0
         if data.code.startswith('1') or data.code.startswith('5'):
             stock: ETF = await ETF.get_one(data.code)
@@ -658,134 +515,6 @@ async def test(code: ToolsInfoList) -> Result:
     return result
 
 
-# def detail2List_bak(data: list) -> dict:
-#     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
-#            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-#            'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
-#     for d in data:
-#         res['code'] = d['code']
-#         res['day'].append(d['day'])
-#         res['current_price'].append(d['current_price'])
-#         res['last_price'].append(d['last_price'])
-#         res['open_price'].append(d['open_price'])
-#         res['max_price'].append(d['max_price'])
-#         res['min_price'].append(d['min_price'])
-#         res['volume'].append(d['volume'])
-#         res['turnover_rate'].append(f"{d['turnover_rate']}%")
-#         res['fund'].append(d['fund'])
-#         res['ma_five'].append(d['ma_five'])
-#         res['ma_ten'].append(d['ma_ten'])
-#         res['ma_twenty'].append(d['ma_twenty'])
-#         res['qrr'].append(d['qrr'])
-#         res['diff'].append(round(d['diff'], 4))
-#         res['dea'].append(round(d['dea'], 4))
-#         res['k'].append(round(d['k'], 4))
-#         res['d'].append(round(d['d'], 4))
-#         res['j'].append(round(d['j'], 4))
-#         res['shares'].append(round(d['shares'], 2))
-#         res['premium'].append(round(d['premium'], 2))
-#         res['boll_up'].append(d['boll_up'])
-#         res['boll_low'].append(d['boll_low'])
-#     return res
-
-
-# def detail2List(data: list[Detail]) -> dict:
-#     res = {'code': '', 'day': [], 'current_price': [], 'last_price': [], 'open_price': [], 'max_price': [], 'min_price': [], 'volume': [],
-#            'turnover_rate': [], 'fund': [], 'ma_five': [], 'ma_ten': [], 'ma_twenty': [], 'qrr': [], 'diff': [], 'dea': [], 'k': [],
-#            'd': [], 'j': [], 'shares': [], 'premium': [], 'boll_up': [], 'boll_low': []}
-#     for d in data:
-#         res['code'] = d.code
-#         res['day'].append(d.day)
-#         res['current_price'].append(d.current_price)
-#         res['last_price'].append(d.last_price)
-#         res['open_price'].append(d.open_price)
-#         res['max_price'].append(d.max_price)
-#         res['min_price'].append(d.min_price)
-#         res['volume'].append(d.volume)
-#         res['turnover_rate'].append(f"{d.turnover_rate}%")
-#         res['fund'].append(d.fund)
-#         res['ma_five'].append(d.ma_five)
-#         res['ma_ten'].append(d.ma_ten)
-#         res['ma_twenty'].append(d.ma_twenty)
-#         res['qrr'].append(d.qrr)
-#         res['diff'].append(round(d.emas - d.emal, 4))
-#         res['dea'].append(round(d.dea, 4))
-#         res['k'].append(round(d.kdjk, 4))
-#         res['d'].append(round(d.kdjd, 4))
-#         res['j'].append(round(d.kdjj, 4))
-#         res['shares'].append(round(d.shares, 2))
-#         res['premium'].append(round(d.premium, 2))
-#         res['boll_up'].append(d.boll_up)
-#         res['boll_low'].append(d.boll_low)
-#     return res
-
-
-# def minute2List(data: list[StockMinuteDo]) -> dict:
-#     res = {'code': data[0].code, 'time': [], 'price': [], 'price_avg': [], 'volume': []}
-#     for d in data:
-#         res['time'].append(d.time)
-#         res['price'].append(d.price)
-#         res['price_avg'].append(d.price_avg)
-#         res['volume'].append(d.volume)
-#     return res
-
-
-async def queryByCodeForAI(code: str, limit: int = 22) -> Result:
-    """ 查询K线数据, 只用于AI分析
-    :params code: 标的code
-    :params limit: 查询多少天的数据
-    """
-    result = Result()
-    try:
-        if not limit:
-            limit = 22
-        isEtf = code.startswith("1") or code.startswith("5")
-        tool: Tools = await Tools.get_one("openDoor")
-        day = tool.value
-        stockInfo: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.desc()).limit(limit).all()
-        stockInfo.reverse()
-        stock_data = [StockDataList.from_orm_format(f).model_dump() for f in stockInfo]
-
-        if stockInfo[-1].day != day:
-            logger.info(f"No real data, start query read data - code: {code}")
-            stockDo: dict = await calc_stock_real_data(code)
-            if stockDo:
-                today = {'code': code, 'name': '', 'day': day, 'current_price': stockDo['current_price'], 'last_price': 0,
-                         'open_price': stockDo['open_price'], 'max_price': stockDo['max_price'], 'min_price': stockDo['min_price'],
-                         'volume': stockDo['volume'], 'fund': stockDo['fund'], 'ma_five': stockDo['ma_five'], 'ma_ten': stockDo['ma_ten'],
-                         'ma_twenty': stockDo['ma_twenty'], 'qrr': stockDo['qrr'], 'diff': round(stockDo['diff'], 3), 'dea': round(stockDo['dea'], 3),
-                         'k': round(stockDo['k'], 3), 'd': round(stockDo['d'], 3), 'j': round(stockDo['j'], 3), 'shares': round(stockDo['shares'], 2),
-                         'premium': round(stockDo['premium'], 2), 'turnover_rate': stockDo['turnover_rate'], 'boll_up': stockDo['boll_up'],
-                         'boll_low': stockDo['boll_low']}  # , 'macd': round((stockDo['diff'] - stockDo['dea']) * 2, 3)}
-                stock_data.append(today)
-        pre_shares = stock_data[0]['shares']
-        for s in stock_data:
-            s.pop('code', None)
-            s.pop('name', None)
-            if isEtf:
-                # 在A股ETF单边暴涨/暴跌时，KDJ和MACD会严重钝化，主力资金净流入极具欺骗性
-                curr_shares = s['shares']
-                shares_delta = (curr_shares - pre_shares) / pre_shares * 100
-                s.update({"shares_delta": round(shares_delta, 2)})
-                pre_shares = curr_shares
-                s.pop('k', None)
-                s.pop('d', None)
-                s.pop('j', None)
-                s.pop('diff', None)
-                s.pop('dea', None)
-                s.pop('fund', None)
-            else:
-                s.pop('shares', None)
-                s.pop('premium', None)
-        result.data = stock_data
-        logger.info(f"Query AI stock k-line success - code: {code}")
-    except Exception as e:
-        logger.error(f"Query AI stock k-line fail, code: {code}, limit: {limit} - {traceback.format_exc()}")
-        result.success = False
-        result.msg = str(e)
-    return result
-
-
 async def analysizeEtfFromNews() -> Result:
     """从财经新闻中筛选出ETF"""
     result = Result()
@@ -896,36 +625,6 @@ async def analysize(code: str, userId: int, hold: list[dict] = None, kline: list
         result.msg = str(e)
         result.success = False
     return result
-
-
-async def backtest():
-    try:
-        logger.info("开始获取股票数据...")
-        param_grid = {
-            # 买入核心参数
-            'min_gain': [5.0, 7.0, 9.0],
-            'vol_tier_a': [2.0, 2.5, 3.0],
-            'vol_tier_b': [1.5, 2.0, 2.5],
-            'close_position_min': [0.5, 0.6, 0.7],
-            'min_score': [65, 70, 75],
-            # 卖出核心参数
-            'hard_stop_pct': [0.05, 0.07, 0.10],
-            'trail_stop_pct': [0.06, 0.08, 0.10],
-            'profit_lock_threshold': [0.10, 0.12, 0.15],
-            'max_hold_days': [6, 8, 10],
-            'big_vol_ratio': [2.0, 2.5, 3.0],
-        }
-        stocks: Stock = await Stock.query().equal(running=1).all()
-        all_data = {}
-        for s in stocks:
-            res: Result = await queryByCodeForAI(s.code, 40)
-            all_data[s.code] = {'name': s.name, 'data': res.data}
-
-        logger.info("开始回测...")
-        _ = backtest_grid(all_data, param_grid)
-        logger.info("回测完成...")
-    except:
-        logger.error(traceback.format_exc())
 
 
 ''' ======================== Scheduler ========================  '''
@@ -1155,29 +854,6 @@ async def update_holding_capital():
             await Capital.update(current_day, total=round(capital.available + hold_fund, 2), hold=round(hold_fund, 2), campare=stockDo.current_price)
     except:
         logger.error(traceback.format_exc())
-
-
-# async def calc_hold_capital() -> float:
-#     """获取 持仓金额"""
-#     try:
-#         # 正持仓的数据
-#         is_stop = time.strftime("%H:%M:%S") < "15:50:00" and time.strftime("%H:%M:%S") > "09:30:00"
-#         tool: Tools = await Tools.get_one("openDoor")
-#         hold_fund = 0   # 当天持仓总金额
-#         rows1: list[dict] = await get_holding(user_id=DEFAULT_USER_ID)
-#         for r in rows1:
-#             if is_stop:
-#                 res_stock: dict = await getStockHq('', [{r['code']: r['name'], f"{r['code']}count": 5}])
-#                 stockDo: StockModelDo = res_stock['data'][0]
-#             else:
-#                 stockDo: Detail = await Detail.get_one((r['code'], tool.value))
-#             hold_fund += stockDo.current_price * r['shares']
-
-#         logger.info(f"current hold capital is {hold_fund}")
-#         return hold_fund
-#     except:
-#         logger.error(traceback.format_exc())
-#         return 0
 
 
 async def auto_select_email():

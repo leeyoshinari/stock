@@ -7,7 +7,6 @@ import os
 import time
 import asyncio
 import aiofiles
-from datetime import datetime, timedelta
 from contextlib import asynccontextmanager, suppress
 from litestar import Litestar, Request, Router, Controller, get, post
 from litestar.openapi import OpenAPIConfig
@@ -16,16 +15,11 @@ from litestar.openapi.plugins import SwaggerRenderPlugin
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
-from settings import PREFIX, HOST, PORT, BASE_PATH, checkout, BACKUP_PATH, RUN_ENV
+from settings import PREFIX, HOST, PORT, checkout, RUN_ENV
 from utils.scheduler import scheduler
-from utils.backup import zip_file
 from utils.database import Database, write_worker
 from utils.results import Result
 from utils import model, views, getStock
-
-
-db_path = os.path.join(BASE_PATH, 'sqlite3.db')
-zip_path = os.path.join(BACKUP_PATH, 'db.zip')
 
 
 async def modify_sw():
@@ -104,14 +98,14 @@ class StockController(Controller):
     @get('/stock/init', summary="初始化股票数据")
     async def init_stock_data(self, request: Request, code: str) -> Result:
         result = Result()
-        if not checkout(request.headers.get('referered', '123')):
+        if checkout(request.headers.get('referered', '123')):
             result = await views.init_stock_data(code)
         return result
 
     @post('/stock/fund/update', summary="更新股票主力资金数据")
     async def init_stock_fund_data(self, request: Request, data: model.updateFundDo) -> Result:
         result = Result()
-        if not checkout(request.headers.get('referered', '123')):
+        if checkout(request.headers.get('referered', '123')):
             result = await views.init_stock_fund_data(data)
         return result
 
@@ -183,13 +177,6 @@ class StockController(Controller):
             result = await views.getTradeData()
         return result
 
-    @get('/backtest', summary="回测数据")
-    async def backtest(self, request: Request, code: str) -> Result:
-        result = Result()
-        if code == 'back_test':
-            scheduler.add_job(views.backtest, "date", run_date=datetime.now() + timedelta(seconds=10), misfire_grace_time=10)
-        return result
-
     @post('/test')
     async def test(self, request: Request, idx: str) -> Result:
         if idx == 'auto_trade_etf':
@@ -202,6 +189,8 @@ class StockController(Controller):
             result = await views.update_holding_capital()
         if idx == 'auto_select_email':
             result = await views.auto_select_email()
+        if idx == 'updateStockDivideData':
+            result = await getStock.updateStockDivideData()
         return result
 
 
@@ -249,16 +238,11 @@ async def lifespan(app: Litestar):
     if RUN_ENV != 'dev':
         scheduler.add_job(getStock.updateEtfShares, 'cron', hour=8, minute=30, second=20, misfire_grace_time=10)    # 更新前一天的ETF份额
         scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)      # 检查今天是否开市
-        scheduler.add_job(getStock.setAllSHStock, 'cron', hour=12, minute=0, second=20, args=["8"], misfire_grace_time=10)     # 中午更新股票信息
-        scheduler.add_job(getStock.setAllSZStock, 'cron', hour=12, minute=0, second=20, misfire_grace_time=10)                 # 中午更新股票信息
         # scheduler.add_job(views.auto_analysize_etf, 'cron', hour=14, minute=30, second=0, misfire_grace_time=10)               # 开始分析 ETF
-        scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新股票数据
-        scheduler.add_job(getStock.updateStockFund, 'cron', hour=15, minute=50, second=20, args=[1], misfire_grace_time=10)    # 更新主力流入数据
-        scheduler.add_job(getStock.updateEtfDetail, 'cron', hour='10,11,13,14', minute='0,10,20,30,40,50', second=8, misfire_grace_time=10)            # 更新ETF数据
+        scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新股票数据, 并备份数据库
+        # scheduler.add_job(getStock.updateEtfDetail, 'cron', hour='10,11,13,14', minute='0,10,20,30,40,50', second=8, misfire_grace_time=10)            # 更新ETF数据
         scheduler.add_job(views.update_holding_capital, 'cron', hour='10,11,13,14,15', minute='0,10,20,30,40,50', second=50, misfire_grace_time=10)    # 处理交易记录
-        scheduler.add_job(zip_file, 'cron', hour=17, minute=0, second=0, args=[[db_path], zip_path], misfire_grace_time=10)             # 备份数据库
-        scheduler.add_job(getStock.clearStockData, 'cron', day_of_week='sat', hour=0, minute=0, second=20, misfire_grace_time=10)       # 删除数据
-        scheduler.add_job(getStock.updateStockBanKuai, 'cron', day_of_week='sat', hour=0, minute=20, second=0, misfire_grace_time=10)   # 更新股票行业、概念等数据
+        scheduler.add_job(getStock.clearStockData, 'cron', day_of_week='sat', hour=0, minute=0, second=20, misfire_grace_time=10)       # 删除数据, 更新股票行业、概念等数据
     scheduler.start()   # 启动定时任务
     worker_task = asyncio.create_task(write_worker())
     await modify_sw()

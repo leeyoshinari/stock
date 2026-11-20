@@ -9,7 +9,7 @@ import asyncio
 import traceback
 from urllib.parse import quote
 from utils.http_client import http
-from utils.results import getStockRegion
+from utils.common import getStockRegion
 from settings import LONGBRIDGE_URL
 
 

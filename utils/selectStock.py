@@ -4,10 +4,15 @@
 
 import time
 import json
-from utils.http_client import http
-from utils.results import getStockRegion, getStockRegionNum
+import random
+import logging
+import traceback
+from utils.http_client import http, cffi_request
+from utils.dispatcher import AsyncRoundRobinDispatcher
+from settings import HTTP_HOST_CLOUD, HTTP_HOST_VERCEL, HTTP_HOST_NETLIFY
 
 
+logger = logging.getLogger(__name__)
 # 完整题材白名单（不可拆）
 FULL_TOPICS = {"虚拟现实", "增强现实", "混合现实", "工业互联网", "新能源车", "新材料"}
 # 词头无效词（仅能删在开头）
@@ -19,7 +24,25 @@ STRUCT_STOPWORDS = ("开发", "服务", "制造", "加工", "生产", "供应", 
                     "施工", "咨询", "检测", "运维", "系统", "平台", "方案", "设备", "装置", "部件", "组件", "模块")
 
 
-# 4. 核心清洗函数
+def getStockRegion(code: str) -> str:
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
+        return "sh"
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
+        return "sz"
+    else:
+        return ""
+
+
+def getStockRegionNum(code: str) -> str:
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
+        return "1"
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
+        return "0"
+    else:
+        return ""
+
+
+# 核心清洗函数
 def normalize_topic(name: str) -> str:
     name = name.strip()
     # 完整题材优先（不拆）
@@ -44,29 +67,46 @@ def normalize_topic(name: str) -> str:
     return name.strip()
 
 
-async def isOpenStock() -> bool:
-    url = 'https://w.sinajs.cn/?&list=market_status_cn'
-    header = {'Referer': 'https://finance.sina.com.cn', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-    res = await http.get(url, headers=header)
-    if res.status_code == 200:
-        if "未开盘" in res.text or '休市' in res.text:
-            return False
-        else:
-            return True
-    else:
-        return False
-
-
-# async def getStockZhuLiFundFromDongCai(code: str) -> float:
-#     '''获取东方财富当前股票的主力净流入'''
-#     '''https://data.eastmoney.com/stockdata/000045.html'''
-#     current_time = int(time.time() * 1000)
-#     rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
-#     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
-#     url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={getStockRegionNum(code)}.{code}&fields=f469,f137,f193,f140,f194,f143,f195,f146,f196,f149,f197,f470,f434,f454,f435,f455,f436,f456,f437,f457,f438,f458,f471,f459,f460,f461,f462,f463,f464,f465,f466,f467,f468,f170,f119,f291&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{current_time}&_={current_time + 1}'
+# async def isOpenStock() -> bool:
+#     url = 'https://w.sinajs.cn/?&list=market_status_cn'
+#     header = {'Referer': 'https://finance.sina.com.cn', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
 #     res = await http.get(url, headers=header)
-#     res_json = json.loads(res.text.split('(')[1].split(')')[0])
-#     return round(res_json['data']['f137'] / 10000, 2)
+#     if res.status_code == 200:
+#         if "未开盘" in res.text or '休市' in res.text:
+#             return False
+#         else:
+#             return True
+#     else:
+#         return False
+
+
+async def getStockZhuLiFundFromDongCai(code: str) -> float:
+    '''获取东方财富当前股票的主力净流入'''
+    '''https://data.eastmoney.com/stockdata/000045.html'''
+    current_time = int(time.time() * 1000)
+    rand = str(int(random.randint(10**17, 10**18 - 1) / 10))
+    h = {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "en,zh-CN;q=0.9,zh;q=0.8",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "cookie": "qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_sp=2025-11-19%2014%3A19%3A16; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858; st_asi=delete",
+        "host": "push2his.eastmoney.com",
+        "pragma": "no-cache",
+        "referer": "https://data.eastmoney.com/",
+        "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "script",
+        "sec-fetch-mode": "no-cors",
+        "sec-fetch-site": "same-site",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    }
+    url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={getStockRegionNum(code)}.{code}&fields=f469,f137,f193,f140,f194,f143,f195,f146,f196,f149,f197,f470,f434,f454,f435,f455,f436,f456,f437,f457,f438,f458,f471,f459,f460,f461,f462,f463,f464,f465,f466,f467,f468,f170,f119,f291&ut=b2884a393a59ad64002292a3e90d46a5&cb=jQuery11230{rand}_{current_time}&_={current_time + 1}'
+    res = await cffi_request(url, method="GET", headers=h)
+    res_json = json.loads(res.text.split('(')[1].split(')')[0])
+    return round(res_json['data']['f137'] / 10000, 2)
 
 
 async def getStockZhuLiFundFromSina(code: str) -> float:
@@ -79,13 +119,17 @@ async def getStockZhuLiFundFromSina(code: str) -> float:
     return fund
 
 
-async def getStockZhuLiFundFromTencent(code: str) -> float:
+async def getStockZhuLiFundFromTencent(host: str, code: str) -> float:
     '''获取腾讯财经当前股票的主力净流入'''
     '''https://gu.qq.com/sz300274/gp'''
     current_day = time.strftime("%Y-%m-%d")
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     url = f'https://proxy.finance.qq.com/cgi/cgi-bin/fundflow/hsfundtab?code={getStockRegion(code)}{code}&type=fiveDayFundFlow,todayFundFlow&klineNeedDay=20'
-    res = await http.get(url, headers=header)
+    if host and host.startswith('http'):
+        param_data = {"url": url, "method": "GET", "headers": header}
+        res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
+    else:
+        res = await http.get(url, headers=header)
     res_json = json.loads(res.text)
     if 'todayFundFlow' in res_json['data'] and 'mainNetIn' in res_json['data']['todayFundFlow']:
         fund = round(float(res_json['data']['todayFundFlow']['mainNetIn']) / 10000, 2)
@@ -99,9 +143,26 @@ async def getStockFundFlowFromDongCai(stockCode: str) -> dict[str, float]:
     '''从东方财富获取资金流向，最近10日'''
     '''https://data.eastmoney.com/zjlx/600067.html'''
     fflow = {}
-    header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
+    h = {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "en,zh-CN;q=0.9,zh;q=0.8",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "cookie": "qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_sp=2025-11-19%2014%3A19%3A16; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858; st_asi=delete",
+        "host": "push2his.eastmoney.com",
+        "pragma": "no-cache",
+        "referer": "https://data.eastmoney.com/",
+        "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "script",
+        "sec-fetch-mode": "no-cors",
+        "sec-fetch-site": "same-site",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    }
     url = f'https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid={getStockRegionNum(stockCode)}.{stockCode}&fields1=f1,f2,f3,f7&fields2=f51,f52,f62,f63&lmt=10&ut=f057cbcbce2a86e2866ab8877db1d059&cb=cbrnd_F713A9A752FE43CA996C8E4BC0E854DB'
-    res = await http.get(url, headers=header)
+    res = await cffi_request(url, method="GET", headers=h)
     res_json = json.loads(res.text.split('(')[1].split(')')[0])
     klines = res_json['data']['klines']
     for k in klines:
@@ -218,3 +279,70 @@ async def getStockBanKuaiFromDOngCai(code: str) -> dict:
     except Exception as e:
         res = {'msg': type(e).__name__}
     return res
+
+
+async def getStockDivideData(day: str) -> list[dict]:
+    '''从东方财富获取股票日历（除权、分红、派息等息）
+
+    https://data.eastmoney.com/gsrl/nbjb.html?id=17
+
+    :params day: 当天的数据, 日期格式: 2026-11-20
+    '''
+    result = []
+    try:
+        h = {
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en,zh-CN;q=0.9,zh;q=0.8",
+            "cache-control": "no-cache",
+            "connection": "keep-alive",
+            "cookie": "qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_sp=2025-11-19%2014%3A19%3A16; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858; st_asi=delete",
+            "host": "datacenter-web.eastmoney.com",
+            "pragma": "no-cache",
+            "referer": "https://data.eastmoney.com/",
+            "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "script",
+            "sec-fetch-mode": "no-cors",
+            "sec-fetch-site": "same-site",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        }
+        url = f"https://datacenter-web.eastmoney.com/api/data/v1/get?callback=jQuery112308645994508564511_{int(time.time() * 1000)}&sortColumns=SECUCODE&sortTypes=1&pageSize=50&pageNumber=1&columns=ALL&source=WEB&client=WEB&reportName=RPT_CALENDER_YEARQUARTER_ASSIGNSCHEME&filter=(%7CEX_DIVIDEND_DATE%3D%27{day}%27)(%7CPAY_CASH_DATE%3D%27{day}%27)"
+        res = await cffi_request(url, method="GET", headers=h)
+        if res.status_code == 200:
+            res_json = json.loads('{' + res.text.split("({")[1].split("})")[0] + '}')
+            data = res_json['result']['data']
+            for r in data:
+                PAY_CASH_DATE = r['PAY_CASH_DATE']
+                EX_DIVIDEND_DATE = r['EX_DIVIDEND_DATE']
+                if day in PAY_CASH_DATE or day in EX_DIVIDEND_DATE:
+                    result.append({'name': r['SECURITY_NAME_ABBR'], 'code': r['SECURITY_CODE'], 'content': r['HOLDERS_PUBLISH_CONTENT']})
+                    logger.info(f"{r['SECURITY_NAME_ABBR']} - {r['SECURITY_CODE']} - {r['HOLDERS_PUBLISH_CONTENT']} - {r['EXECUTE_CONTENT']} - {r['ASSIGN_PROGRESS']}")
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
+async def getStockZhuLiFundFromTencentLocal(code: str) -> float:
+    return await getStockZhuLiFundFromTencent('', code)
+
+
+async def getStockZhuLiFundFromTencentCloud(code: str) -> float:
+    return await getStockZhuLiFundFromTencent(HTTP_HOST_CLOUD, code)
+
+
+async def getStockZhuLiFundFromTencentVercel(code: str) -> float:
+    return await getStockZhuLiFundFromTencent(HTTP_HOST_VERCEL, code)
+
+
+async def getStockZhuLiFundFromTencentNetlify(code: str) -> float:
+    return await getStockZhuLiFundFromTencent(HTTP_HOST_NETLIFY, code)
+
+getStockHqList = [getStockZhuLiFundFromTencentLocal, getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencentCloud, getStockZhuLiFundFromTencentVercel, getStockZhuLiFundFromTencentNetlify]
+fund_dispatcher = AsyncRoundRobinDispatcher(methods=getStockHqList, max_retries=3, timeout=30, cooldown=120, name="ZhuLiFundDispatcher")
+
+
+async def getStockZhuLiFund(*args, **kwargs):
+    """ ETF如果需要获取份额和溢价率，只能单独调 `getStockHqFromTencent` 方法，其他情况可以调用这个方法。"""
+    return await fund_dispatcher.call(*args, **kwargs)

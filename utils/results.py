@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 # @Author: leeyoshinari
 
-from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Any
 
@@ -12,74 +11,3 @@ class Result(BaseModel):
     msg: str = 'Success!'
     data: Any = None
     total: int = 0
-
-
-def getStockRegion(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "sh"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "sz"
-    else:
-        return ""
-
-
-def getStockRegionNum(code: str) -> str:
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return "1"
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return "0"
-    else:
-        return ""
-
-
-def getMarketCode(code: str) -> int:
-    """同花顺-股票所属市场判断"""
-    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
-        return 17
-    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
-        return 33
-    else:
-        return 0
-
-
-def get_past_date(days_diff: int = 373, date_format: str = "%Y%m%d") -> str:
-    """根据当前日期和相差天数，计算之前的日期\n
-    :param days_diff: 相差天数, 默认373, 373天大概是一年多的数据, 大概共250个交易日
-    :param date_format: 默认"%Y%m%d"
-    :return: 之前的日期字符串
-    """
-    current_date = datetime.now()
-    past_date = current_date - timedelta(days=days_diff)
-    return past_date.strftime(date_format)
-
-
-def real_traded_minutes() -> int:
-    """
-    实时获取当前时间，计算 A 股当日已交易分钟数
-    返回范围：1 ~ 240
-    """
-    now = datetime.now()
-    hour = now.hour
-    minute = now.minute
-    current = hour * 60 + minute
-    morning_start = 9 * 60 + 30     # 09:30
-    morning_end = 11 * 60 + 30    # 11:30
-    afternoon_start = 13 * 60       # 13:00
-    afternoon_end = 15 * 60       # 15:00
-
-    if current < morning_start:
-        traded = 0
-    elif morning_start <= current <= morning_end:
-        traded = current - morning_start
-    elif morning_end < current < afternoon_start:
-        traded = 120
-    elif afternoon_start <= current <= afternoon_end:
-        traded = 120 + (current - afternoon_start)
-    else:
-        traded = 240
-
-    if traded < 1:
-        return 1
-    if traded > 240:
-        return 240
-    return traded

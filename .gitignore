@@ -201,8 +201,8 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 .DS_Store
-common.py
-initData.py
+commonn.py
+backtest.py
 pid
 migrate.txt
 sqlite3.db

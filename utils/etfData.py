@@ -9,7 +9,7 @@ import logging
 import asyncio
 import traceback
 from utils.http_client import http
-from utils.results import getStockRegion
+from utils.common import getStockRegion
 
 
 logger = logging.getLogger(__name__)

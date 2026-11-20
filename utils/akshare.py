@@ -2,20 +2,18 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
-import re
 import json
 import time
 import random
 import logging
 import asyncio
 import traceback
-import aiohttp
 from datetime import datetime, timedelta
 import trafilatura
 # import akshare as ak
 from bs4 import BeautifulSoup
 from utils.http_client import http
-from utils.results import getStockRegion
+from utils.common import getStockRegion
 
 
 logger = logging.getLogger(__name__)
@@ -281,145 +279,6 @@ async def getStockFinanceReportFromSina(code: str) -> str:
     except Exception as e:
         logger.error(traceback.format_exc())
         return f"Stock Finance Report Error: {e}"
-
-
-async def _get_baidu_cookie(session: aiohttp.ClientSession, headers: dict) -> str:
-    """
-    安全异步获取百度股市通所需的 Cookie
-    :param session: aiohttp.ClientSession 实例
-    :param headers: 基础请求头
-    """
-    try:
-        # 第一步：获取基础 Cookie (BAIDUID系列)
-        async with session.get("https://finance.baidu.com/calendar", headers=headers, ssl=False, timeout=10) as resp1:
-            resp1.raise_for_status()
-            text1 = await resp1.text()
-            # aiohttp 的 cookies 是 Morsel 对象，需通过 .value 获取值
-            baiduid_morsel = resp1.cookies.get("BAIDUID")
-            baiduid_bfess_morsel = resp1.cookies.get("BAIDUID_BFESS")
-            baiduid = baiduid_morsel.value if baiduid_morsel else None
-            baiduid_bfess = baiduid_bfess_morsel.value if baiduid_bfess_morsel else None
-            if not all([baiduid, baiduid_bfess]):
-                raise ValueError("Missing BAIDUID cookies in first response")
-
-            # 第二步：提取并请求 hm.js
-            hm_match = re.search(r"https?://hm\.baidu\.com/hm\.js\?\w+", text1)
-            if not hm_match:
-                hm_match = re.search(r"//hm\.baidu\.com/hm\.js\?\w+", text1)
-
-            if not hm_match:
-                raise ValueError("Failed to extract hm.js URL from response")
-
-            hm_url = (
-                "https:" + hm_match.group()
-                if hm_match.group().startswith("//")
-                else hm_match.group()
-            )
-
-        # 第二步请求 (自动携带第一步的 Cookie)
-        async with session.get(hm_url, headers=headers, ssl=False, timeout=10) as resp2:
-            resp2.raise_for_status()
-            hmac_count_morsel = resp2.cookies.get("HMACCOUNT")
-            hmac_count_bfess_morsel = resp2.cookies.get("HMACCOUNT_BFESS")
-            hmac_count = hmac_count_morsel.value if hmac_count_morsel else None
-            hmac_count_bfess = hmac_count_bfess_morsel.value if hmac_count_bfess_morsel else None
-
-            if not all([hmac_count, hmac_count_bfess]):
-                raise ValueError("Missing HMACCOUNT cookies in second response")
-
-            # 安全拼接 Cookie
-            return (
-                f"BAIDUID={baiduid}; "
-                f"BAIDUID_BFESS={baiduid_bfess}; "
-                f"HMACCOUNT={hmac_count}; "
-                f"HMACCOUNT_BFESS={hmac_count_bfess}"
-            )
-
-    except aiohttp.ClientError as e:
-        raise ConnectionError(f"Network request failed: {str(e)}") from e
-    except re.error as e:
-        raise ValueError(f"Regex pattern error: {str(e)}") from e
-
-
-async def getStockDivideDate(day: str) -> list[dict]:
-    """
-    百度股市通日历数据基础函数（支持分页），获取指定 date 的分红派息数据\n
-    :param date: 查询日期 (格式: YYYYMMDD)\n
-    :return: [{'name': '平安银行', 'code': '000001', 'date': '20260924'}]
-    """
-    # 构建请求参数
-    pageSize = 100     # 每页100条
-    base_params = {
-        "start_date": day,
-        "end_date": day,
-        "market": "ab",
-        "pn": "0",
-        "rn": pageSize,
-        "cate": "notify_divide",
-        "finClientType": "pc",
-    }
-
-    # 构建请求头
-    headers = {
-        "accept": "application/vnd.finance-web.v1+json",
-        "accept-encoding": "gzip, deflate, br, zstd",
-        "accept-language": "en,zh-CN;q=0.9,zh;q=0.8",
-        "cache-control": "no-cache",
-        "origin": "https://finance.baidu.com",
-        "pragma": "no-cache",
-        "priority": "u=1, i",
-        "referer": "https://finance.baidu.com/",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36",
-    }
-
-    # 使用单个 Session 复用连接，提升性能
-    async with aiohttp.ClientSession() as session:
-        try:
-            cookie = await _get_baidu_cookie(session, headers.copy())
-        except Exception as e:
-            raise RuntimeError(f"Failed to obtain Baidu cookies: {str(e)}") from e
-
-        headers["cookie"] = cookie
-        url = "https://finance.pae.baidu.com/sapi/v1/financecalendar"
-        big_list = []
-        target_date = day
-        total_records = 0
-
-        # 第一次请求
-        params = base_params.copy()
-        async with session.get(url=url, params=params, headers=headers, timeout=15, ssl=False,) as response:
-            response.raise_for_status()
-            data_json = await response.json()
-
-        # 从 JSON 中提取指定日期的总记录数
-        if "Result" in data_json and "calendarInfo" in data_json["Result"]:
-            calendar_info = data_json["Result"]["calendarInfo"]
-            for item in calendar_info:
-                if item.get("date") == target_date:
-                    total_records = item.get("total", 0)
-                    break
-
-        # 计算总页数 (每页100条)
-        total_pages = int((total_records + pageSize - 1) / pageSize) if total_records > 0 else 1
-        logger.info(f"{day} 总共 {total_pages} 页数")
-        # 处理所有页码
-        for page in range(total_pages):
-            if page > 0:  # 第一页已在前面获取
-                params = base_params.copy()
-                params["pn"] = str(page)
-                async with session.get(url=url, params=params, headers=headers, timeout=15) as response:
-                    response.raise_for_status()
-                    data_json = await response.json()
-                    logger.info(f"{day} 分红派息信息正在获取第 {page} / {total_pages} 页")
-
-            # 提取并处理指定日期的数据
-            if "Result" in data_json and "calendarInfo" in data_json["Result"]:
-                for item in data_json["Result"]["calendarInfo"]:
-                    if item.get("date") == target_date and item.get("list"):
-                        for item in item["list"]:
-                            processed_data = {"name": item["name"], "code": item["code"], "diviDate": item["diviDate"]}
-                            big_list.append(processed_data)
-        return big_list
 
 
 async def get_detail(n):

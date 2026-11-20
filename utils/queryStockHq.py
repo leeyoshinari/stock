@@ -10,13 +10,30 @@ from warnings import deprecated
 from utils.model import StockModelDo, StockMinuteDo
 from utils.http_client import http, cffi_request
 from utils.dispatcher import AsyncRoundRobinDispatcher
-from utils.results import getStockRegion, getStockRegionNum
 
 
 logger = logging.getLogger(__name__)
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
 }
+
+
+def getStockRegion(code: str) -> str:
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
+        return "sh"
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
+        return "sz"
+    else:
+        return ""
+
+
+def getStockRegionNum(code: str) -> str:
+    if code.startswith("60") or code.startswith("68") or code.startswith("5"):
+        return "1"
+    elif code.startswith("00") or code.startswith("30") or code.startswith("1"):
+        return "0"
+    else:
+        return ""
 
 
 def normalizeHourAndMinute() -> str:

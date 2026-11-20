@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from utils.model import StockModelDo
 from utils.database import Detail
 from utils.http_client import http, cffi_request
-from utils.results import getStockRegion, getStockRegionNum
+from utils.common import getStockRegion, getStockRegionNum
 
 
 logger = logging.getLogger(__name__)
@@ -281,8 +281,10 @@ async def getStockZhuLiFundFromTencentL5D(code: str) -> float:
         for item in day_list:
             day = item['date'].replace('-', '')
             fund = round(float(item['mainNetIn']) / 10000, 2)
-            await Detail.update((code, day), fund=fund)
-            logger.info(f"{code} L5D fund - {day} - {fund}")
+            detail = await Detail.get_one((code, day))
+            if not detail.fund or detail.fund == 0:
+                await Detail.update((code, day), fund=fund)
+                logger.info(f"{code} L5D fund - {day} - {fund}")
     except:
         logger.error(traceback.format_exc())
 
