@@ -191,7 +191,7 @@ async def queryByCodeForAI(code: str, limit: int = 40, flag: bool = True) -> Opt
             if stockDo:
                 if stock_data[-1]['day'] == day:
                     _ = stock_data.pop()
-                today = {'code': code, 'name': '', 'day': day, 'current_price': stockDo['current_price'], 'last_price': 0,
+                today = {'code': code, 'name': '', 'day': day, 'current_price': stockDo['current_price'], 'last_price': stockDo['last_price'],
                          'open_price': stockDo['open_price'], 'max_price': stockDo['max_price'], 'min_price': stockDo['min_price'],
                          'volume': stockDo['volume'], 'fund': stockDo['fund'], 'ma_five': stockDo['ma_five'], 'ma_ten': stockDo['ma_ten'],
                          'ma_twenty': stockDo['ma_twenty'], 'qrr': stockDo['qrr'], 'diff': round(stockDo['diff'], 3), 'dea': round(stockDo['dea'], 3),
