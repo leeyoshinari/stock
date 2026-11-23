@@ -93,8 +93,8 @@ def real_traded_minutes() -> int:
     return traded
 
 
-def calc_MA(data: list, window: int) -> float:
-    return round(sum(data[:window]) / len(data[:window]), 2)
+def calc_MA(data: list, window: int, digit: int = 2) -> float:
+    return round(sum(data[:window]) / len(data[:window]), digit)
 
 
 def calc_macd(price: float, ema_s: float, ema_l: float, dea: float) -> dict:
@@ -121,8 +121,10 @@ def calc_kdj(price: float, high_price: list, low_price: list, kdjk: float, kdjd:
 async def calc_stock_real_data(code: str) -> dict[str, Any]:
     isEtf = code.startswith('1') or code.startswith('5')
     if isEtf:
+        digit = 3
         res_stock: dict = await getStockHqFromTencent('', [{code: "-", f"{code}count": 5}])
     else:
+        digit = 2
         res_stock: dict = await getStockHq('', [{code: "-", f"{code}count": 5}])
     if not res_stock['data']:
         return None
@@ -146,9 +148,9 @@ async def calc_stock_real_data(code: str) -> dict[str, Any]:
     average_volume = average_volume if average_volume > 0 else stockDo['volume']
     macd = calc_macd(stockDo['current_price'], emas, emal, dea)
     kdj = calc_kdj(stockDo['current_price'], high_price, low_price, kdjk, kdjd)
-    stockDo.update({'ma_five': calc_MA(stock_price, 5)})
-    stockDo.update({'ma_ten': calc_MA(stock_price, 10)})
-    stockDo.update({'ma_twenty': calc_MA(stock_price, 20)})
+    stockDo.update({'ma_five': calc_MA(stock_price, 5, digit)})
+    stockDo.update({'ma_ten': calc_MA(stock_price, 10, digit)})
+    stockDo.update({'ma_twenty': calc_MA(stock_price, 20, digit)})
     stockDo.update({'qrr': round(stockDo['volume'] / average_volume, 2)})
     stockDo.update({'diff': macd['emas'] - macd['emal']})
     stockDo.update({'dea': macd['dea']})
@@ -159,7 +161,7 @@ async def calc_stock_real_data(code: str) -> dict[str, Any]:
     stockDo.update({'shares': stockDo['shares'] if isEtf else 0})
     stockDo.update({'premium': stockDo['premium'] if isEtf else 0})
     stockDo.update({'fund': await getStockZhuLiFund(code)})
-    up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20))
+    up, dn = bollinger_bands(stock_price[:20], calc_MA(stock_price, 20, digit))
     stockDo.update({'boll_up': round(up, 2)})
     stockDo.update({'boll_low': round(dn, 2)})
     logger.info(stockDo)

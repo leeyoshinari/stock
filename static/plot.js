@@ -124,7 +124,7 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
           gridIndex: 3,
           data: x,
           boundaryGap: false,
-          axisLine: { onZero: true },
+          axisLine: { show: false, onZero: true },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: { show: false },

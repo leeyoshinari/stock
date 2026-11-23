@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from utils.model import StockModelDo
 from utils.database import Detail
 from utils.http_client import http, cffi_request
-from utils.common import getStockRegion, getStockRegionNum
+from utils.common import getStockRegion, getStockRegionNum, calc_MA
 
 
 logger = logging.getLogger(__name__)
@@ -22,21 +22,21 @@ headers = {
 }
 
 
-def calc_MA(data: List, window: int, digit: int = 2) -> float:
-    return round(sum(data[-window:]) / len(data[-window:]), digit)
+# def calc_MA(data: List, window: int, digit: int = 2) -> float:
+#     return round(sum(data[-window:]) / len(data[-window:]), digit)
 
 
-def calc_ema(current_price, previous_ema, period) -> float:
-    alpha = 2 / (period + 1)
-    return (current_price - previous_ema) * alpha + previous_ema
+# def calc_ema(current_price, previous_ema, period) -> float:
+#     alpha = 2 / (period + 1)
+#     return (current_price - previous_ema) * alpha + previous_ema
 
 
-def calc_macd(current_price, pre_ema_12, pre_ema_26, pre_dea) -> List[float]:
-    ema12 = calc_ema(current_price, pre_ema_12, 12)
-    ema26 = calc_ema(current_price, pre_ema_26, 26)
-    dif = ema12 - ema26
-    dma = calc_ema(dif, pre_dea, 9)
-    return {'dif': dif, 'dma': dma, 'ema12': ema12, 'ema26': ema26}
+# def calc_macd(current_price, pre_ema_12, pre_ema_26, pre_dea) -> List[float]:
+#     ema12 = calc_ema(current_price, pre_ema_12, 12)
+#     ema26 = calc_ema(current_price, pre_ema_26, 26)
+#     dif = ema12 - ema26
+#     dma = calc_ema(dif, pre_dea, 9)
+#     return {'dif': dif, 'dma': dma, 'ema12': ema12, 'ema26': ema26}
 
 
 def bollinger_bands(prices, middle, n=20, k=2):
