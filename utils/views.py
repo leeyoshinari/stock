@@ -42,7 +42,7 @@ async def queryByCode(code: str, userId: int = None) -> Result:
         current_day = time.strftime("%Y%m%d")
         current_time = time.strftime("%H:%M:%S")
         stockInfo: list[Detail] = await Detail.query().equal(code=code).order_by(Detail.day.asc()).all()
-        need_newest = current_day == stockInfo[-1].day and current_time > "09:30:00" and current_time < "15:30:00"
+        need_newest = day == stockInfo[-1].day and current_time > "09:30:00" and current_time < "15:30:00" and current_day == day
         if need_newest:
             stockInfo.pop()
         data = [[getattr(row, k) for k in ['open_price', 'current_price', 'min_price', 'max_price', 'volume', 'qrr', 'emas', 'emal', 'dea', 'turnover_rate', 'fund']] for row in stockInfo]
@@ -99,7 +99,7 @@ async def queryByCode(code: str, userId: int = None) -> Result:
                 if create_time > past_date:
                     coords.append([r.status, r.create_time.strftime("%Y%m%d"), r.price, r.shares, r.fee])
 
-        if need_newest:
+        if day != stockInfo[-1].day:
             stockDo: dict = await calc_stock_real_data(code)
             if stockDo:
                 x.append(day)
