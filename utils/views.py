@@ -5,21 +5,19 @@
 import time
 import json
 import logging
-import asyncio
+# import asyncio
 import traceback
-import aiofiles
+# import aiofiles
 from datetime import datetime, timedelta
 from utils.model import SearchStockParam, StockModelDo, StockMinuteDo, updateFundDo
 from utils.model import StockInfoList, ToolsInfoList, SetStockParam, TradeRecordList
 from utils.model import EtfInfoList, TradeStockList, SetStockHold, AnalysisResultList
 from utils.results import Result
-from utils.common import calc_stock_real_data, get_past_date, queryByCodeForAI, get_holding
-from utils.send_email import sendEmail
-from utils.etfData import pre_filter_etf
-from utils.scheduler import scheduler
+from utils.common import calc_stock_real_data, get_past_date, queryByCodeForAI, get_holding, get_today_hold
+# from utils.etfData import pre_filter_etf
+# from utils.scheduler import scheduler
 from utils.aiAnalyzer import AsyncETFAnalyzer, analyze_etf_from_news, analyze_buy_etf
 from utils.initData import initStockData, getStockFundFlow
-from utils.queryStockHq import getStockHqFromTencent, getStockHq
 from utils.queryStockHq import getMinuteKFromDongcai, getMinuteKFromSina
 from utils.database import Stock, Detail, Tools, ETF, Transaction, TradeType, Capital, Analysis
 from settings import DEFAULT_USER_ID, EMAIL_TEMPLATE, EXCLUSIVE_ETF_LIST, TOTAL_FUND, DEFAULT_AI_RESULT
@@ -486,18 +484,6 @@ async def getTradeData() -> Result:
     return result
 
 
-async def get_today_hold() -> dict:
-    status = [TradeType.TEMB, TradeType.TEMS, TradeType.FAIL]
-    today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
-    todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
-    holdList = await get_holding(user_id=DEFAULT_USER_ID)
-    for h in holdList:
-        detail: Detail = await Detail.query().equal(code=h['code']).order_by(Detail.day.desc()).first()
-        h['price'] = round(h['price'], 3)
-        h['profit'] = round((detail.current_price - h['price']) * h['shares'], 2)
-    return {'todayList': todayList, 'holdList': holdList}
-
-
 async def test(code: ToolsInfoList) -> Result:
     result = Result()
     try:
@@ -507,22 +493,22 @@ async def test(code: ToolsInfoList) -> Result:
     return result
 
 
-async def analysizeEtfFromNews() -> Result:
-    """从财经新闻中筛选出ETF"""
-    result = Result()
-    try:
-        res = await getEtf()
-        tool = await Tools.get_one("openDoor")
-        open_time = tool.value
-        lastDay = f"{open_time[:4]}-{open_time[4:6]}-{open_time[6:]} 16:00:00"
-        resp = await analyze_etf_from_news(res.data, lastDay)
-        result.data = resp
-        logger.info(f"从新闻中提取出的ETF结果 {resp}")
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        result.success = False
-        result.msg = str(e)
-    return result
+# async def analysizeEtfFromNews() -> Result:
+#     """从财经新闻中筛选出ETF"""
+#     result = Result()
+#     try:
+#         res = await getEtf()
+#         tool = await Tools.get_one("openDoor")
+#         open_time = tool.value
+#         lastDay = f"{open_time[:4]}-{open_time[4:6]}-{open_time[6:]} 16:00:00"
+#         resp = await analyze_etf_from_news(res.data, lastDay)
+#         result.data = resp
+#         logger.info(f"从新闻中提取出的ETF结果 {resp}")
+#     except Exception as e:
+#         logger.error(traceback.format_exc())
+#         result.success = False
+#         result.msg = str(e)
+#     return result
 
 
 async def getAnalysizeResult(code: str, userId: int, day: str = None) -> Result:
@@ -622,266 +608,245 @@ async def analysize(code: str, userId: int, hold: list[dict] = None, kline: list
 ''' ======================== Scheduler ========================  '''
 
 
-async def write_analysize_result(data: dict):
-    """将分析结果写入到数据库中"""
-    operation = data['action_plan']['operation']
-    amount = float(data['action_plan']['operation_amount'])
-    shares = int(data['action_plan']['operation_shares'])
-    if shares < 100:
-        logger.error(f"分析结果异常，建议股数不正确 - {data}")
-        return
-    price = round(amount / shares, 3)
-    code = data['code']
-    name = data['name']
+# async def write_analysize_result(data: dict):
+#     """将分析结果写入到数据库中"""
+#     operation = data['action_plan']['operation']
+#     amount = float(data['action_plan']['operation_amount'])
+#     shares = int(data['action_plan']['operation_shares'])
+#     if shares < 100:
+#         logger.error(f"分析结果异常，建议股数不正确 - {data}")
+#         return
+#     price = round(amount / shares, 3)
+#     code = data['code']
+#     name = data['name']
 
-    if operation in ['建仓', '加仓']:
-        status = TradeType.TEMB
-    elif operation in ['减仓', '清仓']:
-        status = TradeType.TEMS
-    else:
-        return
-    await Transaction.create(code=code, name=name, price=price, shares=shares, status=status, user_id=DEFAULT_USER_ID, flag=0)
-
-
-async def auto_analysize_etf():
-    """每天自动分析 ETF"""
-    tool: Tools = await Tools.get_one("openDoor")
-    if tool.value != time.strftime("%Y%m%d"):
-        logger.info("今天未开市，跳过...")
-        return
-
-    # 先删除交易失败的数据
-    await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.FAIL).delete()
-    capital: Capital = await Capital.get_one(tool.value)
-    available = capital.available
-    # logger.info("🚀 开始获取新闻，分析筛选ETF")
-    # etfData = []
-    # result = await analysizeEtfFromNews()
-    # if result.success:
-    #     # 兼容AI不同的返回格式
-    #     if isinstance(result.data, dict):
-    #         if 'result' in result.data:
-    #             etfData = result.data['result'] if isinstance(result.data['result'], list) else [result.data['result']]
-    #         else:
-    #             etfData = [result.data]
-    #     else:
-    #         etfData = result.data
-    #     logger.info(f"✅ 从财经新闻中筛选出 ETF 成功 - {result}")
-    # else:
-    #     logger.error(f"❌ Error: 从财经新闻中筛选出 ETF 失败 - {result}")
-    hold_res = await get_holding(user_id=DEFAULT_USER_ID)
-    etf_res = await getEtf()
-    hold_code_list = [f['code'] for f in hold_res]
-    hold_etf_list = [f for f in etf_res.data if f["代码"] in hold_code_list]
-    not_hold_etf_list = [f for f in etf_res.data if f["代码"] not in hold_code_list]
-    all_etf = hold_etf_list + not_hold_etf_list
-    for r in all_etf:
-        code = r["代码"]
-        if code in EXCLUSIVE_ETF_LIST:
-            continue
-        # news_etf_data = [etf for etf in etfData if etf['code'] == code]
-        # news_etf_result = news_etf_data[0]['reason'] if news_etf_data else None
-        logger.info(f"📡 开始分析 ETF - {r}")
-        detail_res: Result = await queryByCodeForAI(code, 30)
-        hold = await get_holding(user_id=DEFAULT_USER_ID, code=code)
-        if not detail_res.success:
-            logger.error(f"Get K-line Error: code:{code}, {detail_res.msg}")
-            continue
-        if len(hold) < 1:    # 如果未持仓，则需要预过滤，已持仓则直接走AI决策
-            res_flag, reason = pre_filter_etf(detail_res.data)
-            if not res_flag:
-                default_result = DEFAULT_AI_RESULT
-                default_result["date"] = f"{tool.value[:4]}-{tool.value[4:6]}-{tool.value[6:]}"
-                default_result["code"] = code
-                default_result["name"] = r["名称"]
-                default_result["core_logic"] = reason
-                default_result["detailed_analysis"] = reason
-                default_result["action_plan"]["current_position"] = hold
-                default_result["action_plan"]["operation_reason"] = reason
-                await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(default_result, ensure_ascii=False))
-                logger.error(f"❌ Error: 分析 ETF 失败 - {code} - {res_flag} - {reason}")
-                continue
-        res = await analysize(code=code, userId=DEFAULT_USER_ID, hold=hold, kline=detail_res.data, totalFund=capital.total, availableFund=available)
-        if res.success:
-            try:
-                # 所有分析记录保存
-                await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(res.data, ensure_ascii=False))
-                if res.data['action_plan']['operation'] == "不操作":
-                    continue
-                await write_analysize_result(res.data)
-                if res.data['action_plan']['operation'] in ['建仓', '加仓']:
-                    available -= float(res.data['action_plan']['operation_amount'])  # 买入需要扣减可用金额
-                elif res.data['action_plan']['operation'] in ['减仓', '清仓']:
-                    available += float(res.data['action_plan']['operation_amount'])  # 卖出需要加上可用金额
-                available = max(available, 0)
-                logger.info(f"✅ 分析 ETF 成功 - {res.data}")
-            except:
-                logger.error(f"❌ Error: 分析结果入库失败 - {r} - {traceback.format_exc()}")
-        else:
-            default_result = DEFAULT_AI_RESULT
-            default_result["date"] = f"{tool.value[:4]}-{tool.value[4:6]}-{tool.value[6:]}"
-            default_result["code"] = code
-            default_result["name"] = r["名称"]
-            default_result["core_logic"] = res.msg
-            default_result["detailed_analysis"] = res.msg
-            default_result["action_plan"]["current_position"] = hold
-            default_result["action_plan"]["operation_reason"] = res.msg
-            await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(default_result, ensure_ascii=False))
-            logger.error(f"❌ Error: 分析 ETF 失败 - {r} - {res.msg}")
-
-    # 获取持仓数据和今日数据，用于发送邮件
-    await auto_select_email()
-    scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10), misfire_grace_time=10)
+#     if operation in ['建仓', '加仓']:
+#         status = TradeType.TEMB
+#     elif operation in ['减仓', '清仓']:
+#         status = TradeType.TEMS
+#     else:
+#         return
+#     await Transaction.create(code=code, name=name, price=price, shares=shares, status=status, user_id=DEFAULT_USER_ID, flag=0)
 
 
-async def auto_trade_etf():
-    """开盘后自动先卖出、再买入ETF
-    :params status: "B"-买入, "S"=卖出 """
-    try:
-        tool: Tools = await Tools.get_one("openDoor")
-        current_day = time.strftime("%Y-%m-%d")
-        capital: Capital = await Capital.get_one(tool.value)
-        available = capital.available
-        logger.info(f"current day {capital.day} available fund is {available}.")
-        # 先卖出
-        rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMS).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
-        for r in rows:
-            current_hold = await get_holding(user_id=DEFAULT_USER_ID, code=r.code)
-            real_shares = min(current_hold[0]['shares'], r.shares)
-            res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
-            stockDo: StockModelDo = res_stock['data'][0]
-            fee = max((stockDo.current_price * real_shares) * etf_fee_ratio, 5)
-            # TODO: 真实的操作
-            await Transaction.update(r.id, price=stockDo.current_price, shares=real_shares, fee=round(fee, 2), status=TradeType.AIS)  # 更新真实价格和佣金
-            available = available + (stockDo.current_price * real_shares - fee)
-            logger.info(f"Auto sell {r.code} - {r.name}, price: {stockDo.current_price}, shares: {real_shares}, fee: {fee}, fund: {stockDo.current_price * real_shares - fee}, current available fund is {available}")
-            await asyncio.sleep(1)
+# async def auto_analysize_etf():
+#     """每天自动分析 ETF"""
+#     tool: Tools = await Tools.get_one("openDoor")
+#     if tool.value != time.strftime("%Y%m%d"):
+#         logger.info("今天未开市，跳过...")
+#         return
 
-        # 卖出后更新可用金额
-        await Capital.update(tool.value, available=round(available, 2))
-        logger.info(f"after sell ETF, current available fund is {available}")
-        # 再买入
-        buy_amount = 0.0
-        price_dict = {}
-        rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
-        # 预买入，计算买入需要的金额
-        for r in rows:
-            res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
-            stockDo: StockModelDo = res_stock['data'][0]
-            amount = stockDo.current_price * r.shares   # 真实买入金额
-            fee = max(amount * etf_fee_ratio, 5)
-            buy_amount = buy_amount + amount + fee
-            price_dict.update({r.code: stockDo.current_price})
-            await Transaction.update(r.id, price=stockDo.current_price)  # 更新真实价格
-            await asyncio.sleep(1)
+#     # 先删除交易失败的数据
+#     await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.FAIL).delete()
+#     capital: Capital = await Capital.get_one(tool.value)
+#     available = capital.available
+#     # logger.info("🚀 开始获取新闻，分析筛选ETF")
+#     # etfData = []
+#     # result = await analysizeEtfFromNews()
+#     # if result.success:
+#     #     # 兼容AI不同的返回格式
+#     #     if isinstance(result.data, dict):
+#     #         if 'result' in result.data:
+#     #             etfData = result.data['result'] if isinstance(result.data['result'], list) else [result.data['result']]
+#     #         else:
+#     #             etfData = [result.data]
+#     #     else:
+#     #         etfData = result.data
+#     #     logger.info(f"✅ 从财经新闻中筛选出 ETF 成功 - {result}")
+#     # else:
+#     #     logger.error(f"❌ Error: 从财经新闻中筛选出 ETF 失败 - {result}")
+#     hold_res = await get_holding(user_id=DEFAULT_USER_ID)
+#     etf_res = await getEtf()
+#     hold_code_list = [f['code'] for f in hold_res]
+#     hold_etf_list = [f for f in etf_res.data if f["代码"] in hold_code_list]
+#     not_hold_etf_list = [f for f in etf_res.data if f["代码"] not in hold_code_list]
+#     all_etf = hold_etf_list + not_hold_etf_list
+#     for r in all_etf:
+#         code = r["代码"]
+#         if code in EXCLUSIVE_ETF_LIST:
+#             continue
+#         # news_etf_data = [etf for etf in etfData if etf['code'] == code]
+#         # news_etf_result = news_etf_data[0]['reason'] if news_etf_data else None
+#         logger.info(f"📡 开始分析 ETF - {r}")
+#         detail_res: Result = await queryByCodeForAI(code, 30)
+#         hold = await get_holding(user_id=DEFAULT_USER_ID, code=code)
+#         if not detail_res.success:
+#             logger.error(f"Get K-line Error: code:{code}, {detail_res.msg}")
+#             continue
+#         if len(hold) < 1:    # 如果未持仓，则需要预过滤，已持仓则直接走AI决策
+#             res_flag, reason = pre_filter_etf(detail_res.data)
+#             if not res_flag:
+#                 default_result = DEFAULT_AI_RESULT
+#                 default_result["date"] = f"{tool.value[:4]}-{tool.value[4:6]}-{tool.value[6:]}"
+#                 default_result["code"] = code
+#                 default_result["name"] = r["名称"]
+#                 default_result["core_logic"] = reason
+#                 default_result["detailed_analysis"] = reason
+#                 default_result["action_plan"]["current_position"] = hold
+#                 default_result["action_plan"]["operation_reason"] = reason
+#                 await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(default_result, ensure_ascii=False))
+#                 logger.error(f"❌ Error: 分析 ETF 失败 - {code} - {res_flag} - {reason}")
+#                 continue
+#         res = await analysize(code=code, userId=DEFAULT_USER_ID, hold=hold, kline=detail_res.data, totalFund=capital.total, availableFund=available)
+#         if res.success:
+#             try:
+#                 # 所有分析记录保存
+#                 await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(res.data, ensure_ascii=False))
+#                 if res.data['action_plan']['operation'] == "不操作":
+#                     continue
+#                 await write_analysize_result(res.data)
+#                 if res.data['action_plan']['operation'] in ['建仓', '加仓']:
+#                     available -= float(res.data['action_plan']['operation_amount'])  # 买入需要扣减可用金额
+#                 elif res.data['action_plan']['operation'] in ['减仓', '清仓']:
+#                     available += float(res.data['action_plan']['operation_amount'])  # 卖出需要加上可用金额
+#                 available = max(available, 0)
+#                 logger.info(f"✅ 分析 ETF 成功 - {res.data}")
+#             except:
+#                 logger.error(f"❌ Error: 分析结果入库失败 - {r} - {traceback.format_exc()}")
+#         else:
+#             default_result = DEFAULT_AI_RESULT
+#             default_result["date"] = f"{tool.value[:4]}-{tool.value[4:6]}-{tool.value[6:]}"
+#             default_result["code"] = code
+#             default_result["name"] = r["名称"]
+#             default_result["core_logic"] = res.msg
+#             default_result["detailed_analysis"] = res.msg
+#             default_result["action_plan"]["current_position"] = hold
+#             default_result["action_plan"]["operation_reason"] = res.msg
+#             await Analysis.create(code=code, day=time.strftime("%Y%m%d"), content=json.dumps(default_result, ensure_ascii=False))
+#             logger.error(f"❌ Error: 分析 ETF 失败 - {r} - {res.msg}")
 
-        # 判断可用金额是否足够买入股票
-        if available * 0.95 < buy_amount:  # 0.95是冗余系数，即5%的冗余，避免实际买入超出可用金额
-            today_buy = []
-            for r in rows:
-                ai_content = await getAnalysizeResult(code=r.code, userId=DEFAULT_USER_ID, day=r.create_time.strftime("%Y%m%d"))
-                d = json.loads(ai_content.data['analysis'][0]['content'])
-                d['action_plan']['current_price'] = price_dict[r.code]
-                today_buy.append(d)
-            etf_again = await analyze_buy_etf(capital.total, available * 0.95, today_buy)
-            logger.info(f"由于可用金额不足，再次分析后的结果 - {etf_again}")
-            for r in etf_again:
-                if r['action_plan']['operation'] != '不操作':
-                    shares = int(r['action_plan']['operation_shares'])
-                    if shares < 100:
-                        logger.error(f"分析结果异常，建议股数不正确 - {r}")
-                        continue
-                    await Transaction.query().equal(code=r['code'], status=TradeType.TEMB, user_id=DEFAULT_USER_ID).greater(create_time=current_day + ' 08:30:00').update(shares=shares)
-                else:
-                    await Transaction.query().equal(code=r['code'], status=TradeType.TEMB, user_id=DEFAULT_USER_ID).greater(create_time=current_day + ' 08:30:00').update(status=TradeType.FAIL)
-                    await Analysis.query().equal(code=r['code'], day=tool.value).update(content=json.dumps(r, ensure_ascii=False))
-                    logger.warning(f"由于可用金额不足, 分析后决策不操作 - {r['code']}")
-
-        # 开始真实交易
-        rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
-        for r in rows:
-            res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
-            stockDo: StockModelDo = res_stock['data'][0]
-            curr_price = stockDo.current_price
-            real_shares = r.shares
-            amount = curr_price * real_shares   # 真实买入金额
-            fee = max(amount * etf_fee_ratio, 5)
-            available = available - (amount + fee)
-            if available < 0:   # 如果不够买入，则减少买入数量
-                delta_shares = (int((-1 * available) / (curr_price * 100)) + 1) * 100
-                real_shares = real_shares - delta_shares
-                amount = curr_price * real_shares  # 真实买入金额
-                fee = max(amount * etf_fee_ratio, 5)
-                available = available - (amount + fee)
-            # TODO: 真实的操作
-            await Transaction.update(r.id, price=curr_price, shares=real_shares, fee=round(fee, 2), status=TradeType.RECD)  # 更新真实价格和佣金
-            logger.info(f"Auto buy {r.code} - {r.name}, price: {curr_price}, shares: {real_shares}, fee: {fee}, fund: {amount + fee}, current available fund is {available}")
-            await asyncio.sleep(1)
-
-        # 卖出后更新可用金额
-        await Capital.update(tool.value, available=round(available, 2))
-        logger.info(f"after buy ETF, current available fund is {available}")
-        # await update_holding_capital()
-    except:
-        logger.error(traceback.format_exc())
+#     # 获取持仓数据和今日数据，用于发送邮件
+#     await auto_select_email()
+#     scheduler.add_job(auto_trade_etf, "date", run_date=datetime.now() + timedelta(seconds=10), misfire_grace_time=10)
 
 
-# async def update_holding_capital():
-#     """处理交易记录，更新清仓数据"""
+# async def auto_trade_etf():
+#     """开盘后自动先卖出、再买入ETF
+#     :params status: "B"-买入, "S"=卖出 """
 #     try:
 #         tool: Tools = await Tools.get_one("openDoor")
-#         current_day = tool.value
-#         if current_day == time.strftime("%Y%m%d"):
-#             _ = await get_holding()
-#             res = await get_today_hold()
-#             hold_fund = 0
-#             for r in res['holdList']:
-#                 hold_fund += r["price"] * r['shares'] + r['profit']
+#         current_day = time.strftime("%Y-%m-%d")
+#         capital: Capital = await Capital.get_one(tool.value)
+#         available = capital.available
+#         logger.info(f"current day {capital.day} available fund is {available}.")
+#         # 先卖出
+#         rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMS).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
+#         for r in rows:
+#             current_hold = await get_holding(user_id=DEFAULT_USER_ID, code=r.code)
+#             real_shares = min(current_hold[0]['shares'], r.shares)
+#             res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
+#             stockDo: StockModelDo = res_stock['data'][0]
+#             fee = max((stockDo.current_price * real_shares) * etf_fee_ratio, 5)
+#             # TODO: 真实的操作
+#             await Transaction.update(r.id, price=stockDo.current_price, shares=real_shares, fee=round(fee, 2), status=TradeType.AIS)  # 更新真实价格和佣金
+#             available = available + (stockDo.current_price * real_shares - fee)
+#             logger.info(f"Auto sell {r.code} - {r.name}, price: {stockDo.current_price}, shares: {real_shares}, fee: {fee}, fund: {stockDo.current_price * real_shares - fee}, current available fund is {available}")
+#             await asyncio.sleep(1)
 
-#             # 更新当天沪深300指数价格
-#             res: dict = await getStockHqFromTencent('', [{"sh000300": "沪深300", "sh000300count": 5}])
-#             stockDo: StockModelDo = res['data'][0]
-#             capital: Capital = await Capital.get_one(current_day)
-#             await Capital.update(current_day, total=round(capital.available + hold_fund, 2), hold=round(hold_fund, 2), campare=stockDo.current_price)
+#         # 卖出后更新可用金额
+#         await Capital.update(tool.value, available=round(available, 2))
+#         logger.info(f"after sell ETF, current available fund is {available}")
+#         # 再买入
+#         buy_amount = 0.0
+#         price_dict = {}
+#         rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
+#         # 预买入，计算买入需要的金额
+#         for r in rows:
+#             res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
+#             stockDo: StockModelDo = res_stock['data'][0]
+#             amount = stockDo.current_price * r.shares   # 真实买入金额
+#             fee = max(amount * etf_fee_ratio, 5)
+#             buy_amount = buy_amount + amount + fee
+#             price_dict.update({r.code: stockDo.current_price})
+#             await Transaction.update(r.id, price=stockDo.current_price)  # 更新真实价格
+#             await asyncio.sleep(1)
+
+#         # 判断可用金额是否足够买入股票
+#         if available * 0.95 < buy_amount:  # 0.95是冗余系数，即5%的冗余，避免实际买入超出可用金额
+#             today_buy = []
+#             for r in rows:
+#                 ai_content = await getAnalysizeResult(code=r.code, userId=DEFAULT_USER_ID, day=r.create_time.strftime("%Y%m%d"))
+#                 d = json.loads(ai_content.data['analysis'][0]['content'])
+#                 d['action_plan']['current_price'] = price_dict[r.code]
+#                 today_buy.append(d)
+#             etf_again = await analyze_buy_etf(capital.total, available * 0.95, today_buy)
+#             logger.info(f"由于可用金额不足，再次分析后的结果 - {etf_again}")
+#             for r in etf_again:
+#                 if r['action_plan']['operation'] != '不操作':
+#                     shares = int(r['action_plan']['operation_shares'])
+#                     if shares < 100:
+#                         logger.error(f"分析结果异常，建议股数不正确 - {r}")
+#                         continue
+#                     await Transaction.query().equal(code=r['code'], status=TradeType.TEMB, user_id=DEFAULT_USER_ID).greater(create_time=current_day + ' 08:30:00').update(shares=shares)
+#                 else:
+#                     await Transaction.query().equal(code=r['code'], status=TradeType.TEMB, user_id=DEFAULT_USER_ID).greater(create_time=current_day + ' 08:30:00').update(status=TradeType.FAIL)
+#                     await Analysis.query().equal(code=r['code'], day=tool.value).update(content=json.dumps(r, ensure_ascii=False))
+#                     logger.warning(f"由于可用金额不足, 分析后决策不操作 - {r['code']}")
+
+#         # 开始真实交易
+#         rows: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).greater(create_time=current_day + ' 08:30:00').less(fee=0.1).all()
+#         for r in rows:
+#             res_stock: dict = await getStockHq('', [{r.code: r.name, f"{r.code}count": 5}])
+#             stockDo: StockModelDo = res_stock['data'][0]
+#             curr_price = stockDo.current_price
+#             real_shares = r.shares
+#             amount = curr_price * real_shares   # 真实买入金额
+#             fee = max(amount * etf_fee_ratio, 5)
+#             available = available - (amount + fee)
+#             if available < 0:   # 如果不够买入，则减少买入数量
+#                 delta_shares = (int((-1 * available) / (curr_price * 100)) + 1) * 100
+#                 real_shares = real_shares - delta_shares
+#                 amount = curr_price * real_shares  # 真实买入金额
+#                 fee = max(amount * etf_fee_ratio, 5)
+#                 available = available - (amount + fee)
+#             # TODO: 真实的操作
+#             await Transaction.update(r.id, price=curr_price, shares=real_shares, fee=round(fee, 2), status=TradeType.RECD)  # 更新真实价格和佣金
+#             logger.info(f"Auto buy {r.code} - {r.name}, price: {curr_price}, shares: {real_shares}, fee: {fee}, fund: {amount + fee}, current available fund is {available}")
+#             await asyncio.sleep(1)
+
+#         # 卖出后更新可用金额
+#         await Capital.update(tool.value, available=round(available, 2))
+#         logger.info(f"after buy ETF, current available fund is {available}")
+#         # await update_holding_capital()
 #     except:
 #         logger.error(traceback.format_exc())
 
 
-async def auto_select_email():
-    try:
-        tradeStatus = {"TEMB": "买入", "TEMS": "卖出", "RECD": "买入", "AIS": "卖出"}
-        res = await get_today_hold()
-        today_str = ''
-        hold_str = ''
-        for r in res['todayList']:
-            if r['status'] not in tradeStatus:
-                continue
-            ai_content = await getAnalysizeResult(code=r['code'], userId=DEFAULT_USER_ID, day=r['create_time'].replace('-', ''))
-            content = json.loads(ai_content.data['analysis'][0]['content'])
-            operation = content['action_plan']['operation']
-            share = ''
-            if operation != '':
-                share = f'''<strong style="margin-left:15px;">股数: </strong>{content['action_plan']['operation_shares']}'''
-            today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;"><details style="color: #0052d9; cursor: pointer;">
-                <summary style="outline: none; font-weight: bold; color: #0052d9; cursor: pointer;">点我</summary>
-                <div style="position: absolute; top: 28px; left: 50%; margin-left: -210px; z-index: 999; width: 318px; height: 66%; overflow-y: auto; background-color: #ffffff; border: 1px solid #cccccc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 15px; border-radius: 6px; line-height: 1.6;">
-                    <p style="margin: 0 0 10px 0;"><strong>评级: </strong>{content['rating']}<strong style="margin-left:15px;">操作: </strong>{operation}{share}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>核心观点: </strong>{content['core_logic'].replace('\\n', '\n')}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>详细分析: </strong>{content['detailed_analysis'].replace('\\n', '\n')}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>风险点: </strong>{content['risk_warning'].replace('\\n', '\n')}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>操作理由: </strong>{content['action_plan']['operation_reason'].replace('\\n', '\n')}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>点位: </strong>{content['action_plan']['stop_loss_profit']}</p>
-                </div></details></td></tr>'''
-        for r in res['holdList']:
-            hold_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['profit']}</td></tr>'''
-        async with aiofiles.open(EMAIL_TEMPLATE, 'r', encoding='utf-8') as f:
-            template = await f.read()
-        template = template.replace("today_filter_stock", today_str).replace("has_hold_stock", hold_str)
-        sendEmail("今日数据", template)
-        logger.info("send email success ~")
-    except:
-        logger.error(traceback.format_exc())
+# async def auto_select_email():
+#     try:
+#         tradeStatus = {"TEMB": "买入", "TEMS": "卖出", "RECD": "买入", "AIS": "卖出"}
+#         res = await get_today_hold()
+#         today_str = ''
+#         hold_str = ''
+#         for r in res['todayList']:
+#             if r['status'] not in tradeStatus:
+#                 continue
+#             ai_content = await getAnalysizeResult(code=r['code'], userId=DEFAULT_USER_ID, day=r['create_time'].replace('-', ''))
+#             content = json.loads(ai_content.data['analysis'][0]['content'])
+#             operation = content['action_plan']['operation']
+#             share = ''
+#             if operation != '':
+#                 share = f'''<strong style="margin-left:15px;">股数: </strong>{content['action_plan']['operation_shares']}'''
+#             today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
+#             <td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}(待成交)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td>
+#             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;"><details style="color: #0052d9; cursor: pointer;">
+#                 <summary style="outline: none; font-weight: bold; color: #0052d9; cursor: pointer;">点我</summary>
+#                 <div style="position: absolute; top: 28px; left: 50%; margin-left: -210px; z-index: 999; width: 318px; height: 66%; overflow-y: auto; background-color: #ffffff; border: 1px solid #cccccc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 15px; border-radius: 6px; line-height: 1.6;">
+#                     <p style="margin: 0 0 10px 0;"><strong>评级: </strong>{content['rating']}<strong style="margin-left:15px;">操作: </strong>{operation}{share}</p>
+#                     <p style="margin: 0 0 10px 0;"><strong>核心观点: </strong>{content['core_logic'].replace('\\n', '\n')}</p>
+#                     <p style="margin: 0 0 10px 0;"><strong>详细分析: </strong>{content['detailed_analysis'].replace('\\n', '\n')}</p>
+#                     <p style="margin: 0 0 10px 0;"><strong>风险点: </strong>{content['risk_warning'].replace('\\n', '\n')}</p>
+#                     <p style="margin: 0 0 10px 0;"><strong>操作理由: </strong>{content['action_plan']['operation_reason'].replace('\\n', '\n')}</p>
+#                     <p style="margin: 0 0 10px 0;"><strong>点位: </strong>{content['action_plan']['stop_loss_profit']}</p>
+#                 </div></details></td></tr>'''
+#         for r in res['holdList']:
+#             hold_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
+#             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}</td>
+#             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['profit']}</td></tr>'''
+#         async with aiofiles.open(EMAIL_TEMPLATE, 'r', encoding='utf-8') as f:
+#             template = await f.read()
+#         template = template.replace("today_filter_stock", today_str).replace("has_hold_stock", hold_str)
+#         sendEmail("今日数据", template)
+#         logger.info("send email success ~")
+#     except:
+#         logger.error(traceback.format_exc())

@@ -10,20 +10,21 @@ import random
 import logging
 import asyncio
 import traceback
-from typing import Any, Optional
+import aiofiles
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
 from settings import BATCH_SIZE, BATCH_INTERVAL, HTTP_HOST_CLOUD, HTTP_HOST_VERCEL, HTTP_HOST_NETLIFY
-from settings import BASE_PATH, BACKUP_PATH, SENDER_EMAIL, EMAIL_PASSWORD, DEFAULT_USER_ID
+from settings import BASE_PATH, BACKUP_PATH, EMAIL_TEMPLATE, DEFAULT_USER_ID
 from settings import stock_fee_ratio, etf_fee_ratio, stamp_duty
-from utils.model import StockModelDo, StockDataList
+from utils.model import StockModelDo
 from utils.dispatcher import AsyncRoundRobinDispatcher
 from utils.scheduler import scheduler
 from utils.http_client import http
 from utils.backup import zip_file
 from utils.send_email import sendEmail
-from utils.common import calc_MA, calc_macd, calc_kdj, get_past_date, real_traded_minutes, queryByCodeForAI, get_holding
 from utils.initData import initStockData
+from utils.common import calc_MA, calc_macd, calc_kdj, get_past_date, real_traded_minutes
+from utils.common import queryByCodeForAI, get_holding, get_today_hold
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu, getStockHq
 from utils.metric import bollinger_bands, check_confirmation, detect_buy, detect_sell
 from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent, getStockDivideData
@@ -794,8 +795,10 @@ async def buy_confirm():
         available = capital.available
         logger.info(f"buy stock task: current day {capital.day} available fund is {available}.")
 
-        trans_temp: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.TEMB).all()
+        trans_temp: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.TEMB, flag=0).all()
         for r in trans_temp:
+            if r.code.startswith("1") or r.code.startswith("5"):
+                continue
             k_line = await queryByCodeForAI(r.code, limit=40)
             confirmed, buy_price = check_confirmation(k_line)
             if confirmed and buy_price is not None:
@@ -817,8 +820,10 @@ async def auto_sell():
         available = capital.available
         logger.info(f"sell stock task: current day {capital.day} available fund is {available}.")
 
-        trans_temp: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.RECD).all()
+        trans_temp: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, status=TradeType.RECD, flag=0).all()
         for r in trans_temp:
+            if r.code.startswith("1") or r.code.startswith("5"):
+                continue
             k_line = await queryByCodeForAI(r.code, limit=40)
             position = {'day': r.create_time.strftime("%Y%m%d"), 'code': r.code, 'name': r.name, 'price': r.price, 'shares': r.shares}
             res = detect_sell(k_line, position)
@@ -861,5 +866,30 @@ async def update_holding_capital():
             stockDo: StockModelDo = res['data'][0]
             capital: Capital = await Capital.get_one(current_day)
             await Capital.update(current_day, total=round(capital.available + hold_fund, 2), hold=round(hold_fund, 2), campare=stockDo.current_price)
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def auto_select_email():
+    try:
+        tradeStatus = {"TEMB": "买入", "TEMS": "卖出", "RECD": "买入", "AIS": "卖出"}
+        res = await get_today_hold()
+        today_str = ''
+        hold_str = ''
+        for r in res['todayList']:
+            if r['status'] not in tradeStatus:
+                continue
+            today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}(待确认)</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;"></td></tr>'''
+        for r in res['holdList']:
+            hold_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['profit']}</td></tr>'''
+        async with aiofiles.open(EMAIL_TEMPLATE, 'r', encoding='utf-8') as f:
+            template = await f.read()
+        template = template.replace("today_filter_stock", today_str).replace("has_hold_stock", hold_str)
+        sendEmail("今日数据", template)
+        logger.info("send email success ~")
     except:
         logger.error(traceback.format_exc())

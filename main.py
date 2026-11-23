@@ -180,20 +180,20 @@ class StockController(Controller):
     @post('/test')
     async def test(self, request: Request, idx: str, code: str) -> Result:
         result = Result()
-        if code != ACCESS_KEY:
+        if ACCESS_KEY and code != ACCESS_KEY:
             return result
-        if idx == 'auto_trade_etf':
-            await views.auto_trade_etf()
+        # if idx == 'auto_trade_etf':
+        #     await views.auto_trade_etf()
         if idx == 'auto_trade':
             await getStock.auto_trade()
         if idx == 'get_today_hold':
             result.data = await views.get_today_hold()
-        if idx == 'auto_analysize_etf':
-            await views.auto_analysize_etf()
+        # if idx == 'auto_analysize_etf':
+        #     await views.auto_analysize_etf()
         if idx == 'update_holding_capital':
             await getStock.update_holding_capital()
         if idx == 'auto_select_email':
-            await views.auto_select_email()
+            await getStock.auto_select_email()
         if idx == 'updateStockDivideData':
             await getStock.updateStockDivideData()
         if idx == 'checkTradeDay':

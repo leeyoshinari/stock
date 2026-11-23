@@ -8,8 +8,8 @@ import traceback
 from typing import Any, Optional
 from datetime import datetime, timedelta
 from utils.queryStockHq import getStockHqFromTencent, getStockHq
-from utils.model import StockModelDo, StockDataList
-from utils.database import Stock, Detail, Tools, Capital, ETF, Transaction, TradeType
+from utils.model import StockModelDo, StockDataList, TradeStockList
+from utils.database import Detail, Tools, Transaction, TradeType
 from utils.selectStock import getStockZhuLiFund
 from utils.metric import bollinger_bands
 from settings import DEFAULT_USER_ID
@@ -305,3 +305,15 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
     except:
         logger.error(f"{user_id} - {code} - {traceback.format_exc()}")
     return result
+
+
+async def get_today_hold() -> dict:
+    status = [TradeType.TEMB, TradeType.TEMS, TradeType.FAIL]
+    today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
+    todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
+    holdList = await get_holding(user_id=DEFAULT_USER_ID)
+    for h in holdList:
+        detail: Detail = await Detail.query().equal(code=h['code']).order_by(Detail.day.desc()).first()
+        h['price'] = round(h['price'], 3)
+        h['profit'] = round((detail.current_price - h['price']) * h['shares'], 2)
+    return {'todayList': todayList, 'holdList': holdList}
