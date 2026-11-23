@@ -15,7 +15,7 @@ from litestar.openapi.plugins import SwaggerRenderPlugin
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.template.config import TemplateConfig
 from litestar.static_files.config import StaticFilesConfig
-from settings import PREFIX, HOST, PORT, checkout, RUN_ENV
+from settings import PREFIX, HOST, PORT, checkout, RUN_ENV, ACCESS_KEY
 from utils.scheduler import scheduler
 from utils.database import Database, write_worker
 from utils.results import Result
@@ -178,19 +178,24 @@ class StockController(Controller):
         return result
 
     @post('/test')
-    async def test(self, request: Request, idx: str) -> Result:
+    async def test(self, request: Request, idx: str, code: str) -> Result:
+        result = Result()
+        if code != ACCESS_KEY:
+            return result
         if idx == 'auto_trade_etf':
-            result = await views.auto_trade_etf()
+            await views.auto_trade_etf()
         if idx == 'get_today_hold':
-            result = await views.get_today_hold()
+            result.data = await views.get_today_hold()
         if idx == 'auto_analysize_etf':
-            result = await views.auto_analysize_etf()
+            await views.auto_analysize_etf()
         if idx == 'update_holding_capital':
-            result = await views.update_holding_capital()
+            await getStock.update_holding_capital()
         if idx == 'auto_select_email':
-            result = await views.auto_select_email()
+            await views.auto_select_email()
         if idx == 'updateStockDivideData':
-            result = await getStock.updateStockDivideData()
+            await getStock.updateStockDivideData()
+        if idx == 'checkTradeDay':
+            await getStock.checkTradeDay()
         return result
 
 
@@ -238,10 +243,10 @@ async def lifespan(app: Litestar):
     if RUN_ENV != 'dev':
         scheduler.add_job(getStock.updateEtfShares, 'cron', hour=8, minute=30, second=20, misfire_grace_time=10)    # 更新前一天的ETF份额
         scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)      # 检查今天是否开市
-        # scheduler.add_job(views.auto_analysize_etf, 'cron', hour=14, minute=30, second=0, misfire_grace_time=10)               # 开始分析 ETF
+        scheduler.add_job(getStock.auto_trade, 'cron', hour=14, minute=38, second=0, misfire_grace_time=10)               # 开始分析
         scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新股票数据, 并备份数据库
         # scheduler.add_job(getStock.updateEtfDetail, 'cron', hour='10,11,13,14', minute='0,10,20,30,40,50', second=8, misfire_grace_time=10)            # 更新ETF数据
-        scheduler.add_job(views.update_holding_capital, 'cron', hour='10,11,13,14,15', minute='0,10,20,30,40,50', second=50, misfire_grace_time=10)    # 处理交易记录
+        scheduler.add_job(getStock.update_holding_capital, 'cron', hour='10,11,13,14,15', minute='0,20,40,50', second=50, misfire_grace_time=10)    # 处理交易记录
         scheduler.add_job(getStock.clearStockData, 'cron', day_of_week='sat', hour=0, minute=0, second=20, misfire_grace_time=10)       # 删除数据, 更新股票行业、概念等数据
     scheduler.start()   # 启动定时任务
     worker_task = asyncio.create_task(write_worker())

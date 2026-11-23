@@ -38,7 +38,3 @@ def sendEmail(subject: str, msg: str, flag: str = None):
     smtp.login(sender_email, EMAIL_PASSWORD)
     smtp.sendmail(sender_email, receiver_email, message.as_string())
     smtp.quit()
-
-
-if __name__ == '__main__':
-    sendEmail("测试一下")

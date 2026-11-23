@@ -488,15 +488,8 @@ async def getTradeData() -> Result:
 
 
 async def get_today_hold() -> dict:
-    tools: Tools = await Tools.get_one("openDoor")
-    current_day = f"{tools.value[:4]}-{tools.value[4:6]}-{tools.value[6:]}"
-    num: int = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=[TradeType.TEMB, TradeType.TEMS]).count()
-    if num > 0:  # 已分析但未买入
-        status = [TradeType.TEMB, TradeType.TEMS, TradeType.FAIL]
-        today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
-    else:
-        status = [TradeType.RECD, TradeType.AIS, TradeType.FAIL]
-        today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).greater(create_time=current_day + " 08:00:00").all()
+    status = [TradeType.TEMB, TradeType.TEMS, TradeType.FAIL]
+    today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
     todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
     holdList = await get_holding(user_id=DEFAULT_USER_ID)
     for h in holdList:
@@ -829,31 +822,30 @@ async def auto_trade_etf():
         # 卖出后更新可用金额
         await Capital.update(tool.value, available=round(available, 2))
         logger.info(f"after buy ETF, current available fund is {available}")
-        # hold_fund = await calc_hold_capital()
-        await update_holding_capital()
+        # await update_holding_capital()
     except:
         logger.error(traceback.format_exc())
 
 
-async def update_holding_capital():
-    """处理交易记录，更新清仓数据"""
-    try:
-        tool: Tools = await Tools.get_one("openDoor")
-        current_day = tool.value
-        if current_day == time.strftime("%Y%m%d"):
-            _ = await get_holding()
-            res = await get_today_hold()
-            hold_fund = 0
-            for r in res['holdList']:
-                hold_fund += r["price"] * r['shares'] + r['profit']
+# async def update_holding_capital():
+#     """处理交易记录，更新清仓数据"""
+#     try:
+#         tool: Tools = await Tools.get_one("openDoor")
+#         current_day = tool.value
+#         if current_day == time.strftime("%Y%m%d"):
+#             _ = await get_holding()
+#             res = await get_today_hold()
+#             hold_fund = 0
+#             for r in res['holdList']:
+#                 hold_fund += r["price"] * r['shares'] + r['profit']
 
-            # 更新当天沪深300指数价格
-            res: dict = await getStockHqFromTencent('', [{"sh000300": "沪深300", "sh000300count": 5}])
-            stockDo: StockModelDo = res['data'][0]
-            capital: Capital = await Capital.get_one(current_day)
-            await Capital.update(current_day, total=round(capital.available + hold_fund, 2), hold=round(hold_fund, 2), campare=stockDo.current_price)
-    except:
-        logger.error(traceback.format_exc())
+#             # 更新当天沪深300指数价格
+#             res: dict = await getStockHqFromTencent('', [{"sh000300": "沪深300", "sh000300count": 5}])
+#             stockDo: StockModelDo = res['data'][0]
+#             capital: Capital = await Capital.get_one(current_day)
+#             await Capital.update(current_day, total=round(capital.available + hold_fund, 2), hold=round(hold_fund, 2), campare=stockDo.current_price)
+#     except:
+#         logger.error(traceback.format_exc())
 
 
 async def auto_select_email():

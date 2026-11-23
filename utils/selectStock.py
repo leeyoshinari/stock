@@ -318,7 +318,7 @@ async def getStockDivideData(day: str) -> list[dict]:
                 EX_DIVIDEND_DATE = r['EX_DIVIDEND_DATE']
                 if day in PAY_CASH_DATE or day in EX_DIVIDEND_DATE:
                     result.append({'name': r['SECURITY_NAME_ABBR'], 'code': r['SECURITY_CODE'], 'content': r['HOLDERS_PUBLISH_CONTENT']})
-                    logger.info(f"{r['SECURITY_NAME_ABBR']} - {r['SECURITY_CODE']} - {r['HOLDERS_PUBLISH_CONTENT']} - {r['EXECUTE_CONTENT']} - {r['ASSIGN_PROGRESS']}")
+                    logger.info(f"divide: {r['SECURITY_NAME_ABBR']} - {r['SECURITY_CODE']} - {r['HOLDERS_PUBLISH_CONTENT']} - {r['EXECUTE_CONTENT']} - {r['ASSIGN_PROGRESS']}")
     except:
         logger.error(traceback.format_exc())
     return result

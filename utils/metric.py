@@ -45,7 +45,7 @@ class StrategyConfig:
     hold_above_last: float = 0.99     # 收盘 ≥ 昨收×0.99
 
     # ---------- 买入: 其他 ----------
-    min_score: int = 75               # 综合评分门槛(满分140)
+    min_score: int = 85               # 综合评分门槛(满分140)
     macd_cross_lookback: int = 5      # 近N日内出现新金叉才加满分
     pre_heat_days: int = 5            # 启动前N日若连续过热则降级
     pre_heat_turnover: float = 8.0    # 过热换手率阈值
@@ -113,7 +113,7 @@ def get_score_level(score, cfg):
         return '弱', 0
 
 
-def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dict] = None) -> Optional[dict[str, Any]]:
+def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dict] = None, isFund: bool = True) -> Optional[dict[str, Any]]:
     """
     检测买入信号 —— 检查data的最后一天是否触发买入，（注意：仅产生信号，需T+1确认后才买入）
 
@@ -123,6 +123,7 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
     参数:
         data:      list[dict] - K线数据（最后一天为待判断日）
         cfg:       StrategyConfig - 策略参数
+        isFund:    bool - 是否判断主力资金，第一次筛选无法获取主力资金数据
         positions: list[dict] - 当前持仓 [{'day':..., 'price':..., 'shares':...}]
 
     返回:
@@ -158,7 +159,7 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
         return None
 
     # 主力资金
-    if d['fund'] < 100:
+    if isFund and d['fund'] < 100:
         return None
 
     # 当前价必须大于开盘价，避免高开低走
@@ -358,7 +359,7 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
         'price': d['current_price'],
         'shares': shares,
         'actual_amount': round(d['current_price'] * shares, 2),
-        'reasons': reasons
+        'reasons': ', '.join(reasons)
     }
 
 

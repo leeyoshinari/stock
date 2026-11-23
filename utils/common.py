@@ -118,7 +118,7 @@ def calc_kdj(price: float, high_price: list, low_price: list, kdjk: float, kdjd:
     return {'k': kdjk, 'd': kdjd, 'j': kdjj}
 
 
-async def calc_stock_real_data(code: str) -> dict:
+async def calc_stock_real_data(code: str) -> dict[str, Any]:
     isEtf = code.startswith('1') or code.startswith('5')
     if isEtf:
         res_stock: dict = await getStockHqFromTencent('', [{code: "-", f"{code}count": 5}])

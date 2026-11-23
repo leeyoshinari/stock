@@ -203,6 +203,7 @@ cython_debug/
 .DS_Store
 commonn.py
 backtest.py
+getStock123.py
 pid
 migrate.txt
 sqlite3.db
