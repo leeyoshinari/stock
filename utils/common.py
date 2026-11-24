@@ -309,7 +309,7 @@ async def get_holding(user_id: int = None, code: str = None) -> list[dict]:
 
 async def get_today_hold() -> dict:
     status = [TradeType.TEMB, TradeType.TEMS, TradeType.FAIL]
-    today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID).isin(status=status).all()
+    today: list[Transaction] = await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0).isin(status=status).all()
     todayList = [TradeStockList.from_orm_format(f).model_dump() for f in today]
     holdList = await get_holding(user_id=DEFAULT_USER_ID)
     for h in holdList:

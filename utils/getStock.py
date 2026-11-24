@@ -748,6 +748,9 @@ async def auto_trade():
         days_diff = 2
         past_day = get_past_date(days_diff=days_diff, date_format="%Y-%m-%d") + " 23:59:59"
         await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).less_equal(create_time=past_day).delete()
+
+        # 发送邮件
+        await auto_select_email()
     except:
         logger.error(traceback.format_exc())
 
@@ -887,7 +890,7 @@ async def auto_select_email():
                 continue
             today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}(待确认)</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;"></td></tr>'''
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td></tr>'''
         for r in res['holdList']:
             hold_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}</td>
