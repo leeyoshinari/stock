@@ -198,6 +198,8 @@ class StockController(Controller):
             await getStock.updateStockDivideData()
         if idx == 'checkTradeDay':
             await getStock.checkTradeDay()
+        if idx == 'updateStockDetail':
+            await getStock.updateStockDetail()
         return result
 
 
@@ -247,7 +249,6 @@ async def lifespan(app: Litestar):
         scheduler.add_job(getStock.checkTradeDay, 'cron', hour=9, minute=30, second=50, misfire_grace_time=10)      # 检查今天是否开市
         scheduler.add_job(getStock.auto_trade, 'cron', hour=14, minute=38, second=0, misfire_grace_time=10)               # 开始分析
         scheduler.add_job(getStock.updateStockDetail, 'cron', hour=15, minute=31, second=20, misfire_grace_time=10)            # 收盘后更新股票数据, 并备份数据库
-        # scheduler.add_job(getStock.updateEtfDetail, 'cron', hour='10,11,13,14', minute='0,10,20,30,40,50', second=8, misfire_grace_time=10)            # 更新ETF数据
         scheduler.add_job(getStock.update_holding_capital, 'cron', hour='10,11,13,14,15', minute='0,20,40,50', second=50, misfire_grace_time=10)    # 处理交易记录
         scheduler.add_job(getStock.clearStockData, 'cron', day_of_week='sat', hour=0, minute=0, second=20, misfire_grace_time=10)       # 删除数据, 更新股票行业、概念等数据
     scheduler.start()   # 启动定时任务

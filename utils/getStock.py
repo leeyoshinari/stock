@@ -41,65 +41,69 @@ headers = {
 }
 
 
-async def getStockFromTencent(host: str, datas: list[dict]) -> list[dict]:
+async def getStockFromTencent(host: str, datas: dict[str, str]) -> dict[str, str]:
+    if not datas:
+        return None
     try:
         result: dict = await getStockHqFromTencent(host, datas)
         dataList: list[StockModelDo] = result['data']
-        errorList: list[dict] = result['error']
+        errorDict: dict[str, str] = result['error']
         for d in dataList:
             await saveStockInfo(d)
-        return errorList
+        return errorDict
     except:
         logger.error(f"Tencent({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-        return error_list
+        return datas
 
 
-async def getStockFromXueQiu(host: str, datas: list[dict]) -> list[dict]:
+async def getStockFromXueQiu(host: str, datas: dict[str, str]) -> dict[str, str]:
+    if not datas:
+        return None
     try:
         result: dict = await getStockHqFromXueQiu(host, datas)
         dataList: list[StockModelDo] = result['data']
-        errorList: list[dict] = result['error']
+        errorDict: dict[str, str] = result['error']
         for d in dataList:
             await saveStockInfo(d)
-        return errorList
+        return errorDict
     except:
         logger.error(f"XueQiu({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-        return error_list
+        return datas
 
 
-async def getStockFromSina(host: str, datas: list[dict]) -> list[dict]:
+async def getStockFromSina(host: str, datas: dict[str, str]) -> dict[str, str]:
+    if not datas:
+        return None
     try:
         result: dict = await getStockHqFromSina(host, datas)
         dataList: list[StockModelDo] = result['data']
-        errorList: list[dict] = result['error']
+        errorDict: dict[str, str] = result['error']
         for d in dataList:
             await saveStockInfo(d)
-        return errorList
+        return errorDict
     except:
         logger.error(f"Sina({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-        return error_list
+        return datas
 
 
-async def getEtfFromTencent(host: str, datas: list[dict]) -> list[dict]:
+async def getEtfFromTencent(host: str, datas: dict[str, str]) -> dict[str, str]:
+    if not datas:
+        return None
     await asyncio.sleep(random.random())
     try:
         result: dict = await getStockHqFromTencent(host, datas)
         dataList: list[StockModelDo] = result['data']
-        errorList: list[dict] = result['error']
+        errorDict: dict[str, str] = result['error']
         for d in dataList:
             await saveStockInfo(d)
-        return errorList
+        return errorDict
     except:
         logger.error(f"Tencent({host}) - ETF 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-        return error_list
+        return datas
 
 
 async def saveStockInfo(stockDo: StockModelDo):
@@ -165,59 +169,59 @@ async def saveStockInfo(stockDo: StockModelDo):
                             turnover_rate=stockDo.turnover_rate, boll_up=round(boll_up, digit), boll_low=round(boll_low, digit))
 
 
-async def getStockFromTencentLocal(datas: list[dict]) -> list[dict]:
+async def getStockFromTencentLocal(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromTencent('', datas)
 
 
-async def getStockFromTencentCloud(datas: list[dict]) -> list[dict]:
+async def getStockFromTencentCloud(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromTencent(HTTP_HOST_CLOUD, datas)
 
 
-async def getStockFromTencentVercel(datas: list[dict]) -> list[dict]:
+async def getStockFromTencentVercel(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromTencent(HTTP_HOST_VERCEL, datas)
 
 
-async def getStockFromTencentNetlify(datas: list[dict]) -> list[dict]:
+async def getStockFromTencentNetlify(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromTencent(HTTP_HOST_NETLIFY, datas)
 
 
-async def getStockFromXueQiuLocal(datas: list[dict]) -> list[dict]:
+async def getStockFromXueQiuLocal(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromXueQiu('', datas)
 
 
-async def getStockFromXueQiuCloud(datas: list[dict]) -> list[dict]:
+async def getStockFromXueQiuCloud(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromXueQiu(HTTP_HOST_CLOUD, datas)
 
 
-async def getStockFromXueQiuVercel(datas: list[dict]) -> list[dict]:
+async def getStockFromXueQiuVercel(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromXueQiu(HTTP_HOST_VERCEL, datas)
 
 
-async def getStockFromXueQiuNetlify(datas: list[dict]) -> list[dict]:
+async def getStockFromXueQiuNetlify(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromXueQiu(HTTP_HOST_NETLIFY, datas)
 
 
-async def getStockFromSinaLocal(datas: list[dict]) -> list[dict]:
+async def getStockFromSinaLocal(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromSina('', datas)
 
 
-async def getStockFromSinaCloud(datas: list[dict]) -> list[dict]:
+async def getStockFromSinaCloud(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromSina(HTTP_HOST_CLOUD, datas)
 
 
-async def getStockFromSinaVercel(datas: list[dict]) -> list[dict]:
+async def getStockFromSinaVercel(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromSina(HTTP_HOST_VERCEL, datas)
 
 
-async def getStockFromSinaNetlify(datas: list[dict]) -> list[dict]:
+async def getStockFromSinaNetlify(datas: dict[str, str]) -> dict[str, str]:
     return await getStockFromSina(HTTP_HOST_NETLIFY, datas)
 
 
-async def getEtfFromTencentLocal(datas: list[dict]) -> list[dict]:
+async def getEtfFromTencentLocal(datas: dict[str, str]) -> dict[str, str]:
     return await getEtfFromTencent('', datas)
 
 
-async def getEtfFromTencentCloud(datas: list[dict]) -> list[dict]:
+async def getEtfFromTencentCloud(datas: dict[str, str]) -> dict[str, str]:
     return await getEtfFromTencent(HTTP_HOST_CLOUD, datas)
 
 
@@ -231,18 +235,18 @@ stock_dispatcher = AsyncRoundRobinDispatcher(methods=method_list, max_retries=5,
 etf_dispatcher = AsyncRoundRobinDispatcher(methods=etf_method, max_retries=5, timeout=10, cooldown=100, name="ETF Dispatcher")
 
 
-async def getStockFrom(*args, **kwargs):
+async def getStockFrom(*args, **kwargs) -> dict[str, str]:
     return await stock_dispatcher.call(*args, **kwargs)
 
 
-async def getEtfFrom(*args, **kwargs):
+async def getEtfFrom(*args, **kwargs) -> dict[str, str]:
     return await etf_dispatcher.call(*args, **kwargs)
 
 
 async def updateStockDetail(flag: int = 1):
     tool: Tools = await Tools.get_one("openDoor")
     current_day = tool.value
-    if current_day == time.strftime("%Y%m%d"):
+    if current_day != time.strftime("%Y%m%d"):
         try:
             total_cnt: int = await Stock.query().equal(running=1).count()
             total_batch_size = BATCH_SIZE * All_STOCK_DATA_SIZE
@@ -253,51 +257,34 @@ async def updateStockDetail(flag: int = 1):
                 stockList = []
                 stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.asc()).offset(offset).limit(total_batch_size).all()
                 for s in stockInfo:
-                    stockList.append({s.code: s.name, f'{s.code}count': 1})
+                    stockList.append({s.code: s.name})
                 random.shuffle(stockList)
-                start_time = time.time()
                 for i in range(0, len(stockList), BATCH_SIZE):
-                    result = await getStockFrom(stockList[i: i + BATCH_SIZE])
+                    stockSlice = stockList[i: i + BATCH_SIZE]
+                    stockDict = {k: v for d in stockSlice for k, v in d.items()}
+                    result = await getStockFrom(stockDict)
                     if result:
                         result = await getStockFrom(result)
                         if result:
                             _ = await getStockFrom(result)
                 page += 1
                 logger.info(f"总共 {total_batch} 批次, 当前是第 {page} 批次, 数量 {len(stockList)}...")
-                delta = time.time() - start_time
-                if delta < BATCH_INTERVAL:
-                    await asyncio.sleep(BATCH_INTERVAL - delta)
 
             if flag != 123:
                 etfList = []
                 etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
                 for s in etfInfo:
-                    etfList.append({s.code: s.name, f'{s.code}count': 1})
-                index = int(len(etfList) / 2)
-                results = await asyncio.gather(*[getEtfFrom(d) for d in [etfList[:index], etfList[index:]]], return_exceptions=True)
-                results = await asyncio.gather(*[getEtfFrom(d) for d in results if d], return_exceptions=True)
-                if results:
-                    pass
+                    etfList.append({s.code: s.name})
+                for i in range(0, len(etfList), BATCH_SIZE):
+                    etfSlice = etfList[i: i + BATCH_SIZE]
+                    etfDict = {k: v for d in etfSlice for k, v in d.items()}
+                    result = await getEtfFrom(etfDict)
+                    if result:
+                        _ = await getEtfFrom(result)
                 logger.info(f"总共 {len(etfList)} 个 ETF ...")
 
                 # 更新主力流入数据
                 scheduler.add_job(updateStockFund, "date", run_date=datetime.now() + timedelta(seconds=10), args=[1], misfire_grace_time=10)
-        except:
-            logger.error(traceback.format_exc())
-
-
-async def updateEtfDetail():
-    tool: Tools = await Tools.get_one("openDoor")
-    current_day = tool.value
-    if current_day == time.strftime("%Y%m%d"):
-        try:
-            etfList = []
-            etfInfo: list[ETF] = await ETF.query().equal(running=1).all()
-            for s in etfInfo:
-                etfList.append({s.code: s.name, f'{s.code}count': 1})
-            index = int(len(etfList) / 2)
-            _ = await asyncio.gather(*[getEtfFrom(d) for d in [etfList[:index], etfList[index:]]], return_exceptions=True)
-            logger.info(f"总共 {len(etfList)} 个 ETF ...")
         except:
             logger.error(traceback.format_exc())
 
@@ -756,6 +743,11 @@ async def auto_trade():
 
         # 再新筛选数据
         await auto_buy()
+
+        # 删除已经产出信号的数据，days_diff 是 T+1 or T+2
+        days_diff = 2
+        past_day = get_past_date(days_diff=days_diff, date_format="%Y-%m-%d") + " 23:59:59"
+        await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).less_equal(create_time=past_day).delete()
     except:
         logger.error(traceback.format_exc())
 
@@ -840,6 +832,15 @@ async def auto_sell():
         logger.error(traceback.format_exc())
 
 
+async def clear_auto_temp():
+    try:
+        days_diff = 2
+        past_day = get_past_date(days_diff=days_diff, date_format="%Y-%m-%d") + " 23:59:59"
+        await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).less_equal(create_time=past_day).delete()
+    except:
+        logger.error(traceback.format_exc())
+
+
 async def update_holding_capital():
     """处理交易记录，更新清仓数据"""
     try:
@@ -849,20 +850,25 @@ async def update_holding_capital():
             _ = await get_holding()
             holdList = await get_holding(user_id=DEFAULT_USER_ID)
             hold_fund = 0
+            etfDict = {}
+            stockDict = {}
             for h in holdList:
                 code = h['code']
                 isEtf = code.startswith('1') or code.startswith('5')
                 if isEtf:
-                    res_stock: dict = await getStockHqFromTencent('', [{code: "-", f"{code}count": 5}])
+                    etfDict.update({h['code']: h['name']})
                 else:
-                    res_stock: dict = await getStockHq('', [{code: "-", f"{code}count": 5}])
-                if not res_stock['data']:
-                    continue
-                stockModelDo: StockModelDo = res_stock['data'][0]
-                hold_fund += round(stockModelDo.current_price * h['shares'], 2)
+                    stockDict.update({h['code']: h['name']})
+
+            _ = await getStockFrom(stockDict)
+            _ = await getEtfFrom(etfDict)
+
+            for h in holdList:
+                detail: Detail = await Detail.query().equal(code=h['code']).order_by(Detail.day.desc()).first()
+                hold_fund += round(detail.current_price * h['shares'], 2)
 
             # 更新当天沪深300指数价格
-            res: dict = await getStockHqFromTencent(HTTP_HOST_CLOUD, [{"sh000300": "沪深300", "sh000300count": 5}])
+            res: dict = await getStockHqFromTencent(HTTP_HOST_CLOUD, {"sh000300": "沪深300"})
             stockDo: StockModelDo = res['data'][0]
             capital: Capital = await Capital.get_one(current_day)
             await Capital.update(current_day, total=round(capital.available + hold_fund, 2), hold=round(hold_fund, 2), campare=stockDo.current_price)

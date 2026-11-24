@@ -122,10 +122,10 @@ async def calc_stock_real_data(code: str) -> dict[str, Any]:
     isEtf = code.startswith('1') or code.startswith('5')
     if isEtf:
         digit = 3
-        res_stock: dict = await getStockHqFromTencent('', [{code: "-", f"{code}count": 5}])
+        res_stock: dict = await getStockHqFromTencent('', {code: "-"})
     else:
         digit = 2
-        res_stock: dict = await getStockHq('', [{code: "-", f"{code}count": 5}])
+        res_stock: dict = await getStockHq('', {code: "-"})
     if not res_stock['data']:
         return None
     stockDo = StockModelDo.model_validate(res_stock['data'][0]).model_dump()

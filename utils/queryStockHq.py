@@ -6,6 +6,7 @@ import time
 import json
 import logging
 import traceback
+from typing import Any
 from warnings import deprecated
 from utils.model import StockModelDo, StockMinuteDo
 from utils.http_client import http, cffi_request
@@ -63,18 +64,18 @@ def generateStockCodeForSina(data: dict) -> str:
     return ",".join(s)
 
 
-async def getStockHqFromTencent(host: str, datas: list[dict]) -> dict[str, list]:
+async def getStockHqFromTencent(host: str, datas: dict[str, str]) -> dict[str, Any]:
     '''
     从腾讯获取股票实时行情数据
+
+    datas: {code: name}
     '''
-    result = {'data': [], 'error': [], 'closed': []}
+    result = {'data': [], 'error': None, 'closed': []}
     try:
-        error_list = []
+        error_dict = {}
         data_list = []
         closed_list = []
-        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-        stockCode = generateStockCode(dataDict)
+        stockCode = generateStockCode(datas)
         if host and host.startswith('http'):
             param_data = {"url": f"https://qt.gtimg.cn/q={stockCode}", "method": "GET"}
             res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
@@ -112,36 +113,32 @@ async def getStockHqFromTencent(host: str, datas: list[dict]) -> dict[str, list]
                 except:
                     logger.error(f"Tencent({host}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                     logger.error(traceback.format_exc())
-                    key_stock = f"{stockDo.code}count"
-                    if dataCount[key_stock] < 3:
-                        error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                    error_dict.update({stockDo.code: stockDo.name})
             result['data'] = data_list
-            result['error'] = error_list
+            result['error'] = error_dict
             result['closed'] = closed_list
         else:
             logger.error(f"Tencent({host}) - 请求未正常返回... {datas}")
-            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-            result['error'] = error_list
+            result['error'] = datas
     except:
         logger.error(f"Tencent({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-        result['error'] = error_list
+        result['error'] = datas
     return result
 
 
-async def getStockHqFromXueQiu(host: str, datas: list[dict]) -> dict[str, list]:
+async def getStockHqFromXueQiu(host: str, datas: dict[str, str]) -> dict[str, Any]:
     '''
     从雪球获取股票实时行情数据
+
+    datas: {code: name}
     '''
-    result = {'data': [], 'error': [], 'closed': []}
+    result = {'data': [], 'error': None, 'closed': []}
     try:
-        error_list = []
+        error_dict = {}
         data_list = []
         closed_list = []
-        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-        stockCode = generateStockCode(dataDict)
+        stockCode = generateStockCode(datas)
         if host and host.startswith('http'):
             param_data = {"url": f"https://stock.xueqiu.com/v5/stock/realtime/quotec.json?symbol={stockCode.upper()}", "method": "GET"}
             res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
@@ -154,7 +151,7 @@ async def getStockHqFromXueQiu(host: str, datas: list[dict]) -> dict[str, list]:
                     try:
                         stockDo = StockModelDo()
                         code = s['symbol'][2:]
-                        stockDo.name = dataDict[code]
+                        stockDo.name = datas[code]
                         stockDo.code = code
                         stockDo.current_price = s['current']
                         stockDo.open_price = s['open']
@@ -173,41 +170,36 @@ async def getStockHqFromXueQiu(host: str, datas: list[dict]) -> dict[str, list]:
                     except:
                         logger.error(f"XueQiu({host}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {s}")
                         logger.error(traceback.format_exc())
-                        key_stock = f"{stockDo.code}count"
-                        if dataCount[key_stock] < 3:
-                            error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                        error_dict.update({stockDo.code: stockDo.name})
                 result['data'] = data_list
-                result['error'] = error_list
+                result['error'] = error_dict
                 result['closed'] = closed_list
             else:
                 logger.error(f"XueQiu({host}) - 请求未正常返回...响应值: {res_json}")
-                error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-                result['error'] = error_list
+                result['error'] = datas
         else:
             logger.error(f"XueQiu({host}) - 请求未正常返回... {datas}")
-            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-            result['error'] = error_list
+            result['error'] = datas
     except:
         logger.error(f"XueQiu({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-        result['error'] = error_list
+        result['error'] = datas
     return result
 
 
-async def getStockHqFromSina(host: str, datas: list[dict]) -> dict[str, list]:
+async def getStockHqFromSina(host: str, datas: dict[str, str]) -> dict[str, Any]:
     '''
     从新浪获取股票实时行情数据
+
+    datas: {code: name}
     '''
-    result = {'data': [], 'error': [], 'closed': []}
+    result = {'data': [], 'error': None, 'closed': []}
     try:
-        error_list = []
+        error_dict = {}
         data_list = []
         closed_list = []
-        dataDict = {k: v for d in datas for k, v in d.items() if 'count' not in k}
-        dataCount = {k: v for d in datas for k, v in d.items() if 'count' in k}
-        stockCode = generateStockCode(dataDict)
-        stockCode_i = generateStockCodeForSina(dataDict)
+        stockCode = generateStockCode(datas)
+        stockCode_i = generateStockCodeForSina(datas)
         h = {
             'Referer': 'https://finance.sina.com.cn',
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
@@ -271,9 +263,7 @@ async def getStockHqFromSina(host: str, datas: list[dict]) -> dict[str, list]:
                 except:
                     logger.error(f"Sina({host}) - 数据解析保存失败, {stockDo.code} - {stockDo.name} - {line}")
                     logger.error(traceback.format_exc())
-                    key_stock = f"{stockDo.code}count"
-                    if dataCount[key_stock] < 3:
-                        error_list.append({stockDo.code: stockDo.name, key_stock: dataCount[key_stock] + 1})
+                    error_dict.update({stockDo.code: stockDo.name})
             for k, v in data_dict.items():
                 if k in stop_list:
                     continue
@@ -281,16 +271,14 @@ async def getStockHqFromSina(host: str, datas: list[dict]) -> dict[str, list]:
                 logger.info(f"Sina({host}): {v}")
             result['data'] = data_list
             result['closed'] = closed_list
-            result['error'] = error_list
+            result['error'] = error_dict
         else:
             logger.error(f"Sina({host}) - 请求未正常返回... {datas}")
-            error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-            result['error'] = error_list
+            result['error'] = datas
     except:
         logger.error(f"Sina({host}) - 出现异常...... {datas}")
         logger.error(traceback.format_exc())
-        error_list = [{k: (v + 1 if k.endswith('count') else v) for k, v in d.items()} for d in datas]
-        result['error'] = error_list
+        result['error'] = datas
     return result
 
 

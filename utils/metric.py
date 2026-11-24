@@ -56,8 +56,8 @@ class StrategyConfig:
     confirm_max_drop: float = -5.0    # T+1最大跌幅
 
     # ---------- 买入: 资金分配 ----------
-    amount_level_1: float = 20000.0
-    amount_level_2: float = 10000.0
+    amount_level_1: float = 40000.0
+    amount_level_2: float = 20000.0
     amount_level_3: float = 5000.0
     score_level_1: int = 100
     score_level_2: int = 85
