@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from utils.model import StockModelDo
 from utils.database import Detail
 from utils.http_client import http, cffi_request
-from utils.common import getStockRegion, getStockRegionNum, calc_MA
+from utils.common import getStockRegion, getStockRegionNum
 
 
 logger = logging.getLogger(__name__)
@@ -22,8 +22,8 @@ headers = {
 }
 
 
-# def calc_MA(data: List, window: int, digit: int = 2) -> float:
-#     return round(sum(data[-window:]) / len(data[-window:]), digit)
+def calc_MA(data: List, window: int, digit: int = 2) -> float:
+    return round(sum(data[-window:]) / len(data[-window:]), digit)
 
 
 # def calc_ema(current_price, previous_ema, period) -> float:
