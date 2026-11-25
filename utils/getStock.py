@@ -27,7 +27,7 @@ from utils.common import calc_MA, calc_macd, calc_kdj, get_past_date, real_trade
 from utils.common import queryByCodeForAI, get_holding, get_today_hold, getMarketCode
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import bollinger_bands, check_confirmation, detect_buy, detect_sell
-from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent, getStockDivideData
+from utils.selectStock import getStockOrderByFundFromSina, getStockZhuLiFundOrder, getStockDivideData
 from utils.selectStock import getStockZhuLiFund, getStockZhuLiFundFromSina, getStockBanKuaiFromDOngCai
 from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent
 from utils.etfData import getEtfShareFromSH, getEtfShareFromSZ
@@ -284,7 +284,7 @@ async def updateStockDetail(flag: int = 1):
                 logger.info(f"总共 {len(etfList)} 个 ETF ...")
 
                 # 更新主力流入数据
-                scheduler.add_job(updateStockFund, "date", run_date=datetime.now() + timedelta(seconds=10), args=[1], misfire_grace_time=10)
+                scheduler.add_job(updateStockFund, "date", run_date=datetime.now() + timedelta(seconds=10), misfire_grace_time=10)
         except:
             logger.error(traceback.format_exc())
 
@@ -336,43 +336,28 @@ async def checkTradeDay():
         await asyncio.sleep(3)
 
 
-async def updateStockFund(a=1):
+async def updateStockFund():
     try:
         tool: Tools = await Tools.get_one("openDoor")
         day = tool.value
         if day == time.strftime("%Y%m%d"):
             page_size = 20
             p = 0
-            if a == 1:
-                try:
-                    logger.info("使用腾讯财经更新主力资金～")
-                    while True:
-                        res = await getStockOrderByFundFromTencent(page_size, p, is_price=False)
-                        for r in res:
-                            await Detail.query().equal(code=r['code'], day=day).update(fund=r['fund'])
-                            logger.info(f"Update Stock Fund: {r['code']} - {r['fund']}")
-                        if len(res) == 0 or int((res[-1]['total'] + page_size - 1) / page_size) <= p:
-                            break
-                        p += 1
-                        await asyncio.sleep(6)
-                except:
-                    logger.error(traceback.format_exc())
-                    await updateStockFund(2)
-            else:
-                try:
-                    logger.info("使用新浪财经更新主力资金～")
-                    while True:
-                        res = await getStockOrderByFundFromSina(page_size, p, is_price=False)
-                        for r in res:
-                            await Detail.query().equal(code=r['code'], day=day).update(fund=r['fund'])
-                            logger.info(f"Update Stock Fund: {r['code']} - {r['fund']}")
-                        if len(res) == 0 or int((res[-1]['total'] + page_size - 1) / page_size) <= p:
-                            break
-                        p += 1
-                        await asyncio.sleep(6)
-                except Exception as e:
-                    logger.error(traceback.format_exc())
-                    sendEmail("Warning", f"获取所有股票的主力资金净流入数据失败 - {e}")
+            try:
+                logger.info("使用腾讯财经更新主力资金～")
+                while True:
+                    res = await getStockZhuLiFundOrder(page_size, p)
+                    for r in res:
+                        await Detail.query().equal(code=r['code'], day=day).update(fund=r['fund'])
+                        logger.info(f"Update Stock Fund: {r['code']} - {r['fund']}")
+                    if len(res) == 0 or int((res[-1]['total'] + page_size - 1) / page_size) <= p:
+                        break
+                    p += 1
+                    await asyncio.sleep(2)
+            except Exception as e:
+                logger.error(traceback.format_exc())
+                sendEmail("Warning", f"获取所有股票的主力资金净流入数据失败 - {e}")
+
             await asyncio.sleep(5)
             await checkUpdateStockFund()  # 更新漏网数据，如果有
 
@@ -398,7 +383,7 @@ async def checkUpdateStockFund():
                 fund = await getStockZhuLiFundFromSina(s.code)
             await Detail.update((s.code, s.day), fund=fund)
             logger.info(f"ReUpdate Stock Fund: {s.name} - {s.code} - {fund}")
-            await asyncio.sleep(8)
+            await asyncio.sleep(3)
     except:
         logger.error(traceback.format_exc())
 
@@ -832,15 +817,6 @@ async def auto_sell():
             await asyncio.sleep(2)
         await Capital.update(tool.value, available=round(available, 2))
         logger.info(f"sell stock task completed. after sell stock, current available fund is {available}")
-    except:
-        logger.error(traceback.format_exc())
-
-
-async def clear_auto_temp():
-    try:
-        days_diff = 2
-        past_day = get_past_date(days_diff=days_diff, date_format="%Y-%m-%d") + " 23:59:59"
-        await Transaction.query().equal(user_id=DEFAULT_USER_ID, flag=0, status=TradeType.TEMB).less_equal(create_time=past_day).delete()
     except:
         logger.error(traceback.format_exc())
 

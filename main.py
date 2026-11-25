@@ -172,6 +172,12 @@ class StockController(Controller):
         #     await views.auto_trade_etf()
         if idx == 'auto_trade':
             await getStock.auto_trade()
+        if idx == 'auto_sell':
+            await getStock.auto_sell()
+        if idx == 'buy_confirm':
+            await getStock.buy_confirm()
+        if idx == 'auto_buy':
+            await getStock.auto_buy()
         if idx == 'get_today_hold':
             result.data = await views.get_today_hold()
         # if idx == 'auto_analysize_etf':

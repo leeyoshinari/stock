@@ -171,44 +171,46 @@ async def getStockFundFlowFromDongCai(stockCode: str) -> dict[str, float]:
     return fflow
 
 
-async def getStockOrderByFundFromSina(page_size: int, p: int, is_price: bool = True) -> list[dict]:
+async def getStockOrderByFundFromSina(host: str, page_size: int, p: int) -> list[dict]:
     '''从新浪获取股票资金净流入排序, 分页从 0 开始'''
     '''https://gu.sina.cn/m/?vt=4&cid=76524&node_id=76524#/index/index'''
     fflow = []
     rand_num = time.strftime("%m%d%H%M%S")
     header = {'Referer': 'https://finance.sina.com.cn', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     url = f"https://cnrank.finance.sina.cn/getSymRankByNode?sort=rp_net&num={page_size}&hnew=1&hcnew=1&asc=0&node=hs&page={p + 1}&callback=hqccall{rand_num}"
-    res = await http.get(url, headers=header)
+    if host and host.startswith('http'):
+        param_data = {"url": url, "method": "GET", "headers": header}
+        res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
+    else:
+        res = await http.get(url, headers=header)
     res_json = json.loads(res.text.split('(')[1].split(')')[0])
     for k in res_json['data']:
         try:
             fund = round(float(k['rp_net']) / 10000, 2)
         except:
             fund = 0.0
-        if is_price:
-            fflow.append({'code': k['code'], 'name': k['name'], 'fund': fund, 'percent': float(k['percent']), 'price': float(k['price'])})
-        else:
-            fflow.append({'code': k['code'], 'fund': fund, 'total': res_json['total']})
+        fflow.append({'code': k['code'], 'name': k['name'], 'fund': fund, 'total': res_json['total'], 'percent': float(k['percent']), 'price': float(k['price'])})
     return fflow
 
 
-async def getStockOrderByFundFromTencent(page_size: int, p: int, is_price: bool = True) -> list[dict]:
+async def getStockOrderByFundFromTencent(host: str, page_size: int, p: int) -> list[dict]:
     '''从腾讯获取股票资金净流入排序, 分页从 0 开始'''
     '''网页：https://stockapp.finance.qq.com/mstats/#mod=list&id=hs_hsj&module=hs&type=hsj&sort=6&page=1&max=20'''
     fflow = []
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'}
     url = f'https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?_appver=11.17.0&board_code=aStock&sort_type=netMainIn&direct=down&offset={page_size * p}&count={page_size}'
-    res = await http.get(url, headers=header)
+    if host and host.startswith('http'):
+        param_data = {"url": url, "method": "GET", "headers": header}
+        res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={'Content-Type': 'application/json'})
+    else:
+        res = await http.get(url, headers=header)
     res_json = json.loads(res.text)
     for k in res_json['data']['rank_list']:
         try:
             fund = float(k['zljlr'])
         except:
             fund = 0.0
-        if is_price:
-            fflow.append({'code': k['code'][2:], 'name': k['name'], 'fund': fund, 'percent': float(k['zdf']), 'price': float(k['zxj'])})
-        else:
-            fflow.append({'code': k['code'][2:], 'fund': fund, 'total': res_json['data']['total']})
+        fflow.append({'code': k['code'][2:], 'name': k['name'], 'fund': fund, 'total': res_json['data']['total'], 'percent': float(k['zdf']), 'price': float(k['zxj'])})
     return fflow
 
 
@@ -339,10 +341,31 @@ async def getStockZhuLiFundFromTencentVercel(code: str) -> float:
 async def getStockZhuLiFundFromTencentNetlify(code: str) -> float:
     return await getStockZhuLiFundFromTencent(HTTP_HOST_NETLIFY, code)
 
-getStockHqList = [getStockZhuLiFundFromTencentLocal, getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencentCloud, getStockZhuLiFundFromTencentVercel, getStockZhuLiFundFromTencentNetlify]
-fund_dispatcher = AsyncRoundRobinDispatcher(methods=getStockHqList, max_retries=3, timeout=30, cooldown=120, name="ZhuLiFundDispatcher")
+
+async def getStockZhuLiFundOrderFromTencentLocal(page_size: int, p: int) -> list[dict]:
+    return await getStockOrderByFundFromTencent('', page_size, p)
+
+
+async def getStockZhuLiFundOrderFromTencentCloud(page_size: int, p: int) -> list[dict]:
+    return await getStockOrderByFundFromTencent(HTTP_HOST_CLOUD, page_size, p)
+
+
+async def getStockZhuLiFundOrderFromTencentVercel(page_size: int, p: int) -> list[dict]:
+    return await getStockOrderByFundFromTencent(HTTP_HOST_VERCEL, page_size, p)
+
+
+async def getStockZhuLiFundOrderFromTencentNetlify(page_size: int, p: int) -> list[dict]:
+    return await getStockOrderByFundFromTencent(HTTP_HOST_NETLIFY, page_size, p)
+
+stockZhuLiFundList = [getStockZhuLiFundFromTencentLocal, getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencentCloud, getStockZhuLiFundFromTencentVercel, getStockZhuLiFundFromTencentNetlify]
+fund_dispatcher = AsyncRoundRobinDispatcher(methods=stockZhuLiFundList, max_retries=3, timeout=30, cooldown=120, name="ZhuLiFundDispatcher")
+stockFundOrderList = [getStockZhuLiFundOrderFromTencentLocal, getStockZhuLiFundOrderFromTencentCloud, getStockZhuLiFundOrderFromTencentVercel, getStockZhuLiFundOrderFromTencentNetlify]
+fund_order_dispatcher = AsyncRoundRobinDispatcher(methods=stockFundOrderList, max_retries=3, timeout=30, cooldown=120, name="ZhuLiFundOrderDispatcher")
 
 
 async def getStockZhuLiFund(*args, **kwargs):
-    """ ETF如果需要获取份额和溢价率，只能单独调 `getStockHqFromTencent` 方法，其他情况可以调用这个方法。"""
     return await fund_dispatcher.call(*args, **kwargs)
+
+
+async def getStockZhuLiFundOrder(*args, **kwargs):
+    return await fund_order_dispatcher.call(*args, **kwargs)
