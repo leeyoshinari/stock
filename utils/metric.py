@@ -167,7 +167,7 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
         return None
 
     # 一字板，成交量和量比没意义
-    if d['min_price'] == d['max_price']:
+    if d['min_price'] == d['max_price'] or prev['min_price'] == prev['max_price'] or data[-3]['min_price'] == data[-3]['max_price']:
         return None
 
     # 站上均线
