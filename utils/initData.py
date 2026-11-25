@@ -235,14 +235,12 @@ async def update_stock_turnover_rate(code):
         logger.error(traceback.format_exc())
 
 
-@deprecated("可能需要提供东方财富的cookie")
-async def getStockFundFlow(code, cookie=None):
+async def getStockFundFlow(code: str):
     '''从东方财富获取资金流向
     https://data.eastmoney.com/zjlx/002149.html
     '''
-    cookie = cookie if cookie else "qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_sp=2025-11-19%2014%3A19%3A16; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858; st_asi=delete"
     header = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-              'host': 'push2his.eastmoney.com', 'origin': 'https://data.eastmoney.com', 'referer': 'https://data.eastmoney.com/zjlx/002149.html', 'cookie': cookie,
+              'host': 'push2his.eastmoney.com', 'origin': 'https://data.eastmoney.com', 'referer': 'https://data.eastmoney.com/zjlx/002149.html', 'cookie': 'qgqp_b_id=652bf4c98a74e210088f372a17d4e27b; st_nvi=ulN5JAj9FUocz3p4klMME9f20; emshistory=%5B%22603777%22%5D; nid18=010d039dd427dc4d187090491f47d7ad; nid18_create_time=1764582801999; gviem=gSdeY51VWSuTzM3kWaagtf560; gviem_create_time=1764582801999; st_si=55269775884615; st_pvi=66803244437563; st_inirUrl=https%3A%2F%2Fso.eastmoney.com%2Fnews%2Fs; st_sn=2; st_psi=20251201223210488-118000300905-0940816858;',
               "Accept": "*/*", "Accept-Language": "zh-CN,zh;q=0.9", "sec-fetch-dest": "empty", "sec-fetch-mode": "cors", "sec-fetch-site": "same-site"}
     try:
         random_str = str(time.time()).replace('.', '')

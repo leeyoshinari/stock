@@ -9,7 +9,7 @@ import logging
 import traceback
 # import aiofiles
 from datetime import datetime, timedelta
-from utils.model import SearchStockParam, StockModelDo, StockMinuteDo, updateFundDo
+from utils.model import SearchStockParam, StockModelDo, StockMinuteDo
 from utils.model import StockInfoList, ToolsInfoList, SetStockParam, TradeRecordList
 from utils.model import EtfInfoList, TradeStockList, SetStockHold, AnalysisResultList
 from utils.results import Result
@@ -319,15 +319,15 @@ async def init_stock_data(code: str) -> Result:
     return result
 
 
-async def init_stock_fund_data(query: updateFundDo) -> Result:
+async def init_stock_fund_data(code: str) -> Result:
     result = Result()
     try:
-        if query.code.startswith('1') or query.code.startswith('5'):
-            stock: ETF = await ETF.get_one(query.code)
+        if code.startswith('1') or code.startswith('5'):
+            stock: ETF = await ETF.get_one(code)
         else:
-            stock: Stock = await Stock.get_one(query.code)
-        await getStockFundFlow(query.code, query.cookie)
-        logger.info(f"更新股票主力资金数据成功 - {query.code} - {stock.name}")
+            stock: Stock = await Stock.get_one(code)
+        await getStockFundFlow(code)
+        logger.info(f"更新股票主力资金数据成功 - {stock.code} - {stock.name}")
     except Exception as e:
         logger.error(traceback.format_exc())
         result.success = False

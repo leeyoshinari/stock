@@ -13,9 +13,9 @@ import traceback
 import aiofiles
 from datetime import datetime, timedelta
 from sqlalchemy.exc import NoResultFound
-from settings import BATCH_SIZE, BATCH_INTERVAL, HTTP_HOST_CLOUD, HTTP_HOST_VERCEL, HTTP_HOST_NETLIFY
+from settings import BATCH_SIZE, HTTP_HOST_CLOUD, HTTP_HOST_VERCEL, HTTP_HOST_NETLIFY
 from settings import BASE_PATH, BACKUP_PATH, EMAIL_TEMPLATE, DEFAULT_USER_ID
-from settings import stock_fee_ratio, etf_fee_ratio, stamp_duty
+from settings import stock_fee_ratio, stamp_duty
 from utils.model import StockModelDo
 from utils.dispatcher import AsyncRoundRobinDispatcher
 from utils.scheduler import scheduler
@@ -24,8 +24,8 @@ from utils.backup import zip_file
 from utils.send_email import sendEmail
 from utils.initData import initStockData
 from utils.common import calc_MA, calc_macd, calc_kdj, get_past_date, real_traded_minutes
-from utils.common import queryByCodeForAI, get_holding, get_today_hold
-from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu, getStockHq
+from utils.common import queryByCodeForAI, get_holding, get_today_hold, getMarketCode
+from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import bollinger_bands, check_confirmation, detect_buy, detect_sell
 from utils.selectStock import getStockOrderByFundFromSina, getStockOrderByFundFromTencent, getStockDivideData
 from utils.selectStock import getStockZhuLiFund, getStockZhuLiFundFromSina, getStockBanKuaiFromDOngCai
@@ -718,8 +718,9 @@ async def updateStockDivideData():
         day = f"{tool.value[:4]}-{tool.value[4:6]}-{tool.value[6:]}"
         res = await getStockDivideData(day)
         for r in res:
-            await initStockData(r['code'], r['name'])
-            await asyncio.sleep(30)
+            if getMarketCode(r['code']):
+                await initStockData(r['code'], r['name'])
+                await asyncio.sleep(30)
     except:
         logger.error(traceback.format_exc())
 

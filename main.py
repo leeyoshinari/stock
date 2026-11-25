@@ -95,20 +95,6 @@ class StockController(Controller):
             result = await views.all_etf_info(query)
         return result
 
-    @get('/stock/init', summary="初始化股票数据")
-    async def init_stock_data(self, request: Request, code: str) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.init_stock_data(code)
-        return result
-
-    @post('/stock/fund/update', summary="更新股票主力资金数据")
-    async def init_stock_fund_data(self, request: Request, data: model.updateFundDo) -> Result:
-        result = Result()
-        if checkout(request.headers.get('referered', '123')):
-            result = await views.init_stock_fund_data(data)
-        return result
-
     @post('/set/stock', summary="设置股票数据(添加/删除标签)")
     async def set_stock(self, request: Request, data: model.SetStockParam) -> Result:
         result = Result()
@@ -177,10 +163,10 @@ class StockController(Controller):
             result = await views.getTradeData()
         return result
 
-    @post('/test')
-    async def test(self, request: Request, idx: str, code: str) -> Result:
+    @get('/test')
+    async def test(self, request: Request, idx: str, key: str, code: str) -> Result:
         result = Result()
-        if ACCESS_KEY and code != ACCESS_KEY:
+        if ACCESS_KEY and key != ACCESS_KEY:
             return result
         # if idx == 'auto_trade_etf':
         #     await views.auto_trade_etf()
@@ -191,15 +177,19 @@ class StockController(Controller):
         # if idx == 'auto_analysize_etf':
         #     await views.auto_analysize_etf()
         if idx == 'update_holding_capital':
-            await getStock.update_holding_capital()
+            await getStock.update_holding_capital()     # 处理交易记录，更新清仓数据
         if idx == 'auto_select_email':
             await getStock.auto_select_email()
         if idx == 'updateStockDivideData':
-            await getStock.updateStockDivideData()
+            await getStock.updateStockDivideData()      # 获取派息除权信息，更新股票K线数据
         if idx == 'checkTradeDay':
-            await getStock.checkTradeDay()
+            await getStock.checkTradeDay()              # 检查今天是否开市
         if idx == 'updateStockDetail':
-            await getStock.updateStockDetail()
+            await getStock.updateStockDetail()          # 更新股票数据, 并备份数据库
+        if idx == 'init_stock_data':
+            await views.init_stock_data(code)           # 初始化股票数据
+        if idx == 'init_stock_fund_data':
+            await views.init_stock_fund_data(code)      # 更新股票主力资金数据
         return result
 
 

@@ -140,11 +140,6 @@ class ToolsInfoList(BaseModel):
         return cls(key=obj.key, value=obj.value, update_time=obj.update_time.strftime("%Y-%m-%d %H:%M:%S"))
 
 
-class updateFundDo(BaseModel):
-    code: str
-    cookie: str
-
-
 class SetStockHold(BaseModel):
     code: str
     status: int
