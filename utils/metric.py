@@ -159,7 +159,7 @@ def detect_buy(data: list[dict], cfg: StrategyConfig = None, positions: list[dic
         return None
 
     # 主力资金
-    if isFund and d['fund'] < 100:
+    if isFund and d['fund'] < 1000:
         return None
 
     # 当前价必须大于开盘价，避免高开低走
@@ -381,7 +381,7 @@ def check_confirmation(data: list[dict], cfg: StrategyConfig = None) -> tuple[bo
     signal_day = data[-2]
     confirm_day = data[-1]
 
-    if confirm_day['fund'] < 100:
+    if confirm_day['fund'] < 1000:
         return False, None
 
     # 条件1: T+1收盘价不能比信号日跌太多
