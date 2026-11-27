@@ -792,8 +792,16 @@ class Stock(Base, CRUDBase):
     region = Column(String(16), nullable=True, comment="地域")
     industry = Column(String(32), nullable=True, comment="行业")
     concept = Column(String(255), nullable=True, comment="概念")
+    pe_ttm = Column(Float, nullable=True, comment="市盈率(TTM)")
+    pb_ttm = Column(Float, nullable=True, comment="市净率(TTM)")
+    dividend = Column(Float, nullable=True, comment="股息率(TTM)")
+    capital = Column(Float, nullable=True, comment="总市值(亿)")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __sortable__ = {
+        'pe_ttm': pe_ttm, 'pb_ttm': pb_ttm, 'dividend': dividend, 'capital': capital
+    }
 
 
 class Detail(Base, CRUDBase):
@@ -829,6 +837,9 @@ class Detail(Base, CRUDBase):
     fund = Column(Float, nullable=True, comment="主力资金")
     boll_up = Column(Float, nullable=True, comment="Boll up")
     boll_low = Column(Float, nullable=True, comment="Boll low")
+    pe_ttm = Column(Float, nullable=True, comment="市盈率(TTM)")
+    pb_ttm = Column(Float, nullable=True, comment="市净率(TTM)")
+    capital = Column(Float, nullable=True, comment="总市值(亿)")
     create_time = Column(DateTime, default=datetime.now)
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

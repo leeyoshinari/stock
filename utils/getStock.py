@@ -27,7 +27,7 @@ from utils.common import calc_MA, calc_macd, calc_kdj, get_past_date, real_trade
 from utils.common import queryByCodeForAI, get_holding, get_today_hold, getMarketCode
 from utils.queryStockHq import getStockHqFromTencent, getStockHqFromSina, getStockHqFromXueQiu
 from utils.metric import bollinger_bands, check_confirmation, detect_buy, detect_sell
-from utils.selectStock import getStockOrderByFundFromSina, getStockZhuLiFundOrder, getStockDivideData
+from utils.selectStock import getStockZhuLiFundOrder, getStockDivideData, getStockDetail
 from utils.selectStock import getStockZhuLiFund, getStockZhuLiFundFromSina, getStockBanKuaiFromDOngCai
 from utils.etfData import getEtfInfoFromSH, getEtfInfoFromSZ, getEtfDetailFromDongCai, getHoldStockOfEtfFromTencent
 from utils.etfData import getEtfShareFromSH, getEtfShareFromSZ
@@ -285,6 +285,8 @@ async def updateStockDetail(flag: int = 1):
 
                 # 更新主力流入数据
                 scheduler.add_job(updateStockFund, "date", run_date=datetime.now() + timedelta(seconds=10), misfire_grace_time=10)
+                # 获取股票数据，成交额、市值、市盈率、市净率
+                scheduler.add_job(update_stock_detail_capital, "date", run_date=datetime.now() + timedelta(seconds=12), misfire_grace_time=10)
         except:
             logger.error(traceback.format_exc())
 
@@ -852,6 +854,26 @@ async def update_holding_capital():
             stockDo: StockModelDo = res['data'][0]
             capital: Capital = await Capital.get_one(current_day)
             await Capital.update(current_day, total=round(capital.available + hold_fund, 2), hold=round(hold_fund, 2), campare=stockDo.current_price)
+    except:
+        logger.error(traceback.format_exc())
+
+
+async def update_stock_detail_capital():
+    try:
+        tool: Tools = await Tools.get_one("openDoor")
+        current_day = tool.value
+        if current_day == time.strftime("%Y%m%d"):
+            page = 1
+            total_page = 80
+            while page <= total_page:
+                res = await getStockDetail(page)
+                total_page = int((res[0]['total'] + 59) / 60)
+                for r in res:
+                    await Detail.update((r['code'], current_day), pe_ttm=r['pe_ttm'], pb_ttm=r['pb_ttm'], capital=r['capital'])
+                    await Stock.update(r['code'], pe_ttm=r['pe_ttm'], pb_ttm=r['pb_ttm'], capital=r['capital'], dividend=r['dividend_yield'])
+                    logger.info(f"update stock pe_pb_capital_dividend - {r['code']}, pe_ttm:{r['pe_ttm']}, pb_ttm:{r['pb_ttm']}, capital:{r['capital']}, dividend:{r['dividend_yield']}")
+                await asyncio.sleep(5)
+
     except:
         logger.error(traceback.format_exc())
 

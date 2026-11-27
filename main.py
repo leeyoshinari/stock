@@ -196,6 +196,8 @@ class StockController(Controller):
             await views.init_stock_data(code)           # 初始化股票数据
         if idx == 'init_stock_fund_data':
             await views.init_stock_fund_data(code)      # 更新股票主力资金数据
+        if idx == 'update_stock_detail_capital':
+            await getStock.update_stock_detail_capital()    # 获取股票数据，成交额、市值、市盈率、市净率
         return result
 
 

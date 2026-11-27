@@ -354,7 +354,7 @@ async def getStockDetailFromXueQiu(host: str, page: int) -> list[dict]:
             pe_ttm = round(r['pe_ttm'], 2) if r['pe_ttm'] else r['pe_ttm']       # 市盈率(TTM)
             pb_ttm = round(r['pb_ttm'], 2) if r['pb_ttm'] else r['pb_ttm']       # 市净率(TTM)
             dividend_yield = round(r['dividend_yield'], 2) if r['dividend_yield'] else r['dividend_yield']       # 股息率(TTM)
-            result.append({'code': code, 'capital': capital, 'shares': shares, 'amount': amount, 'pe_ttm': pe_ttm, 'pb_ttm': pb_ttm, 'dividend_yield': dividend_yield})
+            result.append({'total': res_json['data']['count'], 'code': code, 'capital': capital, 'shares': shares, 'amount': amount, 'pe_ttm': pe_ttm, 'pb_ttm': pb_ttm, 'dividend_yield': dividend_yield})
     except json.decoder.JSONDecodeError:
         logger.error(res.text)
         logger.error(traceback.format_exc())
@@ -419,7 +419,7 @@ stockDetailList = [getStockDetailFromLocal, getStockDetailFromCloud, getStockDet
 stock_detail_dispatcher = AsyncRoundRobinDispatcher(methods=stockDetailList, max_retries=3, timeout=30, cooldown=120, name="StockDetailDispatcher")
 
 
-async def getStockZhuLiFund(*args, **kwargs):
+async def getStockZhuLiFund(*args, **kwargs) -> float:
     """获取单个股票的主力资金
 
     :params code: code
@@ -427,7 +427,7 @@ async def getStockZhuLiFund(*args, **kwargs):
     return await fund_dispatcher.call(*args, **kwargs)
 
 
-async def getStockZhuLiFundOrder(*args, **kwargs):
+async def getStockZhuLiFundOrder(*args, **kwargs) -> list[dict]:
     """获取整个市场的主力资金
 
     :params page_size: int 每页大小
@@ -436,8 +436,8 @@ async def getStockZhuLiFundOrder(*args, **kwargs):
     return await fund_order_dispatcher.call(*args, **kwargs)
 
 
-async def getStockDetail(*args, **kwargs):
-    """从同花顺中获取股票数据，成交额、市值、市盈率、市净率
+async def getStockDetail(*args, **kwargs) -> list[dict]:
+    """获取股票数据，成交额、市值、市盈率、市净率
 
     :params page: int 第几页
     """
