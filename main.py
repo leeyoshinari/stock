@@ -65,7 +65,7 @@ class StockController(Controller):
         return result
 
     @get('/stock/list', summary="查询股票列表")
-    async def all_stock_list(self, request: Request, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", userId: int = None, page: int = 1, pageSize: int = 20) -> Result:
+    async def all_stock_list(self, request: Request, code: str = "", name: str = "", filter: str = "", region: str = "", industry: str = "", concept: str = "", sortField: str = "-create_time", userId: int = None, page: int = 1, pageSize: int = 20) -> Result:
         result = Result()
         if checkout(request.headers.get('referered', '123')):
             query = model.SearchStockParam()
@@ -75,6 +75,7 @@ class StockController(Controller):
             query.industry = industry if industry else ""
             query.concept = concept if concept else ""
             query.filter = filter if filter else ""
+            query.sortField = sortField if sortField else '-create_time'
             query.userId = userId
             query.page = page
             query.pageSize = pageSize

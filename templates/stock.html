@@ -37,6 +37,19 @@
                 <div>
                     <label>概念：</label> <input type="text" id="stock-concept" placeholder="" autocomplete="off">
                 </div>
+                <div>
+                    <label>排序：</label> <select id="order-by" onchange="change_select();">
+                        <option value="-create_time"></option>
+                        <option value="-pe_ttm">市盈率降序</option>
+                        <option value="+pe_ttm">市盈率升序</option>
+                        <option value="-pb_ttm">市净率降序</option>
+                        <option value="+pb_ttm">市净率升序</option>
+                        <option value="-dividend">股息率降序</option>
+                        <option value="+dividend">股息率升序</option>
+                        <option value="-capital">总市值降序</option>
+                        <option value="+capital">总市值升序</option>
+                    </select>
+                </div>
             </div>
             <div class="header-filter">
                 <div>
@@ -54,6 +67,10 @@
             <div class="item-header item-headers">
                 <div>名称</div>
                 <div>代码</div>
+                <div>市盈率(TTM)</div>
+                <div>市净率(TTM)</div>
+                <div>股息率(TTM)</div>
+                <div>总市值(亿)</div>
                 <div>AI</div>
                 <div>地区</div>
                 <div>行业</div>

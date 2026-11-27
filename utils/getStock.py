@@ -867,11 +867,14 @@ async def update_stock_detail_capital():
             total_page = 80
             while page <= total_page:
                 res = await getStockDetail(page)
-                total_page = int((res[0]['total'] + 59) / 60)
+                if page < 3:
+                    total_page = int((res[0]['total'] + 59) / 60)
                 for r in res:
                     await Detail.update((r['code'], current_day), pe_ttm=r['pe_ttm'], pb_ttm=r['pb_ttm'], capital=r['capital'])
                     await Stock.update(r['code'], pe_ttm=r['pe_ttm'], pb_ttm=r['pb_ttm'], capital=r['capital'], dividend=r['dividend_yield'])
                     logger.info(f"update stock pe_pb_capital_dividend - {r['code']}, pe_ttm:{r['pe_ttm']}, pb_ttm:{r['pb_ttm']}, capital:{r['capital']}, dividend:{r['dividend_yield']}")
+                logger.info(f"当前进度 - {page} / {total_page}")
+                page += 1
                 await asyncio.sleep(5)
 
     except:

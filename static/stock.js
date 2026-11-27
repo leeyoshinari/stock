@@ -62,6 +62,7 @@ function getStockList() {
     let url = prefix + `/stock/list?pageSize=${pageSize}&page=${page}`;
     let stock_name = document.getElementById("stock-name").value;
     let stock_code = document.getElementById("stock-code").value;
+    let order_by = document.getElementById("order-by").value;
     let userId = localStorage.getItem('userId') || defaultUserId;
     if (stock_code && stock_code.trim()) {
         url = url + `&code=${stock_code}`;
@@ -81,6 +82,9 @@ function getStockList() {
     if (concept && concept.trim()) {
         url = url + `&concept=${concept}`;
     }
+    if (order_by && order_by.trim()) {
+        url = url + `&sortField=${order_by}`;
+    }
     if (userId && userId.trim()) {
         url = url + `&userId=${userId}`;
     }
@@ -94,6 +98,7 @@ function getStockList() {
                     setFlag = `<img id="show-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="show_stock_filter('${item.code}');" />`;
                 }
                 s += `<div id="${item.code}" class="item-list"><div><a onclick="get_stock_figure('${item.code}');">${item.name}</a><img id="hold-${item.code}" src="${prefix}/static/copy.svg" alt="" onclick="hold_stock('${item.code}', '${item.name}');" />${setFlag}</div><div><a onclick="get_stock_real_figure('${item.code}');">${item.code}</a><img id="copy-${item.code}" src="${prefix}/static/copy.svg" alt="" /></div>
+                      <div>${item.pe_ttm ? item.pe_ttm : '-'}</div><div>${item.pb_ttm ? item.pb_ttm : '-'}</div><div>${item.dividend ? item.dividend + '%' : '-'}</div><div>${item.capital ? item.capital : '-'}</div>
                       <div><img id="shrink-${item.code}" src="${prefix}/static/shrink.svg" alt="" onclick="analysize_stock_ai('${item.code}', '${item.name}');" style="width:20px;" /></div>
                       <div><a target="_blank" href="https://quote.eastmoney.com/concept/${getStockRegion(item.code)}${item.code}.html#chart-k-cyq">${item.region}</a></div><div>${item.industry}</div><div id="concept-${item.code}" onclick="show_concept('${item.code}');">${item.concept}</div></div>`;
             })

@@ -220,16 +220,16 @@ async def all_stock_info(query: SearchStockParam) -> Result:
                 etfInfo: list[ETF] = await ETF.query().isin(code=hold_stock_list).all()
                 for f in etfInfo:
                     r = EtfInfoList.from_orm_format(f).model_dump()
-                    r.update({'filter': None, 'region': r['capital'], 'concept': json.dumps(r['stocks'], ensure_ascii=False)})
+                    r.update({'filter': None, 'pe_ttm': None, 'pb_ttm': None, 'dividend': None, 'region': None, 'capital': r['capital'], 'concept': json.dumps(r['stocks'], ensure_ascii=False)})
                     etfList.append(r)
             else:
-                stockInfo: list[Stock] = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).all()
+                stockInfo: list[Stock] = await Stock.query().like(name=query.name, region=query.region, industry=query.industry, concept=query.concept, filter=query.filter).order_by_key(Stock, query.sortField).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo] + etfList
             result.total = len(stockList)
         else:
             offset = (query.page - 1) * query.pageSize
             total_num: int = await Stock.query().equal(running=1).count()
-            stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by(Stock.create_time.desc()).offset(offset).limit(query.pageSize).all()
+            stockInfo: list[Stock] = await Stock.query().equal(running=1).order_by_key(Stock, query.sortField).offset(offset).limit(query.pageSize).all()
             stockList = [StockInfoList.from_orm_format(f).model_dump() for f in stockInfo]
             result.total = total_num
         result.data = stockList

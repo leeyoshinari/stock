@@ -101,6 +101,10 @@ class StockInfoList(BaseModel):
     region: str = None
     industry: str = None
     concept: str = None
+    pe_ttm: Optional[float] = None
+    pb_ttm: Optional[float] = None
+    dividend: Optional[float] = None
+    capital: Optional[float] = None
     create_time: str
     update_time: str
 
@@ -113,7 +117,7 @@ class StockInfoList(BaseModel):
         m = obj.update_time.strftime("%Y-%m-%d %H:%M:%S")
         filter = obj.filter if obj.filter is not None else ""
         return cls(code=obj.code, name=obj.name, running=obj.running, region=obj.region, industry=obj.industry, concept=obj.concept,
-                   create_time=c, update_time=m, filter=filter)
+                   create_time=c, update_time=m, filter=filter, pe_ttm=obj.pe_ttm, pb_ttm=obj.pb_ttm, dividend=obj.dividend, capital=obj.capital)
 
 
 class StockMinuteDo(BaseModel):

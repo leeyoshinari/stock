@@ -800,7 +800,7 @@ class Stock(Base, CRUDBase):
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     __sortable__ = {
-        'pe_ttm': pe_ttm, 'pb_ttm': pb_ttm, 'dividend': dividend, 'capital': capital
+        'pe_ttm': pe_ttm, 'pb_ttm': pb_ttm, 'dividend': dividend, 'capital': capital, 'create_time': create_time
     }
 
 
