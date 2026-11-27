@@ -14,7 +14,7 @@
             font-size: large;
             font-weight: bold;
         }
-        #today-list, #hold-list {
+        .item-list {
             width: 100%;
             display: flex;
             flex-direction: column;
@@ -22,7 +22,7 @@
             justify-content: space-around;
             align-items: center;
         }
-        #today-list>div, #hold-list>div {
+        .item-list>div {
             text-align: center;
             width: 100%;
             display: grid;
@@ -31,12 +31,12 @@
             align-items: center;
         }
         #hold-list>div {grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;}
-        #today-list>div > :first-child, #hold-list>div > :first-child {
+        .item-list>div > :first-child {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        #today-list>div:hover, #hold-list>div:hover {
+        .item-list>div:hover {
             background-color: #ffeaa7 !important;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
@@ -54,13 +54,16 @@
             <div class="capital-chart"><div id="capital-figure"></div></div>
         </div>
         <div class="today-list" style="margin-top:36px;">
-            <!--div class="title-header">今日交易</div-->
+            <div class="title-header">今日交易</div>
+            <div class="item-list" id="today-list"></div>
+        </div>
+        <div class="pending-list" style="margin-top:36px;">
             <div class="title-header">待确认交易</div>
-            <div id="today-list"></div>
+            <div class="item-list" id="pending-list"></div>
         </div>
         <div class="hold-list" style="margin-top:36px;">
             <div class="title-header">持仓列表</div>
-            <div id="hold-list"></div>
+            <div class="item-list" id="hold-list"></div>
         </div>
         <div class="stock-chart"><div id="figure"></div></div>
         <div class="stock-data"><div id="data-tips">

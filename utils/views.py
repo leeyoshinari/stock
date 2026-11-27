@@ -62,6 +62,7 @@ async def queryByCode(code: str, userId: int = None) -> Result:
         premium = []
         boll_up = []
         boll_low = []
+        capital = []
         for index, d in enumerate(data):
             bollinger.append(d[1])
             x.append(stockInfo[index].day)
@@ -82,6 +83,7 @@ async def queryByCode(code: str, userId: int = None) -> Result:
             kdjj.append(round(stockInfo[index].kdjj, 3))
             total_shares.append(round(stockInfo[index].shares, 2) if isEtf else None)
             premium.append(round(stockInfo[index].premium, 2) if isEtf else None)
+            capital.append(round(stockInfo[index].current_price * stockInfo[index].shares, 2) if isEtf else None)
             boll_up.append(stockInfo[index].boll_up)
             boll_low.append(stockInfo[index].boll_low)
         if isEtf:
@@ -116,6 +118,7 @@ async def queryByCode(code: str, userId: int = None) -> Result:
                 kdjj.append(round(stockDo['j'], 3))
                 total_shares.append(round(stockDo['shares'], 2) if isEtf else None)
                 premium.append(round(stockDo['premium'], 2) if isEtf else None)
+                capital.append(round(stockDo['current_price'] * stockDo['shares'], 2) if isEtf else None)
                 boll_up.append(stockDo['boll_up'])
                 boll_low.append(stockDo['boll_low'])
 
@@ -126,7 +129,7 @@ async def queryByCode(code: str, userId: int = None) -> Result:
         result.data = {
             'x': x, 'code': code, 'name': st.name, 'industry': st.industry, 'coord': coords, 'total_shares': total_shares if isEtf else None,
             'price': data, 'volume': volume, 'qrr': qrr, 'turnover_rate': turnover_rate, 'cost': cost,
-            'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up,
+            'ma_five': ma_five, 'ma_ten': ma_ten, 'ma_twenty': ma_twenty, 'boll_up': boll_up, 'capital': capital if isEtf else None,
             'diff': diff, 'dea': dea, 'macd': macd, 'fund': fund, 'profit': profit, 'shares': shares,
             'k': kdjk, 'd': kdjd, 'j': kdjj, 'boll_low': boll_low, 'premium': premium if isEtf else None
         }
@@ -474,7 +477,7 @@ async def getTradeData() -> Result:
             ratio.append(round(ra, 2))
             hs.append(round(hs_ra, 2))
         profit = round((capital[-1].total - TOTAL_FUND) / TOTAL_FUND * 100, 2)
-        result.data = {'todayList': res['todayList'], 'holdList': res['holdList'], 'day': day, 'ratio': ratio, 'hs': hs, 'profit': profit,
+        result.data = {'todayList': res['todayList'], 'holdList': res['holdList'], 'pendingList': res['pendingList'], 'day': day, 'ratio': ratio, 'hs': hs, 'profit': profit,
                        'currentDay': capital[-1].day, 'total': capital[-1].total, 'available': capital[-1].available, 'hold': capital[-1].hold}
         logger.info("query trade data success ~")
     except Exception as e:

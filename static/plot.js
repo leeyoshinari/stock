@@ -1,4 +1,4 @@
-function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, shares, premium, turnover_rate, fund, boll_up, boll_low, coords) {
+function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, qrr, diff, dea, macd, kdjk, kdjd, kdjj, shares, premium, turnover_rate, fund, boll_up, boll_low, capital, coords) {
   const downColor = '#00da3c';
   const upColor = '#ec0000';
   total_len = parseInt(120 / 600 * document.body.clientWidth * 0.8);
@@ -134,8 +134,11 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
       ],
       yAxis: [{
           scale: true,
+          gridIndex: 0,
+          splitNumber: 2,
           splitArea: {show: true},
-          min: 'dataMin'
+          min: 'dataMin',
+          position: 'left'
         },{
           scale: true,
           gridIndex: 1,
@@ -314,6 +317,16 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
       ]
   };
   if (isEtf) {
+    option.yAxis.push({
+      scale: true,
+      gridIndex: 0,
+      splitNumber: 2,
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      position: 'right'
+    });
     option.series.push({
       name: '份额(亿)',
       type: 'line',
@@ -336,6 +349,17 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
       lineStyle: {color: 'CornflowerBlue', opacity: 0.9, width: 1},
       itemStyle: { color: 'CornflowerBlue' }
     });
+    option.series.push({
+      name: '规模(亿)',
+      type: 'line',
+      xAxisIndex: 0,
+      yAxisIndex: 6,
+      data: capital,
+      smooth: true,
+      showSymbol: false,
+      lineStyle: {color: '#ff00ff', opacity: 0.9, width: 1},
+      itemStyle: { color: '#ff00ff' }
+    });
   } else {
     option.grid.push({
       left: '30px',
@@ -343,6 +367,7 @@ function plot_k_line(myChart, isEtf, title, x, price, volume, ma5, ma10, ma20, q
       top: '520px',
       height: '40px'
     });
+    option.xAxis[3].axisLine.show = true;
     option.xAxis.push({
       type: 'category',
       gridIndex: 4,

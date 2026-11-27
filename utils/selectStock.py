@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 
+import re
 import time
 import json
 import random
@@ -326,6 +327,42 @@ async def getStockDivideData(day: str) -> list[dict]:
     return result
 
 
+async def getStockDetailFromXueQiu(host: str, page: int) -> list[dict]:
+    """从雪球中获取股票数据，成交额、市值、市盈率
+
+    https://www.xueqiu.com/hq/detail?type=sha&market=CN&first_name=0&second_name=1
+
+    :params page: int 第几页
+    """
+    result = []
+    try:
+        header = {"host": "stock.xueqiu.com", "Referer": "https://www.xueqiu.com/",
+                  "cookie": "cookiesu=141775365190148; device_id=8fc5b1eaa2f27255f3a57e733348dad7; xq_a_token=d503b3910f0762d59ff11336e26e4f451c79a533; xqat=d503b3910f0762d59ff11336e26e4f451c79a533; xq_r_token=c91675d78f7249547546a492cd800b47017c2fcb; xq_id_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1aWQiOi0xLCJpc3MiOiJ1YyIsImV4cCI6MTc5NzkwMjg4NywiY3RtIjoxNzk1Njk0MjE5MDQ5LCJjaWQiOiJkOWQwbjRBWnVwIn0.XPG6HGrhCBK8XfgUepWjMSKJFLwJnEn04yfaQ50xAITQ1zGrLV2RscnGjrRcAZ6jXohv8xXQHRx-BI3xaI1KbpXH-0z3-RMovrGcBityHBS2_DoEJcRLunZBw73yiS2dhZ3UyT5JMvJF2UWt3lM8LvA2H9hSXdtz58Mhiu6aTxw6VnMfadVoedLcQVm4C84E_2MIoURshw5-ufNU9pHua0MVsOWxxog8MGgsymoRD1zB4YnM2qa0dTB13s57iC78AvFP4vT-FVJBVvPS1QCfDgsZdYdCBB9NP37HcgE_EJX1KAEB9E6SWVmeL8Bb_whqwI6idXChQOjhfmqA4T8UKA; HMACCOUNT=D4B8C27E984096B5; Hm_lpvt_1db88642e346389874251b5a1eded6e3=1795694277",
+                  "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"}
+        url = f"https://stock.xueqiu.com/v5/stock/screener/quote/list.json?page={page}&size=60&order=desc&order_by=percent&market=CN&type=sh_sz"
+        if host and host.startswith('http'):
+            param_data = {"url": url, "method": "GET", "headers": header}
+            res = await http.post(f'{host}/api/proxy', json_data=param_data, headers={})
+        else:
+            res = await http.get(url, headers=header)
+        res_json = json.loads(res.text)
+        for r in res_json['data']['list']:
+            code = r['symbol'][2:]
+            capital = round(r['market_capital'] / 100000000, 2)   # 总市值(亿)
+            shares = round(r['total_shares'] / 100000000, 2)      # 总股数(亿)
+            amount = round(r['amount'] / 100000000, 2)            # 成交额(亿)
+            pe_ttm = round(r['pe_ttm'], 2) if r['pe_ttm'] else r['pe_ttm']       # 市盈率(TTM)
+            pb_ttm = round(r['pb_ttm'], 2) if r['pb_ttm'] else r['pb_ttm']       # 市净率(TTM)
+            dividend_yield = round(r['dividend_yield'], 2) if r['dividend_yield'] else r['dividend_yield']       # 股息率(TTM)
+            result.append({'code': code, 'capital': capital, 'shares': shares, 'amount': amount, 'pe_ttm': pe_ttm, 'pb_ttm': pb_ttm, 'dividend_yield': dividend_yield})
+    except json.decoder.JSONDecodeError:
+        logger.error(res.text)
+        logger.error(traceback.format_exc())
+    except:
+        logger.error(traceback.format_exc())
+    return result
+
+
 async def getStockZhuLiFundFromTencentLocal(code: str) -> float:
     return await getStockZhuLiFundFromTencent('', code)
 
@@ -357,15 +394,51 @@ async def getStockZhuLiFundOrderFromTencentVercel(page_size: int, p: int) -> lis
 async def getStockZhuLiFundOrderFromTencentNetlify(page_size: int, p: int) -> list[dict]:
     return await getStockOrderByFundFromTencent(HTTP_HOST_NETLIFY, page_size, p)
 
+
+async def getStockDetailFromLocal(page: int) -> list[dict]:
+    return await getStockDetailFromXueQiu('', page)
+
+
+async def getStockDetailFromCloud(page: int) -> list[dict]:
+    return await getStockDetailFromXueQiu(HTTP_HOST_CLOUD, page)
+
+
+async def getStockDetailFromVercel(page: int) -> list[dict]:
+    return await getStockDetailFromXueQiu(HTTP_HOST_VERCEL, page)
+
+
+async def getStockDetailFromNetlify(page: int) -> list[dict]:
+    return await getStockDetailFromXueQiu(HTTP_HOST_NETLIFY, page)
+
+
 stockZhuLiFundList = [getStockZhuLiFundFromTencentLocal, getStockZhuLiFundFromDongCai, getStockZhuLiFundFromTencentCloud, getStockZhuLiFundFromTencentVercel, getStockZhuLiFundFromTencentNetlify]
 fund_dispatcher = AsyncRoundRobinDispatcher(methods=stockZhuLiFundList, max_retries=3, timeout=30, cooldown=120, name="ZhuLiFundDispatcher")
 stockFundOrderList = [getStockZhuLiFundOrderFromTencentLocal, getStockZhuLiFundOrderFromTencentCloud, getStockZhuLiFundOrderFromTencentVercel, getStockZhuLiFundOrderFromTencentNetlify]
 fund_order_dispatcher = AsyncRoundRobinDispatcher(methods=stockFundOrderList, max_retries=3, timeout=30, cooldown=120, name="ZhuLiFundOrderDispatcher")
+stockDetailList = [getStockDetailFromLocal, getStockDetailFromCloud, getStockDetailFromVercel, getStockDetailFromNetlify]
+stock_detail_dispatcher = AsyncRoundRobinDispatcher(methods=stockDetailList, max_retries=3, timeout=30, cooldown=120, name="StockDetailDispatcher")
 
 
 async def getStockZhuLiFund(*args, **kwargs):
+    """获取单个股票的主力资金
+
+    :params code: code
+    """
     return await fund_dispatcher.call(*args, **kwargs)
 
 
 async def getStockZhuLiFundOrder(*args, **kwargs):
+    """获取整个市场的主力资金
+
+    :params page_size: int 每页大小
+    :params p: int 第几页
+    """
     return await fund_order_dispatcher.call(*args, **kwargs)
+
+
+async def getStockDetail(*args, **kwargs):
+    """从同花顺中获取股票数据，成交额、市值、市盈率、市净率
+
+    :params page: int 第几页
+    """
+    return await stock_detail_dispatcher.call(*args, **kwargs)

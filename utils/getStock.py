@@ -784,7 +784,7 @@ async def buy_confirm():
             confirmed, buy_price = check_confirmation(k_line)
             if confirmed and buy_price is not None:
                 fee = max(buy_price * r.shares * stock_fee_ratio, 5)
-                await Transaction.update(r.id, price=buy_price, status=TradeType.RECD, fee=fee)
+                await Transaction.update(r.id, price=buy_price, status=TradeType.RECD, fee=fee, create_time=time.strftime("%Y-%m-%d %H:%M:%S"))
                 available = available - (buy_price * r.shares + fee)
                 logger.info(f"buy stock {r.code} - {r.name} success, price: {buy_price}, shares: {r.shares}")
             await asyncio.sleep(2)
@@ -861,11 +861,16 @@ async def auto_select_email():
         tradeStatus = {"TEMB": "买入", "TEMS": "卖出", "RECD": "买入", "AIS": "卖出"}
         res = await get_today_hold()
         today_str = ''
+        pending_str = ''
         hold_str = ''
         for r in res['todayList']:
+            today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td></tr>'''
+        for r in res['pendingList']:
             if r['status'] not in tradeStatus:
                 continue
-            today_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
+            pending_str += f'''<tr><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['name']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['code']}</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['create_time']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{tradeStatus[r['status']]}(待确认)</td>
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['price']}(预估)</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td></tr>'''
         for r in res['holdList']:
@@ -874,7 +879,7 @@ async def auto_select_email():
             <td style="border: 1px solid #e0e0e0; padding: 10px;">{r['shares']}</td><td style="border: 1px solid #e0e0e0; padding: 10px;">{r['profit']}</td></tr>'''
         async with aiofiles.open(EMAIL_TEMPLATE, 'r', encoding='utf-8') as f:
             template = await f.read()
-        template = template.replace("today_filter_stock", today_str).replace("has_hold_stock", hold_str)
+        template = template.replace("today_filter_stock", today_str).replace("pending_filter_stock", pending_str).replace("has_hold_stock", hold_str)
         sendEmail("今日数据", template)
         logger.info("send email success ~")
     except:
